@@ -1721,6 +1721,51 @@ FLOWS['images: home first load requests only what is near the first screen'] = a
   expect((await main.getAttribute('fetchpriority')) === 'high' && (await main.getAttribute('loading')) === 'eager', 'main product photo is not eager with high priority')
 }
 
+// On phones, the sideways product rows start on the page's left line (the heading's),
+// run off the right edge, and every swipe settles with a card on that same line.
+for (const width of [360, 390]) {
+  FLOWS[`home rows at ${width}px: start and snap on the page's left line`] = async () => {
+    const context = await browser.newContext({ isMobile: true, hasTouch: true, viewport: { width, height: 844 } })
+    const page = await context.newPage()
+    page.setDefaultTimeout(SCENE_TIMEOUT)
+    try {
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      const row = page.getByRole('region', { name: 'Highest rated' }).getByRole('list')
+      await row.locator('li').first().waitFor()
+      await row.scrollIntoViewIfNeeded()
+      const measure = () => row.evaluate((ul) => {
+        const cards = [...ul.children].map((li) => li.getBoundingClientRect())
+        return {
+          cards: cards.map((r) => Math.round(r.left)),
+          lastRight: Math.round(cards.at(-1).right),
+          heading: Math.round(ul.parentElement.querySelector('h2').getBoundingClientRect().left),
+          scrolled: ul.scrollLeft,
+        }
+      })
+      const start = await measure()
+      expect(start.cards[0] === start.heading, `first card at ${start.cards[0]}px, heading at ${start.heading}px`)
+      expect(start.lastRight > width, 'the row should run off the right edge')
+      // A real touch swipe of about a card and a half, then let it settle.
+      const box = await row.boundingBox()
+      const cdp = await context.newCDPSession(page)
+      const y = Math.round(box.y + box.height / 2)
+      const [from, to] = [width - 30, width - 30 - 260]
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] })
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(from + ((to - from) * i) / 10), y }] })
+        await page.waitForTimeout(16)
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await page.waitForTimeout(900)
+      const after = await measure()
+      expect(after.scrolled > 0, 'the swipe did not scroll the row')
+      expect(after.cards.includes(start.heading), `after a swipe no card sits on the ${start.heading}px line: ${after.cards.slice(0, 5).join(', ')}`)
+    } finally {
+      await context.close()
+    }
+  }
+}
+
 // The privacy contact is a real, working mailto link.
 FLOWS['privacy: contact is a working mailto link'] = async (page) => {
   await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })
