@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router'
 import { Layout } from './components/Layout'
 import { AddressesPage } from './pages/AddressesPage'
+import { AuthCallbackPage, SignInPage, SignUpPage } from './pages/AuthPages'
 import { CartPage } from './pages/CartPage'
 import { CheckoutPage } from './pages/CheckoutPage'
 import { ComparePage } from './pages/ComparePage'
@@ -26,6 +27,9 @@ export const router = createBrowserRouter([
       { path: '/addresses', element: <AddressesPage /> },
       { path: '/orders/:id/confirmation', element: <OrderConfirmationPage /> },
       { path: '/privacy', element: <PrivacyPage /> },
+      { path: '/signin', element: <SignInPage /> },
+      { path: '/signup', element: <SignUpPage /> },
+      { path: '/auth/callback', element: <AuthCallbackPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

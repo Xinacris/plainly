@@ -6,7 +6,7 @@ Resume from the first unticked item. First read this list and `git log`, and che
 
 - [x] 0. Setup: pinned `@supabase/supabase-js` and the Supabase CLI; `.env.test.local` pointed at plainly-test (it held production's URL and publishable key); production's "Confirm email" switched off, as decided; secret-scan guard.
 - [x] 1. Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly. Three files in `supabase/migrations/`, all three applied to both projects; advisors clean. `scripts/rls-test.mjs` passes all 31 checks against plainly-test. It caught that this project grants every table right to `authenticated` by default, which the third migration fixes.
-- [ ] 2. Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained
+- [x] 2. Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained. `/signin` (with the demo note and "Sign in as demo"), `/signup` and `/auth/callback`, plus the Account menu's Sign in / Sign out. supabase-js loads on demand, so guests don't download it. Entry points stay hidden in production until item 7 (`src/lib/accounts.ts`); test builds (`vite build --mode test`, pointed at plainly-test) show them.
 - [ ] 3. Profile page
 - [ ] 4. Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account
 - [ ] 5. Demo account: seed and reset script, sign-in page note, "Sign in as demo", README

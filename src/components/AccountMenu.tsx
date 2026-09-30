@@ -1,16 +1,19 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import { ACCOUNT_LINKS } from '../lib/accountLinks'
+import { useAccountLinks } from '../lib/accountLinks'
+import { AccountStatus } from './AccountStatus'
 
 // Desktop header: a small disclosure menu. Opens on click or Enter/Space, closes on
 // Escape (focus back to the button), on a click outside, when focus leaves it, or
-// when you follow a link. No sign-in: everything is kept in this browser.
+// when you follow a link. With accounts on, it also shows who's signed in, with
+// Sign in / Sign out.
 export function AccountMenu() {
   const [open, setOpen] = useState(false)
   const wrapper = useRef<HTMLDivElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const listId = useId()
   const { pathname } = useLocation()
+  const links = useAccountLinks()
 
   useEffect(() => {
     if (!open) return
@@ -44,8 +47,10 @@ export function AccountMenu() {
         </svg>
       </button>
       {open && (
-        <ul id={listId} className="absolute top-full right-0 z-40 mt-2 w-44 rounded-xl border border-border bg-surface p-1 shadow-lg">
-          {ACCOUNT_LINKS.map((l) => (
+        <div id={listId} className="absolute top-full right-0 z-40 mt-2 w-56 rounded-xl border border-border bg-surface p-1 shadow-lg">
+          <AccountStatus onDone={() => setOpen(false)} />
+          <ul>
+          {links.map((l) => (
             <li key={l.to}>
               <Link
                 to={l.to}
@@ -57,7 +62,8 @@ export function AccountMenu() {
               </Link>
             </li>
           ))}
-        </ul>
+          </ul>
+        </div>
       )}
     </div>
   )

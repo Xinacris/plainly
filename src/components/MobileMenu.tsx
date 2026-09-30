@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
-import { ACCOUNT_LINKS } from '../lib/accountLinks'
+import { useAccountLinks } from '../lib/accountLinks'
+import { AccountStatus } from './AccountStatus'
 import { BottomSheet } from './BottomSheet'
 import { ThemeToggle } from './ThemeToggle'
 
 // Phones only: Orders and the theme choice, in the same sheet as the filters
 // (focus trapped, Escape closes, focus returns to the menu button).
 export function MobileMenu() {
+  const links = useAccountLinks()
   const [open, setOpen] = useState(false)
 
   // The menu lives in a phones-only part of the header. If the screen grows past
@@ -34,7 +36,8 @@ export function MobileMenu() {
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Menu">
         <nav aria-label="Account">
           <h3 className="mb-1 px-1 text-sm font-bold">Account</h3>
-          {ACCOUNT_LINKS.map((l) => (
+          <AccountStatus onDone={() => setOpen(false)} large />
+          {links.map((l) => (
             <NavLink
               key={l.to}
               to={l.to}
