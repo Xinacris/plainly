@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Product } from '../lib/catalog'
+import { salePrice } from '../lib/pricing'
 
 export interface CartLine {
   productId: number
@@ -76,6 +77,6 @@ export function resolveCart(lines: CartLine[], catalog: Product[]): ResolvedLine
 export function cartTotals(lines: ResolvedLine[]): { itemCount: number; subtotal: number } {
   return {
     itemCount: lines.reduce((sum, l) => sum + l.quantity, 0),
-    subtotal: lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0),
+    subtotal: lines.reduce((sum, l) => sum + salePrice(l.product) * l.quantity, 0),
   }
 }

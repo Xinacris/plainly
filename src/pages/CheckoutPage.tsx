@@ -8,6 +8,7 @@ import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog } from '../lib/catalog'
 import { estimateDelivery, formatIsoDate, latestArrival, TRANSIT } from '../lib/delivery'
 import { formatPrice, pluralize } from '../lib/format'
+import { salePrice } from '../lib/pricing'
 import { validateAddress, type AddressErrors } from '../orders/address'
 import { EMPTY_ADDRESS, useLastAddress, useOrders, type Address, type OrderLine } from '../orders/orders'
 
@@ -19,7 +20,7 @@ function toOrderLine({ product, quantity }: ResolvedLine): OrderLine {
     productId: product.id,
     title: product.title,
     thumbnail: product.thumbnail,
-    price: product.price,
+    price: salePrice(product),
     quantity,
     shippingInformation: product.shippingInformation,
     returnPolicy: product.returnPolicy,

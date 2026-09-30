@@ -1,13 +1,13 @@
-import { Suspense, useId, useState } from 'react'
+import { Suspense, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
-import { maxQuantity, useCart, useCartQuantity } from '../cart/cart'
+import { DecisionCard } from '../components/DecisionCard'
 import { ProductImage } from '../components/ProductImage'
 import { Rating } from '../components/Rating'
 import { StatusMessage } from '../components/StatusMessage'
-import { StockNote } from '../components/StockNote'
-import { primaryButton, secondaryButton, textLink } from '../components/styles'
+import { secondaryButton } from '../components/styles'
 import { useProduct, type Product } from '../lib/catalog'
-import { formatCategory, formatPrice, formatRating, pluralize, reviewRating } from '../lib/format'
+import { TRANSIT } from '../lib/delivery'
+import { formatCategory, formatRating, pluralize, reviewRating } from '../lib/format'
 
 function Gallery({ product }: { product: Product }) {
   const [index, setIndex] = useState(0)
@@ -36,79 +36,32 @@ function Gallery({ product }: { product: Product }) {
   )
 }
 
-function AddToCart({ product }: { product: Product }) {
-  const add = useCart((s) => s.add)
-  const inCart = useCartQuantity(product.id)
-  const max = maxQuantity(product)
-  const remaining = max - inCart
-  const [quantity, setQuantity] = useState(1)
-  const [message, setMessage] = useState('')
-  const selectId = useId()
-
-  if (product.stock <= 0) return null
-
-  const handleAdd = () => {
-    const added = add(product.id, Math.min(quantity, remaining), max)
-    setMessage(`Added ${added} to your cart.`)
-    setQuantity(1)
-  }
-
+// Collapsible sections below the decision card. Native <details>, so they work
+// with keyboard and screen readers without any script.
+function Section({ title, open = false, children }: { title: string; open?: boolean; children: ReactNode }) {
   return (
-    <div className="mt-6 flex flex-col gap-3">
-      {remaining > 0 && (
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor={selectId} className="text-sm text-muted">
-              Quantity
-            </label>
-            <select
-              id={selectId}
-              value={Math.min(quantity, remaining)}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-text"
-            >
-              {Array.from({ length: remaining }, (_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="button" onClick={handleAdd} className={`${primaryButton} flex-1 sm:flex-none`}>
-            Add to cart
-          </button>
-        </div>
-      )}
-      {remaining <= 0 && (
-        <p className="text-sm text-muted">You have the most you can buy ({max}) in your cart.</p>
-      )}
-      <div aria-live="polite" className="text-sm">
-        {message && (
-          <p>
-            {message}{' '}
-            <Link to="/cart" className={textLink}>
-              View cart
-            </Link>
-          </p>
-        )}
-      </div>
-    </div>
+    <details open={open} className="group border-b border-border">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-lg font-bold tracking-tight [&::-webkit-details-marker]:hidden">
+        <h2>{title}</h2>
+        <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="pb-6">{children}</div>
+    </details>
   )
 }
 
 function Reviews({ product }: { product: Product }) {
   const count = product.reviews.length
-  if (count === 0) return null
+  if (count === 0) return <p className="text-muted">No reviews yet.</p>
   return (
-    <section aria-labelledby="reviews-heading" className="mt-12 border-t border-border pt-8">
-      <h2 id="reviews-heading" className="text-xl font-bold tracking-tight">
-        Reviews
-      </h2>
-      <p className="mt-1 text-sm text-muted">
+    <>
+      <p className="text-sm text-muted">
         The rating of {formatRating(reviewRating(product))} is the average of these {pluralize(count, 'review')}. That’s
         too few to rely on by itself.
       </p>
-      <ul className="mt-6 grid gap-4 md:grid-cols-3">
+      <ul className="mt-4 grid gap-4 md:grid-cols-3">
         {product.reviews.map((review, i) => (
           <li key={i} className="rounded-xl border border-border bg-surface p-4">
             <p className="font-semibold">
@@ -119,7 +72,20 @@ function Reviews({ product }: { product: Product }) {
           </li>
         ))}
       </ul>
-    </section>
+    </>
+  )
+}
+
+function DetailList({ rows }: { rows: [string, string][] }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[12rem_1fr]">
+      {rows.map(([label, value]) => (
+        <div key={label} className="contents">
+          <dt className="text-sm text-muted sm:text-base">{label}</dt>
+          <dd className="mb-2 sm:mb-0">{value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
@@ -140,26 +106,57 @@ function ProductDetails({ id }: { id: number }) {
     )
   }
 
+  const details: [string, string][] = [
+    ['Category', formatCategory(product.category)],
+    ...(product.brand ? [['Brand', product.brand] as [string, string]] : []),
+    ['SKU', product.sku],
+  ]
+
+  // Phones: title, then the decision card, then photos, so the facts are on the
+  // first screen. From md: photos on the left, title and card on the right.
   return (
     <article className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      <div className="grid gap-8 md:grid-cols-2 lg:gap-12">
-        <Gallery product={product} />
-        <div>
+      <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_1fr] lg:gap-x-12">
+        <div className="md:col-start-2">
           <p className="text-sm text-muted">
             {formatCategory(product.category)}
             {product.brand && ` · ${product.brand}`}
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-balance sm:text-3xl">{product.title}</h1>
           <Rating product={product} className="mt-2" />
-          <p className="mt-4 text-3xl font-bold">{formatPrice(product.price)}</p>
-          <div className="mt-2">
-            <StockNote product={product} />
-          </div>
-          <AddToCart product={product} />
-          <p className="mt-8 leading-relaxed">{product.description}</p>
+        </div>
+        <div className="md:col-start-2">
+          <DecisionCard product={product} />
+        </div>
+        <div className="md:col-start-1 md:row-span-2 md:row-start-1">
+          <Gallery product={product} />
         </div>
       </div>
-      <Reviews product={product} />
+
+      <div className="mt-10 border-t border-border">
+        <Section title="Description" open>
+          <p className="max-w-3xl leading-relaxed">{product.description}</p>
+        </Section>
+        <Section title={`Reviews (${product.reviews.length})`} open>
+          <Reviews product={product} />
+        </Section>
+        <Section title="Shipping, returns and warranty">
+          <DetailList
+            rows={[
+              ['Shipping', product.shippingInformation],
+              ['Returns', product.returnPolicy],
+              ['Warranty', product.warrantyInformation],
+            ]}
+          />
+          <p className="mt-4 max-w-3xl text-sm text-muted">
+            These are the seller’s own words. The delivery date above adds {TRANSIT.min}–{TRANSIT.max} business days in
+            transit to the shipping time, which is our assumption, so it’s an estimate.
+          </p>
+        </Section>
+        <Section title="Product details">
+          <DetailList rows={details} />
+        </Section>
+      </div>
     </article>
   )
 }

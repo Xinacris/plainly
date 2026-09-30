@@ -1,13 +1,15 @@
 import type { Product } from './catalog'
 import { reviewRating } from './format'
+import { salePrice } from './pricing'
 
-export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating'
+export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating' | 'discount'
 
 export const sortLabels: Record<SortKey, string> = {
   relevance: 'Relevance',
   'price-asc': 'Price: low to high',
   'price-desc': 'Price: high to low',
   rating: 'Highest rated',
+  discount: 'Biggest discount',
 }
 
 function normalize(text: string): string {
@@ -61,9 +63,10 @@ const byTitle = (a: SearchHit, b: SearchHit) => a.product.title.localeCompare(b.
 
 const comparators: Record<SortKey, (a: SearchHit, b: SearchHit) => number> = {
   relevance: (a, b) => b.score - a.score || reviewRating(b.product) - reviewRating(a.product) || byTitle(a, b),
-  'price-asc': (a, b) => a.product.price - b.product.price || byTitle(a, b),
-  'price-desc': (a, b) => b.product.price - a.product.price || byTitle(a, b),
+  'price-asc': (a, b) => salePrice(a.product) - salePrice(b.product) || byTitle(a, b),
+  'price-desc': (a, b) => salePrice(b.product) - salePrice(a.product) || byTitle(a, b),
   rating: (a, b) => reviewRating(b.product) - reviewRating(a.product) || byTitle(a, b),
+  discount: (a, b) => b.product.discountPercentage - a.product.discountPercentage || byTitle(a, b),
 }
 
 export function sortHits(hits: SearchHit[], sort: SortKey): Product[] {

@@ -13,9 +13,12 @@ export interface Product {
   title: string
   description: string
   category: string
+  /** List price before the discount; see lib/pricing.ts. */
   price: number
+  discountPercentage: number
   stock: number
   brand?: string
+  sku: string
   availabilityStatus: 'In Stock' | 'Low Stock' | 'Out of Stock'
   shippingInformation: string
   returnPolicy: string

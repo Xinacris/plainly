@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import type { Product } from '../lib/catalog'
-import { formatPrice } from '../lib/format'
+import { Price } from './Price'
 import { ProductImage } from './ProductImage'
 import { Rating } from './Rating'
 import { StockNote } from './StockNote'
@@ -18,8 +18,8 @@ export function ProductCard({ product }: { product: Product }) {
           </Link>
         </h2>
         <Rating product={product} />
-        <div className="mt-auto flex flex-wrap items-baseline justify-between gap-x-2 pt-2">
-          <p className="text-lg font-bold">{formatPrice(product.price)}</p>
+        <div className="mt-auto flex flex-col gap-0.5 pt-2">
+          <Price product={product} />
           <StockNote product={product} exceptionsOnly />
         </div>
       </div>

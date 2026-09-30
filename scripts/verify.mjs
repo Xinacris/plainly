@@ -61,9 +61,14 @@ const SCENES = [
   { name: 'home', page: 'home', url: '/', ready: 'main a:has-text("Browse all")' },
   { name: 'search-all', page: 'search', url: '/search', ready: 'main li h2 a' },
   { name: 'search-phone', page: 'search', url: '/search?q=phone', ready: 'main li h2 a' },
-  { name: 'search-none', page: 'search', url: '/search?q=xyzzy', ready: 'main h1:has-text("No products match")' },
+  { name: 'search-none', page: 'search', url: '/search?q=xyzzy', ready: 'main h2:has-text("No products match")' },
+  { name: 'search-filtered', page: 'search', url: '/search?category=beauty&category=fragrances&rating=4&stock=in&min=5&max=80', ready: 'main li h2 a' },
+  { name: 'search-filter-empty', page: 'search', url: '/search?min=100&max=1', ready: 'main h2:has-text("No products match these filters")' },
+  { name: 'search-sheet', page: 'search', url: '/search?q=watch&brand=Rolex', ready: 'main li h2 a', widths: [390],
+    before: async (page) => { await page.getByRole('button', { name: /^Filters/ }).click(); await page.getByRole('dialog').waitFor() } },
   { name: 'product-1', page: 'product', url: '/product/1', ready: 'main article h1' },
   { name: 'product-167-gallery', page: 'product', url: '/product/167', ready: 'main article h1' },
+  { name: 'product-22-no-warranty', page: 'product', url: '/product/22', ready: 'main article h1' },
   { name: 'product-117-oos', page: 'product', url: '/product/117', ready: 'main article h1' },
   { name: 'product-9999', page: 'product', url: '/product/9999', ready: 'main h1:has-text("Product not found")' },
   { name: 'cart-empty', page: 'cart', url: '/cart', ready: 'main h1:has-text("Your cart is empty")' },
@@ -93,14 +98,30 @@ function audit() {
   }
   if (document.documentElement.scrollWidth > innerWidth) issues.push(`horizontal scroll: ${document.documentElement.scrollWidth} > ${innerWidth}`)
 
+  // Boxes are cut to their nearest scroll container, so rows scrolled out of view
+  // (e.g. under a sheet's sticky footer) don't count as overlapping it.
+  const clipToScroller = (el) => {
+    const r = el.getBoundingClientRect()
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      const oy = getComputedStyle(a).overflowY
+      if (oy !== 'auto' && oy !== 'scroll') continue
+      const c = a.getBoundingClientRect()
+      return { left: Math.max(r.left, c.left), right: Math.min(r.right, c.right), top: Math.max(r.top, c.top), bottom: Math.min(r.bottom, c.bottom) }
+    }
+    return r
+  }
+  // With a modal open, the page behind it is inert and covered, so only the modal is audited.
+  const root = document.querySelector('dialog[open]') ?? document.body
   const hasOwnText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
-  const textEls = [...document.body.querySelectorAll('*')].filter((el) => hasOwnText(el) && visible(el))
+  const textEls = [...root.querySelectorAll('*')].filter((el) => hasOwnText(el) && visible(el))
 
   for (const el of textEls) {
     const r = el.getBoundingClientRect()
     if (r.right > innerWidth + 1 || r.left < -1) issues.push(`off-screen: ${describe(el)}`)
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const s = getComputedStyle(a)
+      // Content that scrolls inside an overflow:auto box isn't clipped; hidden/clip is.
+      if (s.overflowY === 'auto' || s.overflowY === 'scroll') break
       if (s.overflowX !== 'visible' || s.overflowY !== 'visible') {
         const ar = a.getBoundingClientRect()
         if (r.right > ar.right + 1 || r.bottom > ar.bottom + 1) issues.push(`clipped: ${describe(el)}`)
@@ -110,9 +131,10 @@ function audit() {
     if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible') issues.push(`truncated: ${describe(el)}`)
   }
 
-  const boxes = [...document.body.querySelectorAll('img, button, input, select, a, h1, h2, h3, p, output, label')]
+  const boxes = [...root.querySelectorAll('img, button, input, select, a, h1, h2, h3, p, output, label')]
     .filter(visible)
-    .map((el) => ({ el, r: el.getBoundingClientRect() }))
+    .map((el) => ({ el, r: clipToScroller(el) }))
+    .filter(({ r }) => r.right > r.left && r.bottom > r.top)
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const { el: a, r: ra } = boxes[i], { el: b, r: rb } = boxes[j]
@@ -195,11 +217,12 @@ async function runScene({ scene, width, theme }) {
       (async () => {
         await page.goto(base + scene.url, { waitUntil: 'domcontentloaded' })
         await page.locator(scene.ready).first().waitFor()
+        if (scene.before) await scene.before(page)
         // Give visible images a moment to paint for the screenshot, but never block on them.
         await withTimeout(page.evaluate(() => Promise.all([...document.images].filter((i) => i.getBoundingClientRect().top < innerHeight).map((i) => i.decode().catch(() => {})))), 3000, 'images').catch(() => {})
         const issues = await page.evaluate(audit)
         if (issues.length) report.layout[label] = issues
-        await page.screenshot({ path: path.join(shotDir, `${scene.name}-${theme}-${width}.png`), fullPage: true })
+        await page.screenshot({ path: path.join(shotDir, `${scene.name}-${theme}-${width}.png`), fullPage: !scene.before })
         log(`${issues.length ? '!' : '✓'} ${label}  ${Date.now() - t0}ms${issues.length ? `  (${issues.length} layout issues)` : ''}`)
       })(),
       SCENE_TIMEOUT,
@@ -221,7 +244,9 @@ async function pool(items, worker) {
 }
 
 // 1. Layout audit.
-const jobs = SCENES.flatMap((scene) => (changed.has(scene.page) ? FULL : QUICK).map((v) => ({ scene, ...v })))
+const jobs = SCENES.flatMap((scene) =>
+  (changed.has(scene.page) ? FULL : QUICK).filter((v) => !scene.widths || scene.widths.includes(v.width)).map((v) => ({ scene, ...v })),
+)
 log(`Layout: ${jobs.length} scenes (full matrix for: ${[...changed].join(', ') || 'none'})`)
 await pool(jobs, runScene)
 
@@ -241,9 +266,9 @@ const FLOWS = {
     expect(nums.length > 0 && nums.every((n, i) => i === 0 || n >= nums[i - 1]), `prices not ascending: ${nums}`)
     await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
     await page.locator('main li h2 a').first().waitFor()
-    expect((await page.locator('main li').count()) === 24, 'first page is not 24')
+    expect((await page.locator('main li h2 a').count()) === 24, 'first page is not 24')
     await page.getByRole('button', { name: /Show 24 more/ }).click()
-    expect((await page.locator('main li').count()) === 48, 'show more did not add 24')
+    expect((await page.locator('main li h2 a').count()) === 48, 'show more did not add 24')
   },
   'add to cart, header count, persistence, stepper, remove': async (page) => {
     await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
@@ -273,7 +298,7 @@ const FLOWS = {
   },
   'out of stock has no add button': async (page) => {
     await page.goto(base + '/product/117', { waitUntil: 'domcontentloaded' })
-    await page.getByText('Out of stock').waitFor()
+    await page.getByText('Out of stock', { exact: true }).waitFor()
     expect((await page.getByRole('button', { name: 'Add to cart' }).count()) === 0, 'add button on OOS product')
   },
   'rating truncates and matches reviews': async (page) => {
@@ -321,7 +346,7 @@ const FLOWS = {
     await page.getByRole('button', { name: 'Place order' }).click()
     await page.waitForURL(/\/orders\/PL-[A-Z0-9]{8}\/confirmation$/)
     await page.getByRole('heading', { name: 'Order placed' }).waitFor()
-    await page.getByText('$139.98').first().waitFor()
+    await page.getByText('$139.12').first().waitFor() // 2 × $69.56: the discounted price is what's charged
     await page.getByRole('link', { name: 'Cart, 0 items' }).waitFor()
     await page.getByRole('link', { name: 'See your orders' }).click()
     await page.getByRole('heading', { name: /^Order PL-/ }).first().waitFor()
@@ -340,8 +365,103 @@ const FLOWS = {
     const headings = await page.getByRole('heading', { level: 2, name: /^Order PL-/ }).count()
     expect(headings === 2, `expected 2 orders, got ${headings}`)
     const firstTotal = await page.locator('main article').first().locator('header').textContent()
-    expect(!firstTotal.includes('$139.98'), 'orders not newest first')
+    expect(!firstTotal.includes('$139.12'), 'orders not newest first')
   },
+  'filters: sidebar, URL sync, chips, reload, clear': async (page) => {
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    const sidebar = page.getByRole('complementary', { name: 'Filters' })
+    await sidebar.getByRole('checkbox', { name: /^Beauty/ }).check()
+    await page.waitForURL(/category=beauty/)
+    await page.getByRole('button', { name: 'Remove filter: Beauty' }).waitFor()
+    expect((await page.locator('main li h2 a').count()) === 5, 'beauty should have 5 products')
+    await sidebar.getByRole('radio', { name: /^4 and up/ }).check()
+    await page.waitForURL(/rating=4/)
+    await sidebar.getByLabel('Max').fill('10')
+    await page.waitForURL(/max=10/)
+    const n = await page.locator('main li h2 a').count()
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    expect((await page.locator('main li h2 a').count()) === n, 'results changed after reload')
+    expect(await sidebar.getByRole('checkbox', { name: /^Beauty/ }).isChecked(), 'checkbox not restored from URL')
+    expect((await sidebar.getByLabel('Max').inputValue()) === '10', 'max price not restored from URL')
+    await page.getByRole('button', { name: 'Remove filter: Up to $10.00' }).click()
+    await page.waitForURL((u) => !u.search.includes('max='))
+    // The URL changes before React re-renders, so wait for the input rather than reading it once.
+    await sidebar.getByLabel('Max').evaluate((el) => new Promise((ok) => { const t = setInterval(() => el.value === '' && (clearInterval(t), ok()), 20) }))
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click()
+    await page.waitForURL((u) => u.search === '')
+    await page.goto(base + '/search?q=phone&category=smartphones&sort=price-asc', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    expect((await page.getByLabel('Sort by').inputValue()) === 'price-asc', 'sort not read from URL')
+    const prices = (await page.locator('main li .text-lg').allTextContents()).map((p) => Number(p.replace(/[^\d.]/g, '')))
+    expect(prices.every((x, i) => i === 0 || x >= prices[i - 1]), `filtered prices not ascending: ${prices}`)
+  },
+  'filters: bottom sheet traps focus, Escape closes and returns focus': Object.assign(async (page) => {
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    expect(!(await page.getByRole('complementary', { name: 'Filters' }).isVisible()), 'sidebar visible on phone')
+    const opener = page.getByRole('button', { name: /^Filters/ })
+    await opener.click()
+    const dialog = page.getByRole('dialog', { name: 'Filters' })
+    await dialog.waitFor()
+    for (let i = 0; i < 40; i++) await page.keyboard.press('Tab')
+    expect(await dialog.evaluate((d) => d.contains(document.activeElement)), 'focus escaped the sheet')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await opener.evaluate((b) => b === document.activeElement), 'focus not returned to Filters button')
+    await opener.click()
+    await dialog.getByRole('checkbox', { name: /^In stock only/ }).check()
+    await page.waitForURL(/stock=in/)
+    await dialog.getByRole('button', { name: /^Show \d+ results$/ }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'Remove filter: In stock' }).waitFor()
+    await page.getByRole('button', { name: 'Filters, 1 applied' }).waitFor()
+  }, { width: 390, theme: 'dark' }),
+  'cards: real discount, list price, no badges': async (page) => {
+    await page.goto(base + '/search?q=mascara', { waitUntil: 'domcontentloaded' })
+    const card = page.locator('main li', { has: page.getByRole('link', { name: 'Essence Mascara Lash Princess' }) })
+    await card.getByText('$8.94').waitFor() // 9.99 × (1 − 10.48%)
+    await card.getByText('10% off').waitFor() // truncated, never rounded up
+    await card.getByText('$9.99').waitFor()
+    const text = await page.locator('main').innerText()
+    for (const word of ['Best Seller', 'Choice', 'Sponsored', 'Deal', 'Limited time']) expect(!text.includes(word), `badge text "${word}"`)
+    await page.goto(base + '/search?q=dolce', { waitUntil: 'domcontentloaded' }) // 0.62% off: not presented as a discount
+    const dolce = page.locator('main li', { has: page.getByRole('link', { name: 'Dolce Shine Eau de' }) })
+    await dolce.getByText('$69.56').waitFor()
+    await dolce.getByText('Only 4 left').waitFor()
+    expect((await dolce.getByText(/% off|List price/).count()) === 0, 'sub-1% discount shown')
+  },
+  'decision card facts': async (page) => {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    const card = page.getByRole('region', { name: 'Price and key facts' })
+    await card.getByText('No returns').waitFor()
+    await card.getByText('1 week').waitFor()
+    await card.getByText('10% off').waitFor()
+    await card.getByText(/^Estimate: ships in 3-5 business days, plus 2–5 business days in transit\.$/).waitFor()
+    await page.goto(base + '/product/22', { waitUntil: 'domcontentloaded' })
+    await card.getByText('60-day returns').waitFor()
+    await card.getByText('None', { exact: true }).waitFor()
+    await page.goto(base + '/product/117', { waitUntil: 'domcontentloaded' })
+    await card.getByText('Not available while out of stock').waitFor()
+    await page.getByRole('heading', { name: 'Reviews (3)' }).waitFor()
+    expect((await page.locator('details[open] li').count()) === 3, 'not all 3 reviews shown')
+    await page.getByText('Shipping, returns and warranty').click()
+    await page.getByText('These are the seller’s own words', { exact: false }).waitFor()
+  },
+}
+
+// The decision card's facts must be on the first screen, with no scrolling.
+for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]]) {
+  FLOWS[`decision card above the fold at ${width}×${height}`] = Object.assign(async (page) => {
+    await page.setViewportSize({ width, height })
+    for (const id of [14, 1, 117]) { // longest title, flagged returns, out of stock
+      await page.goto(base + `/product/${id}`, { waitUntil: 'domcontentloaded' })
+      const facts = page.getByRole('region', { name: 'Price and key facts' }).locator('dl')
+      await facts.waitFor()
+      const bottom = await facts.evaluate((el) => el.getBoundingClientRect().bottom)
+      expect(bottom <= height, `product ${id}: facts end at ${Math.round(bottom)}px, viewport is ${height}px`)
+    }
+  }, { width })
 }
 
 // Full path, home → search → product → cart → checkout → orders, in both themes.

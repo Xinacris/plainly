@@ -1,19 +1,8 @@
 import { Link } from 'react-router'
-import { formatIsoDate, type Estimate } from '../lib/delivery'
 import { formatPrice } from '../lib/format'
 import type { Address, OrderLine } from '../orders/orders'
+import { DateRange } from './DateRange'
 import { ProductImage } from './ProductImage'
-
-// Each date stays on one line; the range may wrap between them.
-function DateRange({ estimate: { earliest, latest } }: { estimate: Estimate }) {
-  const date = (iso: string) => <span className="font-medium whitespace-nowrap">{formatIsoDate(iso)}</span>
-  if (earliest === latest) return date(earliest)
-  return (
-    <>
-      {date(earliest)} – {date(latest)}
-    </>
-  )
-}
 
 function EstimateText({ line }: { line: OrderLine }) {
   if (!line.estimate) return <p className="text-sm text-muted">No delivery estimate: {line.shippingInformation}</p>

@@ -7,6 +7,7 @@ import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog } from '../lib/catalog'
 import { formatPrice, pluralize } from '../lib/format'
+import { salePrice } from '../lib/pricing'
 
 function CartRow({ line }: { line: ResolvedLine }) {
   const { product, quantity } = line
@@ -22,7 +23,7 @@ function CartRow({ line }: { line: ResolvedLine }) {
           <Link to={`/product/${product.id}`} className="font-semibold hover:text-action">
             {product.title}
           </Link>
-          <p className="text-sm text-muted">{formatPrice(product.price)} each</p>
+          <p className="text-sm text-muted">{formatPrice(salePrice(product))} each</p>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <QuantityStepper
               value={quantity}
@@ -35,7 +36,7 @@ function CartRow({ line }: { line: ResolvedLine }) {
             </button>
           </div>
         </div>
-        <p className="font-bold sm:text-right">{formatPrice(product.price * quantity)}</p>
+        <p className="font-bold sm:text-right">{formatPrice(salePrice(product) * quantity)}</p>
       </div>
     </li>
   )
