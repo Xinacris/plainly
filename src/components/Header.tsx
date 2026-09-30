@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router'
 import { useCartCount } from '../cart/cart'
 import { pluralize } from '../lib/format'
+import { AccountMenu } from './AccountMenu'
 import { DepartmentNav } from './DepartmentNav'
 import { LogoMark } from './Logo'
 import { MiniCart } from './MiniCart'
@@ -80,6 +81,7 @@ export function Header() {
           <NavLink to="/orders" className={navClass}>
             Orders
           </NavLink>
+          <AccountMenu />
           <CartLink />
         </nav>
 

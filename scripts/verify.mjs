@@ -25,6 +25,8 @@ const base = args.find((a) => !a.startsWith('--')) ?? 'http://localhost:4173'
 const shotDir = flag('out') ?? 'verify-shots'
 const changedArg = flag('changed') ?? ''
 const smoke = args.includes('--smoke')
+// --only=<text>: run just the flows whose name contains <text>, and no layout scenes (for debugging).
+const only = flag('only')
 // axe-core checks WCAG A/AA rules on the 1440-light and 390-dark scenes.
 const AXE_SOURCE = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
 fs.mkdirSync(shotDir, { recursive: true })
@@ -55,6 +57,7 @@ const line = (productId, title, thumb, price, quantity, shippingInformation, est
   productId, title, price, quantity, shippingInformation, returnPolicy,
   thumbnail: `https://cdn.dummyjson.com/product-images/${thumb}/thumbnail.webp`, estimate,
 })
+const BOOK = JSON.stringify({ state: { addresses: [{ id: 'a1', ...ADDRESS }, { id: 'a2', fullName: 'Grace Hopper', line1: '200 Navy Way', line2: '', city: 'Arlington', region: 'VA', postalCode: '22201' }], defaultId: 'a2' }, version: 1 })
 const ORDERS = JSON.stringify({
   state: {
     orders: [
@@ -103,6 +106,10 @@ const SCENES = [
   { name: 'confirmation', page: 'orders', url: '/orders/PL-TEST0002/confirmation', orders: ORDERS, ready: 'main h1:has-text("Order placed")' },
   { name: 'confirmation-missing', page: 'orders', url: '/orders/PL-NOPE/confirmation', ready: 'main h1:has-text("Order not found")' },
   { name: 'orders', page: 'orders', url: '/orders', orders: ORDERS, ready: 'main h1:has-text("Your orders")' },
+  { name: 'orders-delivered', page: 'orders', url: '/orders?tab=delivered', orders: ORDERS, ready: 'main article' },
+  { name: 'addresses', page: 'addresses', url: '/addresses', addresses: BOOK, ready: 'main ul > li' },
+  { name: 'addresses-empty', page: 'addresses', url: '/addresses', ready: 'main h1:has-text("Addresses")' },
+  { name: 'checkout-picker', page: 'checkout', url: '/checkout', cart: CART, addresses: BOOK, ready: 'main aside[aria-label="Order summary"] button' },
   { name: 'orders-empty', page: 'orders', url: '/orders', ready: 'main h1:has-text("No orders yet")' },
   { name: 'compare-3', page: 'compare', url: '/compare', compare: compareIds(1, 3, 5), ready: 'main table' },
   { name: 'compare-2-oos', page: 'compare', url: '/compare', compare: compareIds(113, 117), ready: 'main table' },
@@ -252,11 +259,12 @@ const budgetTimer = setTimeout(() => {
 
 const browser = await chromium.launch({ executablePath: chromiumPath() })
 
-async function newPage(theme, width, { cart, orders, compare, allowErrors = false } = {}) {
+async function newPage(theme, width, { cart, orders, compare, addresses, allowErrors = false } = {}) {
   const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 } })
   if (cart) await ctx.addInitScript((s) => localStorage.setItem('plainly-cart', s), cart)
   if (orders) await ctx.addInitScript((s) => localStorage.setItem('plainly-orders', s), orders)
   if (compare) await ctx.addInitScript((s) => localStorage.setItem('plainly-compare', s), compare)
+  if (addresses) await ctx.addInitScript((s) => localStorage.setItem('plainly-addresses', s), addresses)
   const page = await ctx.newPage()
   page.setDefaultTimeout(SCENE_TIMEOUT)
   page.setDefaultNavigationTimeout(SCENE_TIMEOUT)
@@ -304,7 +312,7 @@ async function pool(items, worker) {
 }
 
 // 1. Layout audit. --smoke checks the home page once and skips everything else.
-const jobs = smoke
+const jobs = only ? [] : smoke
   ? [{ scene: SCENES.find((s) => s.name === 'home'), width: 1440, theme: 'light' }]
   : SCENES.flatMap((scene) =>
   (changed.has(scene.page) ? FULL : QUICK).filter((v) => !scene.widths || scene.widths.includes(v.width)).map((v) => ({ scene, ...v })),
@@ -427,12 +435,13 @@ const FLOWS = {
     // Back button from confirmation must not land on a checkout for an order already placed.
     await page.goBack()
     expect(page.url().includes('/confirmation'), `back from orders went to ${page.url()}, not the confirmation`)
-    // Next checkout is pre-filled from this order.
+    // "Save this address for later" was ticked, so the next checkout preselects it.
     await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
     await page.getByRole('button', { name: 'Add to cart' }).click()
     await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
-    await page.getByText('Filled in from your last order.').waitFor()
-    expect((await page.getByLabel('Full name').inputValue()) === 'Ada Lovelace', 'address not pre-filled')
+    const saved = page.getByRole('radio', { name: /Ada Lovelace/ })
+    await saved.waitFor()
+    expect(await saved.isChecked(), 'saved default address not preselected')
     await page.getByRole('button', { name: 'Place order' }).click()
     await page.getByRole('heading', { name: 'Order placed' }).waitFor()
     await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
@@ -584,13 +593,15 @@ const FLOWS = {
   }, { width: 390, theme: 'dark' }),
   'orders: return window per item, from the order date': async (page) => {
     await page.addInitScript((s) => localStorage.setItem('plainly-orders', s), ORDERS)
-    await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+    await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' }) // Active: the order placed just now
     const recent = page.locator('main article').first()
     await recent.getByText('Return window open').first().waitFor()
     await recent.getByText(/until .+ \(30 days from the order date\)/).first().waitFor()
-    const old = page.locator('main article').last()
-    await old.getByText('No returns for this item').waitFor()
-    await old.getByText(/Return window closed on .+ \(7 days from the order date\)/).waitFor()
+    await page.getByRole('link', { name: /^Delivered/ }).click() // the 40-day-old order
+    const old = page.locator('main article').first()
+    await old.getByText('No returns for this item.').waitFor()
+    await old.getByText(/Return window closed on .+ \(7 days from the order date\)\./).waitFor()
+    expect((await old.getByRole('button', { name: /^Return this item/ }).evaluateAll((bs) => bs.every((b) => b.disabled))), 'a return offered where none is possible')
   },
   'home: departments, tiles, rows, footer, department search': async (page) => {
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
@@ -1122,7 +1133,7 @@ const FLOWS = {
     await page.mouse.move(10, 700)
     await preview.waitFor({ state: 'detached' })
     // Keyboard: opens on focus, Escape closes and returns focus.
-    await page.getByRole('banner').getByRole('link', { name: 'Orders' }).focus()
+    await page.getByRole('banner').getByRole('button', { name: 'Account' }).focus() // the control right before Cart
     await page.keyboard.press('Tab')
     await preview.waitFor()
     expect((await cart.getAttribute('aria-expanded')) === 'true', 'cart link not marked expanded')
@@ -1165,6 +1176,183 @@ for (const motion of ['reduce', 'no-preference']) {
   }
 }
 
+// Address book, checkout picker and the Account menu.
+Object.assign(FLOWS, {
+  'addresses: validate, add, default, edit, delete (next becomes default)': async (page) => {
+    await page.goto(base + '/addresses', { waitUntil: 'domcontentloaded' })
+    await page.getByText('No saved addresses yet.', { exact: false }).waitFor()
+    await page.getByRole('button', { name: 'Add an address' }).click()
+    await page.getByRole('button', { name: 'Save address' }).click()
+    await page.getByText('Enter your full name.').waitFor()
+    expect(await page.getByLabel('Full name').evaluate((el) => el === document.activeElement), 'first invalid field not focused')
+    const fill = async (name, city) => {
+      await page.getByLabel('Full name').fill(name)
+      await page.getByLabel('Street address').fill('1 Main St')
+      await page.getByLabel('City').fill(city)
+      await page.getByLabel('State or region').fill('IL')
+      await page.getByLabel('ZIP or postal code').fill('62701')
+    }
+    await fill('Ada Lovelace', 'Springfield')
+    await page.getByRole('button', { name: 'Save address' }).click()
+    const cards = page.locator('main ul > li')
+    await cards.first().getByText('Default').waitFor()
+    await page.getByRole('button', { name: 'Add an address' }).click()
+    await fill('Grace Hopper', 'Arlington')
+    await page.getByRole('button', { name: 'Save address' }).click()
+    await page.getByRole('button', { name: 'Make default (Grace Hopper)' }).click()
+    expect((await cards.first().textContent()).includes('Grace Hopper'), 'new default not listed first')
+    await page.getByRole('button', { name: 'Edit address for Ada Lovelace' }).click()
+    await page.getByLabel('City').fill('Shelbyville')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await page.getByText('Shelbyville, IL 62701').waitFor()
+    await page.getByRole('button', { name: 'Delete address for Grace Hopper' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Delete this address?' })
+    await dialog.getByText('The next address becomes your default.', { exact: false }).waitFor()
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await cards.filter({ hasText: 'Grace Hopper' }).waitFor({ state: 'detached' })
+    expect((await cards.count()) === 1, 'address not deleted')
+    await cards.first().getByText('Default').waitFor()
+    await cards.first().locator('address').getByText('Ada Lovelace').waitFor()
+  },
+  'checkout picker: default preselected, new address inline, save for later, orders keep their copy': async (page) => {
+    const book = JSON.stringify({ state: { addresses: [{ id: 'a1', ...ADDRESS }, { id: 'a2', fullName: 'Grace Hopper', line1: '200 Navy Way', line2: '', city: 'Arlington', region: 'VA', postalCode: '22201' }], defaultId: 'a2' }, version: 1 })
+    await page.addInitScript((b) => localStorage.getItem('plainly-addresses') || localStorage.setItem('plainly-addresses', b), book)
+    const cart = JSON.stringify({ state: { lines: [{ productId: 3, quantity: 1 }] }, version: 1 })
+    const addToCart = () => page.evaluate((c) => localStorage.setItem('plainly-cart', c), cart)
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await addToCart()
+    await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+    const radios = page.getByRole('group', { name: 'Choose a shipping address' }).getByRole('radio')
+    await radios.first().waitFor()
+    expect((await radios.count()) === 3, 'expected 2 saved addresses and "Add a new address"')
+    expect(await page.getByRole('radio', { name: /Grace Hopper/ }).isChecked(), 'default address not preselected')
+    expect((await page.getByLabel('Full name').count()) === 0, 'new-address form shown before choosing it')
+    await page.getByRole('radio', { name: 'Add a new address' }).check()
+    const save = page.getByRole('checkbox', { name: 'Save this address for later' })
+    expect(await save.isChecked(), 'save for later should start ticked')
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByText('Enter your full name.').waitFor() // same validation as before
+    await page.getByLabel('Full name').fill('Katherine Johnson')
+    await page.getByLabel('Street address').fill('1 NASA Rd')
+    await page.getByLabel('City').fill('Hampton')
+    await page.getByLabel('State or region').fill('VA')
+    await page.getByLabel('ZIP or postal code').fill('23666')
+    await save.uncheck()
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+    await page.getByText('Katherine Johnson').waitFor()
+    let stored = await page.evaluate(() => JSON.parse(localStorage.getItem('plainly-addresses')).state.addresses.length)
+    expect(stored === 2, `unticked address was saved (${stored})`)
+    // Ticked this time: saved, and orders keep their own copy after it's deleted.
+    await addToCart()
+    await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('radio', { name: 'Add a new address' }).check()
+    await page.getByLabel('Full name').fill('Mary Jackson')
+    await page.getByLabel('Street address').fill('2 NASA Rd')
+    await page.getByLabel('City').fill('Hampton')
+    await page.getByLabel('State or region').fill('VA')
+    await page.getByLabel('ZIP or postal code').fill('23666')
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+    stored = await page.evaluate(() => JSON.parse(localStorage.getItem('plainly-addresses')).state.addresses.length)
+    expect(stored === 3, `ticked address not saved (${stored})`)
+    await page.goto(base + '/addresses', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Delete address for Mary Jackson' }).click()
+    await page.getByRole('dialog', { name: 'Delete this address?' }).getByRole('button', { name: 'Delete' }).click()
+    await page.getByRole('dialog').waitFor({ state: 'hidden' })
+    await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+    await page.locator('main article').first().getByText('Mary Jackson').waitFor()
+  },
+  'account menu: desktop disclosure and phone menu': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const account = page.getByRole('banner').getByRole('button', { name: 'Account' })
+    await account.click()
+    expect((await account.getAttribute('aria-expanded')) === 'true', 'Account not expanded')
+    await page.getByRole('banner').getByRole('link', { name: 'Addresses' }).waitFor()
+    await page.keyboard.press('Escape')
+    expect((await account.getAttribute('aria-expanded')) === 'false', 'Escape did not close it')
+    expect(await account.evaluate((b) => b === document.activeElement), 'focus not returned to Account')
+    await account.click()
+    await page.getByRole('banner').getByRole('link', { name: 'Addresses' }).click()
+    await page.getByRole('heading', { level: 1, name: 'Addresses' }).waitFor()
+    expect((await page.getByRole('banner').getByRole('link', { name: 'Addresses' }).count()) === 0, 'menu stayed open after navigating')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: 'Menu' }).click()
+    const menu = page.getByRole('dialog', { name: 'Menu' })
+    await menu.getByRole('navigation', { name: 'Account' }).getByRole('link', { name: 'Orders' }).click()
+    await page.waitForURL(/\/orders$/)
+  },
+})
+
+// Simulated status: a fake clock moves an order from Preparing to Shipped to Delivered.
+FLOWS['orders: status moves by time (simulated); cancel only while preparing'] = async (page) => {
+  const now = Date.now()
+  await page.clock.install({ time: now })
+  const order = (id, placedAt) => ({ id, placedAt: new Date(placedAt).toISOString(), address: ADDRESS, total: 13.51, lines: [line(3, 'Powder Canister', 'beauty/powder-canister', 13.51, 1, 'Ships in 1-2 business days', { earliest: '2026-10-05', latest: '2026-10-08' })] })
+  const orders = JSON.stringify({ state: { orders: [order('PL-KEEP0001', now), order('PL-GONE0002', now - 60_000)] }, version: 1 })
+  await page.addInitScript((o) => localStorage.getItem('plainly-orders') || localStorage.setItem('plainly-orders', o), orders)
+  await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+  const keep = page.locator('main article', { has: page.getByRole('heading', { name: 'Order PL-KEEP0001' }) })
+  const gone = page.locator('main article', { has: page.getByRole('heading', { name: 'Order PL-GONE0002' }) })
+  await page.getByText('Status is simulated.', { exact: false }).waitFor()
+  await keep.locator('[aria-current=step]').getByText('Preparing').waitFor()
+  // Cancel: a confirmation first; Escape keeps the order.
+  await gone.getByRole('button', { name: /^Cancel order/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Cancel this order?' })
+  await dialog.waitFor()
+  await page.keyboard.press('Escape')
+  await dialog.waitFor({ state: 'hidden' })
+  await gone.getByRole('button', { name: /^Cancel order/ }).click()
+  await dialog.getByRole('button', { name: 'Cancel order' }).click()
+  await page.getByRole('link', { name: 'Cancelled (1)' }).waitFor()
+  // Time moves on: shipped after 2 minutes (no cancelling any more), delivered after 5.
+  await page.clock.fastForward('02:05')
+  await keep.locator('[aria-current=step]').getByText('Shipped').waitFor()
+  expect((await keep.getByRole('button', { name: /^Cancel order/ }).count()) === 0, 'cancel offered after shipping')
+  await page.clock.fastForward('03:05')
+  await page.getByRole('link', { name: 'Active (0)' }).waitFor()
+  await page.getByRole('link', { name: /^Delivered \(1\)/ }).click()
+  await keep.locator('[aria-current=step]').getByText('Delivered').waitFor()
+  await page.getByRole('link', { name: /^Cancelled/ }).click()
+  await gone.getByText(/^Cancelled /).waitFor()
+  await gone.getByText('Powder Canister').waitFor() // details kept
+}
+
+// Returns: per item, after delivery, within the window; reason and confirmation; simulated refund.
+FLOWS['orders: return per item with a reason, "No returns" disabled, Requested then Refunded'] = async (page) => {
+  const now = Date.now()
+  await page.clock.install({ time: now })
+  const delivered = {
+    id: 'PL-RETN0001', placedAt: new Date(now - 10 * 60_000).toISOString(), address: ADDRESS, total: 22.45,
+    lines: [
+      line(3, 'Powder Canister', 'beauty/powder-canister', 13.51, 1, 'Ships in 1-2 business days', undefined, '30 days return policy'),
+      line(1, 'Essence Mascara Lash Princess', 'beauty/essence-mascara-lash-princess', 8.94, 1, 'Ships in 3-5 business days', undefined, 'No return policy'),
+    ],
+  }
+  await page.addInitScript((o) => localStorage.getItem('plainly-orders') || localStorage.setItem('plainly-orders', o), JSON.stringify({ state: { orders: [delivered] }, version: 1 }))
+  await page.goto(base + '/orders?tab=delivered', { waitUntil: 'domcontentloaded' })
+  const card = page.locator('main article')
+  const noReturn = card.getByRole('button', { name: 'Return this item: Essence Mascara Lash Princess' })
+  await noReturn.waitFor()
+  expect(await noReturn.isDisabled(), '"No returns" item offers a return')
+  await card.getByText('No returns for this item.').waitFor()
+  await card.getByText(/Return window open until/).waitFor()
+  await card.getByRole('button', { name: 'Return this item: Powder Canister' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Return this item?' })
+  await dialog.getByLabel('Reason').selectOption('Arrived damaged')
+  await dialog.getByRole('button', { name: 'Request return' }).click()
+  await dialog.waitFor({ state: 'hidden' })
+  await card.getByText('Return requested').waitFor()
+  await card.getByText('Arrived damaged', { exact: false }).waitFor()
+  expect((await card.getByRole('button', { name: 'Return this item: Powder Canister' }).count()) === 0, 'return offered twice')
+  await page.getByRole('link', { name: 'Returns (1)' }).click()
+  await page.locator('main li').getByText('Requested', { exact: true }).waitFor()
+  await page.clock.fastForward('02:05')
+  await page.locator('main li').getByText('Refunded', { exact: true }).waitFor()
+  await page.locator('main li').getByText('$13.51 back (simulated)', { exact: false }).waitFor()
+}
+
 // "System" shows the device's icon: phone, tablet or monitor, by media query.
 FLOWS['theme toggle: System icon follows the device, live on rotation'] = async () => {
   const visibleIcon = (page) => page.getByRole('radio', { name: 'System' }).first().evaluate((b) =>
@@ -1189,7 +1377,8 @@ FLOWS['theme toggle: System icon follows the device, live on rotation'] = async 
       await page.setViewportSize(rotated)
       if (ctx.viewport.width < 640) {
         // Turned sideways past sm, the menu closes and the page isn't left inert.
-        await page.getByRole('dialog', { name: 'Menu' }).waitFor({ state: 'hidden' })
+        // CSS hides the menu's container at once; the close follows on the media-query change.
+        await page.waitForFunction(() => !document.querySelector('dialog[open]'), null, { timeout: 2000 }).catch(() => {})
         expect(!(await page.evaluate(() => document.querySelector('dialog[open]'))), 'a modal is still open after rotating')
       }
       const after = await visibleIcon(page)
@@ -1520,6 +1709,7 @@ FLOWS['full path dark 1440'] = pathFlow('dark', 1440)
 FLOWS['full path dark 390'] = pathFlow('dark', 390)
 
 if (smoke) for (const name of Object.keys(FLOWS)) delete FLOWS[name]
+if (only) for (const name of Object.keys(FLOWS)) if (!name.includes(only)) delete FLOWS[name]
 log(`\nFlows: ${Object.keys(FLOWS).length}`)
 await pool(Object.entries(FLOWS), async ([name, fn]) => {
   const t0 = Date.now()

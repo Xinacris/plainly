@@ -226,6 +226,31 @@ The Gemini prompt, verbatim:
   - **The toast:** the preview and the toast never overlap. Opening the preview dismisses the toast, since the preview shows the same news.
   - **Phones:** the icon-only cart link has no preview.
 
+### Address book, order management, Account menu
+
+Everything stays in this browser, like the cart, with no backend and no sign-in, so anyone can try it. Guest checkout stays the default.
+
+- **Address book (`/addresses`):**
+  - Add, edit (in place) and delete addresses, and mark one as the default, with the same validation as checkout.
+  - The first address saved becomes the default, and the default is listed first. Deleting the default makes the next one in the list the default; the confirmation dialog says so.
+  - Orders store their own copy of the address, so editing or deleting one never changes a past order. A test deletes an address and checks the order still shows it.
+- **Checkout address picker** replaces "Filled in from your last order". Saved addresses are selectable cards with the default preselected. "Add a new address" opens the form inline, with "Save this address for later", ticked by default. With nothing saved, the form shows directly. The address book isn't seeded from past orders, so it only holds what the shopper chose to save.
+- **Simulated order status:** there's no real shipping, so status moves by time from the order's placement.
+  - **The rule:** Preparing for the first 2 minutes, Shipped until 5 minutes, then Delivered. A return is Requested for 2 minutes, then Refunded.
+  - **Why fixed times:** the page labels this as simulated and shows the times. Scaling the timeline to the delivery estimates was considered and rejected: "Ships in 1 month" items would never visibly progress for a reviewer. A fixed 2 + 3 minutes shows the whole path in one sitting, and the estimate dates stay the real estimates.
+  - **Live updates:** the page re-reads the clock every 5 seconds, so an open page moves on by itself.
+- **Orders page tabs:** Active (Preparing, Shipped), Delivered, Cancelled and Returns, each with a count, and the tab kept in the URL (`?tab=`). Each order shows a Preparing → Shipped → Delivered progress with the time of the current step.
+- **Cancel:** offered only while Preparing, after a confirmation. It's checked again on confirming, in case the order shipped while the dialog was open. A cancelled order keeps all its details and shows when it was cancelled.
+- **Returns:**
+  - **When:** per item, only after delivery, within that item's return window (counted from the order date, as before), and once per item.
+  - **How:** a reason picker in a confirmation dialog. A return covers the whole line.
+  - **When it isn't possible:** items with no returns, or a closed window, keep the action visible but disabled, with the reason beside it ("No returns for this item.", "Return window closed on …").
+  - **After requesting:** returns show on the order line and in the Returns tab: Requested, then Refunded, with the amount marked as simulated.
+- **Account menu:**
+  - **Desktop:** an "Account" disclosure menu with Orders and Addresses. It opens on click or Enter, and closes on Escape (focus back to the button), on a click outside, when focus leaves it, or when a link is followed. The header's Orders link stays too.
+  - **Phones:** an "Account" section with the same two links in the phone menu.
+  - **No sign-in yet.** The confirmation page's "See your orders" and the header's Orders link lead to the orders page.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -238,6 +263,7 @@ The Gemini prompt, verbatim:
 - **Full return flow:** return reasons, return status, and a replacement option.
 - **Star distribution for reviews:** not meaningful with 3 reviews per product (see #8).
 - **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
+- **Wallet and loyalty points.** Payment is simulated and there's no account yet, so a balance or points would be made-up numbers, not a fact to shop by.
 - **A "Best sellers" sort.** DummyJSON has no sales data. Any popularity ranking would have to be invented, from stock, rating or the order of the data, and presenting a made-up signal as popularity is exactly the noise Plainly rejects. The sorts stay relevance, price, rating and discount, each computed from data the page shows.
 
 ## Build order
@@ -252,7 +278,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, on phones a photo-first product page with a swipeable gallery, and cart feedback (toast, in-cart line, mini-cart) |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, on phones a photo-first product page with a swipeable gallery, cart feedback (toast, in-cart line, mini-cart), and an address book, order management and Account menu |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**
@@ -313,3 +339,4 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | Photo-first product page | On phones the gallery photo wasn't centered: the photo's tile was narrower than the frame and left a gap on the right. At 390×664 (a 390 px phone with its browser bars showing) the tile was 299 px in a 358 px frame; at 360×640 it was 288 in 328. Slides and snapping were aligned; only the tile inside each slide was off. The earlier test missed it because it only ran at 844 px tall, where the cap never applies. | The tile combined `aspect-ratio: 1` with `max-height: 45dvh` and an auto width. CSS carries a max-height across the aspect ratio into a max-width, so on shorter screens the tile shrank to 45dvh wide and sat left-aligned in its slide. | The tile has an explicit `w-full`, so only its height is capped and the photo centers inside it. A new test at 360, 390 and 414 px, each at a short height (bars showing) and a tall one, swipes through all six photos. After each swipe it checks snap alignment (to the pixel), slide and tile width equal to the frame's inner width, and the photo's center within 1 px of the frame's center. It failed on the old build at all three widths and passes now. |
 | Photo-first product page | A green focus ring could show around the gallery after a tap. | The gallery is focusable (for ←/→), and a tap focused it. Chromium doesn't treat that as `:focus-visible`, but browsers apply that rule differently for focusable regions. | A mouse or touch press no longer focuses the gallery (`preventDefault` on `mousedown`), so the ring appears only for keyboard focus via Tab. The same test taps the photo and a dot and checks that nothing in the gallery has an outline or matches `:focus-visible`. |
 | Photo-first product page | While swiping on a phone, a curved notch and a thin dark seam showed in the middle of the gallery until the swipe settled. | Each slide's tile drew its own rounded corners and light background, so two tiles side by side showed four rounded corners with the page background between them. | The gallery frame now carries the rounded corners and the light tile background and clips its scrolling content. Slides and tiles are square with no background and no gap, so a swipe looks like one surface sliding. For iOS Safari, where a rounded scrolling container sometimes doesn't clip composited content, the frame is `isolation: isolate` with a `translateZ(0)` layer. A `-webkit-mask-image` would also work but would clip the keyboard focus ring. This has not been checked on a real iOS device, since only Chromium runs here. The full-width tiles, centered photos and no-ring-on-tap from the previous fix are unchanged and still tested. New checks: at 360, 390 and 414 px, slides and tiles have no radius or background, there's no gap between slides, and the frame is rounded, clips, is isolated and composited. A dark-mode pixel test holds a real touch swipe halfway: where the slides meet, the pixels at the frame's top and bottom edge must be tile color, and the frame's corner must be page color. On the old build that test read the page background at the seam; it passes now. |
+| Address book, orders | The return buttons were announced as "Return this item : Powder Canister", with a stray space before the colon, so the test couldn't find them by name. | The item name was added as visually hidden text right after the visible label. Positioned out of the text flow, it made Chrome insert a space. Suffixes that start with a space ("Edit address for …") happen to hide the effect. | The return buttons use an explicit `aria-label` ("Return this item: Powder Canister") that contains the visible text. |

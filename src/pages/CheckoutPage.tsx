@@ -1,7 +1,7 @@
 import { Suspense, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { cartTotals, resolveCart, useCart, type ResolvedLine } from '../cart/cart'
-import { AddressFields } from '../components/AddressFields'
+import { AddressPicker, type AddressChoice } from '../components/AddressPicker'
 import { OrderLines } from '../components/OrderLines'
 import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
@@ -10,11 +10,16 @@ import { estimateDelivery, formatIsoDate, latestArrival, TRANSIT } from '../lib/
 import { formatPrice, pluralize } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { validateAddress, type AddressErrors } from '../orders/address'
-import { EMPTY_ADDRESS, useLastAddress, useOrders, type Address, type OrderLine } from '../orders/orders'
+import { trimAddress, useAddressBook, useSortedAddresses, type SavedAddress } from '../orders/addresses'
+import { EMPTY_ADDRESS, useOrders, type Address, type OrderLine } from '../orders/orders'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const section = 'rounded-xl border border-border bg-surface p-4 sm:p-6'
 const sectionHeading = 'text-lg font-bold tracking-tight'
+
+function addressOf({ id: _id, ...address }: SavedAddress): Address {
+  return address
+}
 
 function toOrderLine({ product, quantity }: ResolvedLine): OrderLine {
   return {
@@ -33,14 +38,21 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
   const navigate = useNavigate()
   const place = useOrders((s) => s.place)
   const removeMany = useCart((s) => s.removeMany)
-  const lastAddress = useLastAddress()
-  const [address, setAddress] = useState<Address>(lastAddress ?? EMPTY_ADDRESS)
+  const { addresses: saved, defaultId } = useSortedAddresses()
+  const addToBook = useAddressBook((s) => s.add)
+  // The default saved address is preselected; with none saved, a new one is typed in.
+  const [choice, setChoice] = useState<AddressChoice>(() => (defaultId ? { kind: 'saved', id: defaultId } : { kind: 'new' }))
+  const [draft, setDraft] = useState<Address>(EMPTY_ADDRESS)
+  const [saveDraft, setSaveDraft] = useState(true)
   const [submitted, setSubmitted] = useState(false)
+  const chosen = choice.kind === 'saved' ? saved.find((a) => a.id === choice.id) : undefined
+  // A saved address deleted in another tab falls back to typing one in.
+  const typing = !chosen
   const placing = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
 
   // Errors only show after the first attempt, then update as the user types.
-  const errors: AddressErrors = submitted ? validateAddress(address) : {}
+  const errors: AddressErrors = submitted && typing ? validateAddress(draft) : {}
   const itemCount = lines.reduce((sum, l) => sum + l.quantity, 0)
   const total = lines.reduce((sum, l) => sum + l.price * l.quantity, 0)
   const arrivesBy = latestArrival(lines.map((l) => l.estimate))
@@ -48,15 +60,17 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setSubmitted(true)
-    const invalid = Object.keys(validateAddress(address))
+    const invalid = typing ? Object.keys(validateAddress(draft)) : []
     if (invalid.length) {
       formRef.current?.querySelector<HTMLInputElement>(`[name="${invalid[0]}"]`)?.focus()
       return
     }
     if (placing.current) return
     placing.current = true
-    const trimmed = Object.fromEntries(Object.entries(address).map(([k, v]) => [k, v.trim()])) as Address
-    const order = place({ address: trimmed, lines, total })
+    // The order keeps its own copy, so later edits in the address book never change it.
+    const address = chosen ? addressOf(chosen) : trimAddress(draft)
+    if (typing && saveDraft) addToBook(address)
+    const order = place({ address, lines, total })
     // Leave checkout before emptying the cart, so it never flashes "Your cart is empty".
     await navigate(`/orders/${order.id}/confirmation`, { replace: true })
     removeMany(lines.map((l) => l.productId))
@@ -69,8 +83,17 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
           <h2 id="address-heading" className={sectionHeading}>
             Shipping address
           </h2>
-          {lastAddress && <p className="mt-1 text-sm text-muted">Filled in from your last order.</p>}
-          <AddressFields value={address} errors={errors} onChange={setAddress} />
+          <AddressPicker
+            saved={saved}
+            defaultId={defaultId}
+            choice={chosen ? choice : { kind: 'new' }}
+            onChoose={setChoice}
+            draft={draft}
+            onDraftChange={setDraft}
+            errors={errors}
+            save={saveDraft}
+            onSaveChange={setSaveDraft}
+          />
         </section>
 
         <section aria-labelledby="delivery-heading" className={section}>

@@ -26,18 +26,33 @@ export interface OrderLine {
   estimate?: Estimate
 }
 
+export const RETURN_REASONS = ['Changed my mind', 'Arrived damaged', 'Not as described', 'Wrong item sent', 'Other'] as const
+export type ReturnReason = (typeof RETURN_REASONS)[number]
+
+/** A return covers the whole line (all units of that item in the order). */
+export interface ReturnRequest {
+  productId: number
+  reason: ReturnReason
+  requestedAt: string
+}
+
 export interface Order {
   id: string
   placedAt: string
   address: Address
   lines: OrderLine[]
   total: number
+  cancelledAt?: string
+  returns?: ReturnRequest[]
 }
 
 interface OrdersState {
   /** Newest first. */
   orders: Order[]
   place: (order: Omit<Order, 'id' | 'placedAt'>) => Order
+  /** Callers check the order can still be cancelled (see lib/orderStatus.ts). */
+  cancel: (orderId: string) => void
+  requestReturn: (orderId: string, productId: number, reason: ReturnReason) => void
 }
 
 function newOrderId(): string {
@@ -53,6 +68,15 @@ export const useOrders = create<OrdersState>()(
         set(({ orders }) => ({ orders: [order, ...orders] }))
         return order
       },
+      cancel: (orderId) =>
+        set(({ orders }) => ({ orders: orders.map((o) => (o.id === orderId && !o.cancelledAt ? { ...o, cancelledAt: new Date().toISOString() } : o)) })),
+      requestReturn: (orderId, productId, reason) =>
+        set(({ orders }) => ({
+          orders: orders.map((o) => {
+            if (o.id !== orderId || o.returns?.some((r) => r.productId === productId)) return o
+            return { ...o, returns: [...(o.returns ?? []), { productId, reason, requestedAt: new Date().toISOString() }] }
+          }),
+        })),
     }),
     { name: 'plainly-orders', version: 1 },
   ),
@@ -60,10 +84,6 @@ export const useOrders = create<OrdersState>()(
 
 export function useOrder(id: string | undefined): Order | undefined {
   return useOrders((s) => s.orders.find((o) => o.id === id))
-}
-
-export function useLastAddress(): Address | undefined {
-  return useOrders((s) => s.orders[0]?.address)
 }
 
 export function orderItemCount(order: Order): number {

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { formatPrice } from '../lib/format'
 import type { Address, OrderLine } from '../orders/orders'
@@ -16,8 +17,9 @@ function EstimateText({ line }: { line: OrderLine }) {
 }
 
 // One list for checkout, confirmation and past orders, all fed from order-line snapshots.
-// Placed orders pass `placedAt`, which adds each item's return window.
-export function OrderLines({ lines, placedAt }: { lines: OrderLine[]; placedAt?: string }) {
+// Placed orders pass `placedAt`, which adds each item's return window; the orders
+// page adds per-item actions (returns) with `actions`.
+export function OrderLines({ lines, placedAt, actions }: { lines: OrderLine[]; placedAt?: string; actions?: (line: OrderLine) => ReactNode }) {
   return (
     <ul className="divide-y divide-border">
       {lines.map((line) => (
@@ -35,6 +37,7 @@ export function OrderLines({ lines, placedAt }: { lines: OrderLine[]; placedAt?:
             </p>
             <EstimateText line={line} />
             {placedAt && <ReturnStatus policy={line.returnPolicy} placedAt={placedAt} />}
+            {actions?.(line)}
           </div>
         </li>
       ))}

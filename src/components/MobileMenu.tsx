@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
+import { ACCOUNT_LINKS } from '../lib/accountLinks'
 import { BottomSheet } from './BottomSheet'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -31,16 +32,21 @@ export function MobileMenu() {
         </svg>
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Menu">
-        <nav aria-label="Menu">
-          <NavLink
-            to="/orders"
-            onClick={() => setOpen(false)}
-            className={({ isActive }) =>
-              `flex h-12 items-center rounded-lg px-3 text-lg font-semibold hover:bg-bg ${isActive ? 'text-action' : 'text-text'}`
-            }
-          >
-            Orders
-          </NavLink>
+        <nav aria-label="Account">
+          <h3 className="mb-1 px-1 text-sm font-bold">Account</h3>
+          {ACCOUNT_LINKS.map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              end
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                `flex h-12 items-center rounded-lg px-3 text-lg font-semibold hover:bg-bg ${isActive ? 'text-action' : 'text-text'}`
+              }
+            >
+              {l.label}
+            </NavLink>
+          ))}
         </nav>
         <h3 className="mt-6 mb-2 px-1 text-sm font-bold">Theme</h3>
         <ThemeToggle labelled />
