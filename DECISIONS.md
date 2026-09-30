@@ -1,6 +1,6 @@
 # Plainly: Decisions
 
-## Revision round progress
+## Revision round progress (complete)
 
 Resume from the first unticked item: first read this list and `git log`. Verify on a `vite build --mode test` preview (full matrix for changed pages), and give the live URL one light smoke check at the end. Run `node scripts/check-secrets.mjs` before every commit.
 
@@ -44,6 +44,9 @@ Resume from the first unticked item: first read this list and `git log`. Verify 
     - **Two load timeouts.**
   - **One deliberate exception:** at the largest text size, the decision card's last fact on a 1024×768 screen is 19px below the fold. More text needs more room, as with zoom, and shrinking the desktop layout to avoid a short scroll would cost more than it saves. That one check is skipped at that size, with the reason in the test.
   - **Runs:** both are green, the default (90s) and the largest text with increased contrast (104s). Turkish scenes include the new page.
+
+
+The round ends with both full runs green on the test build (default, and the largest text with increased contrast), one smoke check on live (`--smoke=accessibility`: clean), and a deploy.
 
 ## Step 2 progress: accounts on Supabase (complete)
 
@@ -486,5 +489,6 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | Languages | At 640px the header's search box was squeezed to about 40px once the language picker joined the theme control; Turkish labels are longer too. | Logo, search, three links and two pickers on one row don't fit at `sm`. | From `sm` to `md`, search has its own full-width row. A flow checks both widths. |
 | Accessibility | At the largest text size, the header's search box at 768px was 31px wide. | Tailwind's breakpoints are media queries, and a media query's `rem` is the browser's default 16px, not the page's root size. So the one-row header switched on at 768px regardless of the text size. | The header switches with a container query in rem, whose rem follows the root size: 768px at default text, 960px at the largest. |
 | Accessibility | In the full run at the largest text size, the filter-sheet focus test timed out once. | It presses Tab 45 times and checks each press, about 1.3s alone, and the run was fully parallel. | That flow gets 30s. It passed in every run since. |
+| Accessibility | The item 12 commit included 111 verification screenshots (23 MB) from the larger-text run. | They went to a new `verify-shots-a11y/` folder, and `.gitignore` only covered `verify-shots/`. | The next commit untracked them, and `.gitignore` now covers `verify-shots*/`. They stay in the history: public UI screenshots, nothing sensitive, and not worth rewriting pushed history for. |
 | Lazy images | Under full parallel load, the desktop gallery test once saw → from the fifth thumbnail stay put. It passed 8 of 8 runs on its own, with and without this change. | The test clicked the thumbnail and pressed → at once, while the ← scroll from the step before could still be landing. | The test waits until the gallery says "5 of 6" before pressing →. |
 | Lazy images | The new image-count test saw 38 requests at 1280px, where 32 were expected. | The router saves the scroll position when a page is left and restores it on the next load, so the second pass started halfway down the home page. | The test scrolls back to the top before leaving. |
