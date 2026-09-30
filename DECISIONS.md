@@ -84,7 +84,7 @@ The Gemini prompt, verbatim:
 | 5 | **A decision card at the top of the product page.** It shows price, delivery date, return policy, warranty and stock, and everything else collapses. | Returns and shipping details are buried in very long product pages. These are the facts that decide a purchase. |
 | 6 | **A compare tray.** Add up to 3 products and see them side by side, with the differences highlighted. | Comparing similar products on Amazon means juggling tabs. |
 | 7 | **Dark mode.** It follows the system setting, has a light / dark / system toggle, and is built on tokens from the first step. | People shop late at night. Building it in from the start costs little; adding it later means touching every component. |
-| 10 | **Cut sign-in, Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Cart and the theme toggle, plus one bar of department links. The footer is one line on what's mocked and a repo link. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
+| 10 | **Cut sign-in** (reversed later: see "Accounts, reversed from Cut"), **Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Cart and the theme toggle, plus one bar of department links. The footer is one line on what's mocked and a repo link. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
 
 **Home page:** Amazon's structure, not its look. A slim one-line intro so products show above the fold, a category bar, department cards with four subcategory tiles each, two product rows (biggest real discounts, highest rated) that say how they were chosen, and a minimal footer. No carousel and no sign-in block.
 
@@ -251,6 +251,20 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
   - **Phones:** an "Account" section with the same two links in the phone menu.
   - **No sign-in yet.** The confirmation page's "See your orders" and the header's Orders link lead to the orders page.
 
+### Accounts, reversed from Cut (planned; being built)
+
+- **The decision:** accounts move from Cut to Add, built on Supabase (email and password, plus Google).
+  - **Why:** after testing, addresses and orders are only really useful if they follow you across devices, and that needs an account.
+  - **Guest checkout stays the default:** the original reason still holds (an account is friction before the first purchase), and the live link must work for someone who isn't signed in.
+  - **The cart stays in the browser** in both cases.
+- **No email provider, so email confirmation is off.** Supabase's built-in sender only delivers to the project's own team members, at 2 messages an hour. The rule that follows from "no dead links": any flow that depends on email delivery is either hidden or clearly says it's unavailable in this demo. That covers forgot password and email change. It's never a form that silently sends nothing. Changing the password while signed in stays, since it needs no email.
+- **Keys:** the browser gets only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (Supabase's publishable key; the legacy `anon` key is deprecated by the end of 2026). The production secret key lives only as a GitHub Actions secret, for the keep-alive and demo-reset workflow, which must never print it.
+- **Privacy page (`/privacy`),** linked from the footer.
+  - **Why now:** Google won't let the OAuth app leave "Testing" without a privacy policy URL.
+  - **Content:** it says what's stored for signed-in users and where (Supabase, EU region), that guest data stays in the browser, what Google shares (name and email), that nothing is sold or shared, that payments are simulated, the hosting logs, and how to get an account deleted.
+  - **Truthful before launch:** it says accounts aren't live yet. That line changes when they are.
+  - **Contact:** a placeholder address (`PRIVACY_CONTACT` in `src/pages/PrivacyPage.tsx`), shown as plain text rather than a mail link until a real one exists.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -262,7 +276,7 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
 
 - **Full return flow:** return reasons, return status, and a replacement option.
 - **Star distribution for reviews:** not meaningful with 3 reviews per product (see #8).
-- **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
+- **Lists and wishlists.** (Sign-in and per-user addresses moved out of this list: see "Accounts, reversed from Cut".) Originally: **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
 - **Wallet and loyalty points.** Payment is simulated and there's no account yet, so a balance or points would be made-up numbers, not a fact to shop by.
 - **A "Best sellers" sort.** DummyJSON has no sales data. Any popularity ranking would have to be invented, from stock, rating or the order of the data, and presenting a made-up signal as popularity is exactly the noise Plainly rejects. The sorts stay relevance, price, rating and discount, each computed from data the page shows.
 

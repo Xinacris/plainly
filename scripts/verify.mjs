@@ -24,7 +24,9 @@ const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split('=')[
 const base = args.find((a) => !a.startsWith('--')) ?? 'http://localhost:4173'
 const shotDir = flag('out') ?? 'verify-shots'
 const changedArg = flag('changed') ?? ''
-const smoke = args.includes('--smoke')
+const smoke = args.some((a) => a === '--smoke' || a.startsWith('--smoke='))
+// --smoke=<scene>: the one live check on a named scene instead of home (e.g. --smoke=privacy).
+const smokeScene = typeof flag('smoke') === 'string' && flag('smoke') ? flag('smoke') : 'home'
 // --only=<text>: run just the flows whose name contains <text>, and no layout scenes (for debugging).
 const only = flag('only')
 // axe-core checks WCAG A/AA rules on the 1440-light and 390-dark scenes.
@@ -120,6 +122,7 @@ const SCENES = [
     before: async (page) => { await page.getByRole('button', { name: 'Add to compare' }).click(); await page.getByRole('dialog').waitFor() } },
   { name: 'compare-mixed', page: 'compare', url: '/search?q=chair', compare: compareIds(1, 14, 3), ready: 'section[aria-label="Compare"] li img' },
   { name: 'product-tray', page: 'compare', url: '/product/1', compare: compareIds(1), ready: 'section[aria-label="Compare"] li img' },
+  { name: 'privacy', page: 'privacy', url: '/privacy', ready: 'main h1:has-text("Privacy")' },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
 ]
 
@@ -313,7 +316,7 @@ async function pool(items, worker) {
 
 // 1. Layout audit. --smoke checks the home page once and skips everything else.
 const jobs = only ? [] : smoke
-  ? [{ scene: SCENES.find((s) => s.name === 'home'), width: 1440, theme: 'light' }]
+  ? [{ scene: SCENES.find((s) => s.name === smokeScene), width: 1440, theme: 'light' }]
   : SCENES.flatMap((scene) =>
   (changed.has(scene.page) ? FULL : QUICK).filter((v) => !scene.widths || scene.widths.includes(v.width)).map((v) => ({ scene, ...v })),
 )
@@ -958,7 +961,7 @@ const FLOWS = {
     await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' }) // Beauty
     await page.getByRole('button', { name: 'Add to compare' }).click()
     const tray = page.getByRole('region', { name: 'Compare' })
-    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('Comparing in Beauty', { exact: true }).waitFor()
     await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' }) // Home
     const add = page.getByRole('button', { name: 'Add to compare' })
     await add.click()
@@ -970,17 +973,17 @@ const FLOWS = {
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await dialog.waitFor({ state: 'hidden' })
     expect(await add.evaluate((b) => b === document.activeElement), 'focus not returned after Cancel')
-    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('Comparing in Beauty', { exact: true }).waitFor()
     await tray.getByText('1 of 3').waitFor()
     await add.click()
     await dialog.waitFor()
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
-    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('Comparing in Beauty', { exact: true }).waitFor()
     await add.click()
     await dialog.getByRole('button', { name: 'Start new' }).click()
     await dialog.waitFor({ state: 'hidden' })
-    await tray.getByText('Comparing in Home').waitFor()
+    await tray.getByText('Comparing in Home', { exact: true }).waitFor()
     await tray.getByText('1 of 3').waitFor()
     const added = page.getByRole('button', { name: 'Added to compare' })
     await added.waitFor()
@@ -1004,7 +1007,7 @@ const FLOWS = {
     await page.addInitScript((s) => localStorage.getItem('plainly-compare') || localStorage.setItem('plainly-compare', s), compareIds(1, 14, 3))
     await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
     const tray = page.getByRole('region', { name: 'Compare' })
-    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('Comparing in Beauty', { exact: true }).waitFor()
     await tray.getByText('2 of 3').waitFor()
     await tray.getByText('Your saved comparison mixed departments, so only the Beauty items were kept.').waitFor()
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('plainly-compare')).state)

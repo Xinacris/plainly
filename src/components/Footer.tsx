@@ -1,4 +1,7 @@
+import { Link } from 'react-router'
+
 const REPO_URL = 'https://github.com/Xinacris/plainly'
+const link = 'font-medium text-action underline underline-offset-2 hover:text-action-hover'
 
 export function Footer() {
   return (
@@ -8,9 +11,14 @@ export function Footer() {
           <span className="font-semibold text-text">Plainly</span> · A demo store: products and reviews come from
           DummyJSON’s mock API, payment is simulated, and orders stay in this browser.
         </p>
-        <a href={REPO_URL} className="font-medium text-action underline underline-offset-2 hover:text-action-hover">
-          Source on GitHub
-        </a>
+        <p className="flex gap-4">
+          <Link to="/privacy" className={link}>
+            Privacy
+          </Link>
+          <a href={REPO_URL} className={link}>
+            Source on GitHub
+          </a>
+        </p>
       </div>
     </footer>
   )

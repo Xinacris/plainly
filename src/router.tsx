@@ -8,6 +8,7 @@ import { HomePage } from './pages/HomePage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage'
 import { OrdersPage } from './pages/OrdersPage'
+import { PrivacyPage } from './pages/PrivacyPage'
 import { ProductPage } from './pages/ProductPage'
 import { SearchPage } from './pages/SearchPage'
 
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: '/orders', element: <OrdersPage /> },
       { path: '/addresses', element: <AddressesPage /> },
       { path: '/orders/:id/confirmation', element: <OrderConfirmationPage /> },
+      { path: '/privacy', element: <PrivacyPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
