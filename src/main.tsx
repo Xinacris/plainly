@@ -9,7 +9,7 @@ import { router } from './router'
 
 // The catalog is static mock data: fetch once per session, never refetch on focus.
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: false } },
+  defaultOptions: { queries: { staleTime: Infinity, refetchOnWindowFocus: false, retry: 1 } },
 })
 
 createRoot(document.getElementById('root')!).render(
