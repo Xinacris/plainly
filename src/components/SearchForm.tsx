@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
-export function SearchForm() {
+interface Props {
+  /** A second search on a page (the 404) needs its own input id and landmark name. */
+  inputId?: string
+  landmarkLabel?: string
+  /** Shown above the box instead of only to screen readers. */
+  visibleLabel?: boolean
+}
+
+export function SearchForm({ inputId = 'site-search', landmarkLabel, visibleLabel = false }: Props) {
   const [params] = useSearchParams()
   const urlQuery = params.get('q') ?? ''
   const [query, setQuery] = useState(urlQuery)
@@ -17,18 +25,19 @@ export function SearchForm() {
   return (
     <form
       role="search"
-      className="flex w-full"
+      aria-label={landmarkLabel}
+      className={`flex w-full ${visibleLabel ? 'flex-wrap' : ''}`}
       onSubmit={(e) => {
         e.preventDefault()
         const q = query.trim()
         navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search')
       }}
     >
-      <label htmlFor="site-search" className="sr-only">
+      <label htmlFor={inputId} className={visibleLabel ? 'mb-1 w-full text-sm font-medium' : 'sr-only'}>
         Search products
       </label>
       <input
-        id="site-search"
+        id={inputId}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

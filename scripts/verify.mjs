@@ -139,7 +139,7 @@ const SCENES = [
   { name: 'signup', page: 'account', url: '/signup', ready: 'main h1:has-text("Create an account")' },
   { name: 'profile-demo', page: 'account', url: '/signin?next=%2Fprofile', ready: 'main h1:has-text("Sign in")', needsAccounts: true,
     before: async (page) => { await page.getByRole('button', { name: 'Sign in as demo' }).click(); await page.getByRole('heading', { level: 1, name: 'Profile' }).waitFor(); await page.getByLabel('Name').waitFor() } },
-  { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
+  { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("This page isn’t here")' },
 ]
 
 const changed = new Set(changedArg === 'all' ? SCENES.map((s) => s.page) : changedArg.split(',').filter(Boolean))
@@ -1854,6 +1854,28 @@ FLOWS['phone drawer: right side, backdrop and Escape close, focus kept inside an
       await context.close().catch(() => {})
     }
   }
+}
+
+// The 404: the illustration on the image tile, a friendly message, its own search
+// box, and every department, each leading somewhere real.
+FLOWS['404: illustration, message, search and departments that work'] = async (page) => {
+  await page.goto(base + '/no/such/page', { waitUntil: 'domcontentloaded' })
+  await page.getByRole('heading', { level: 1, name: 'This page isn’t here' }).waitFor()
+  expect((await page.title()).startsWith('Page not found'), `title: ${await page.title()}`)
+  const art = page.locator('main img[src="/not-found.webp"]')
+  await page.waitForFunction(() => document.querySelector('main img[src="/not-found.webp"]')?.complete)
+  const img = await art.evaluate((i) => ({ w: i.naturalWidth, tile: getComputedStyle(i.parentElement).backgroundColor, alt: i.getAttribute('alt') }))
+  expect(img.w === 800 && img.alt === '' && img.tile !== 'rgba(0, 0, 0, 0)', `illustration: ${JSON.stringify(img)}`)
+  const links = page.getByRole('navigation', { name: 'Shop by department' }).getByRole('link')
+  expect((await links.count()) === 8, `${await links.count()} department links`)
+  await links.filter({ hasText: 'Beauty' }).click()
+  await page.waitForURL((u) => u.pathname === '/search' && u.searchParams.get('department') === 'beauty')
+  await page.getByRole('heading', { name: 'Beauty', level: 1 }).waitFor()
+  await page.goBack()
+  const search = page.getByRole('search', { name: 'Search products from this page' })
+  await search.getByLabel('Search products').fill('lipstick')
+  await search.getByRole('button', { name: 'Search' }).click()
+  await page.waitForURL((u) => u.pathname === '/search' && u.searchParams.get('q') === 'lipstick')
 }
 
 // The privacy contact is a real, working mailto link.
