@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Plainly: shop without the noise. Decide with facts, not noise." />
+    <meta name="color-scheme" content="light dark" />
+    <title>Plainly</title>
+    <!-- Set the theme class before first paint so there is no flash of the wrong theme.
+         Reads the Zustand-persisted value written by src/theme/theme.ts. -->
+    <script>
+      (function () {
+        var choice = 'system'
+        try {
+          var saved = JSON.parse(localStorage.getItem('plainly-theme'))
+          if (saved && saved.state && saved.state.choice) choice = saved.state.choice
+        } catch (e) {}
+        var dark = choice === 'dark' || (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.documentElement.classList.add('dark')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

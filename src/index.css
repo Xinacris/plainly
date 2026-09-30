@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+/* Dark mode is driven by a `.dark` class on <html>, set before first paint by the
+   inline script in index.html and kept in sync by src/theme/theme.ts. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* All colors are tokens. Text pairs meet WCAG AA in both themes (≥4.5:1):
+   light — text 15.9, muted 6.5, action 6.5, warning 7.1 on surface;
+   dark  — text 14.1, muted 7.2, action 8.6, warning 8.9 on surface.
+   border-strong (form controls) ≥3:1 against bg and surface. */
+:root {
+  color-scheme: light;
+  --bg: #f8f7f3;
+  --surface: #ffffff;
+  --text: #1b2420;
+  --muted: #56615b;
+  --border: #d9ded8;
+  --border-strong: #7d8982;
+  --action: #1d6b47;
+  --action-hover: #16573a;
+  --on-action: #ffffff;
+  --warning: #8f4309;
+  --warning-surface: #fcefe0;
+  /* Product photos have light backgrounds; they always sit on a light tile. */
+  --image-tile: #f3f3ef;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #101412;
+  --surface: #181e1b;
+  --text: #e6ece8;
+  --muted: #a0aca5;
+  --border: #2c3531;
+  --border-strong: #66736c;
+  --action: #6fcb9d;
+  --action-hover: #8ad8b0;
+  --on-action: #0c1a13;
+  --warning: #f2ae6b;
+  --warning-surface: #2b1f13;
+  --image-tile: #e9e9e4;
+}
+
+@theme inline {
+  --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-on-action: var(--on-action);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-image-tile: var(--image-tile);
+}
+
+@layer base {
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-action;
+  }
+}
