@@ -1,25 +1,32 @@
+import { useRef } from 'react'
+import { useNearViewport } from '../lib/useNearViewport'
+
 interface Props {
   src: string
   alt: string
   className?: string
+  /** In the first screen: load right away instead of when it comes near. */
   eager?: boolean
-  /** False when a parent already draws the tile (the gallery frame): square, no background. */
+  /** The main product photo: also ask the browser to fetch it first. */
+  priority?: boolean
   tile?: boolean
 }
 
-// Product photos have light backgrounds, so they always sit on a light tile,
-// including in dark mode. The photo blends into whatever tile is behind it.
-export function ProductImage({ src, alt, className = '', eager = false, tile = true }: Props) {
+// The square box is sized before the photo arrives, so nothing shifts while it loads.
+export function ProductImage({ src, alt, className = '', eager = false, priority = false, tile = true }: Props) {
+  const box = useRef<HTMLDivElement>(null)
+  const load = useNearViewport(box, eager || priority)
   return (
-    <div className={`aspect-square p-3 ${tile ? 'rounded-lg bg-image-tile' : ''} ${className}`}>
+    <div ref={box} className={`aspect-square p-3 ${tile ? 'rounded-lg bg-image-tile' : ''} ${className}`}>
       <img
-        src={src}
+        src={load ? src : undefined}
         alt={alt}
-        loading={eager ? 'eager' : 'lazy'}
+        loading={eager || priority ? 'eager' : 'lazy'}
+        fetchPriority={priority ? 'high' : 'auto'}
         decoding="async"
         width={600}
         height={600}
-        className="size-full object-contain mix-blend-multiply"
+        className={`size-full object-contain mix-blend-multiply ${load ? '' : 'opacity-0'}`}
       />
     </div>
   )

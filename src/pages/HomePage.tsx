@@ -10,12 +10,12 @@ import { biggestDiscounts, departmentTiles, highestRated, type Tile } from '../l
 import { SALE_URL, salePrice } from '../lib/pricing'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-function TileLink({ tile, department }: { tile: Tile; department: Department }) {
+function TileLink({ tile, department, eager }: { tile: Tile; department: Department; eager: boolean }) {
   if (tile.kind === 'category') {
     // The card is the department, so its tiles open it as context with the category filtered.
     return (
       <Link to={`/search?department=${department.slug}&category=${tile.slug}`} className="group block">
-        <ProductImage src={tile.image} alt="" className="p-2" />
+        <ProductImage src={tile.image} alt="" eager={eager} className="p-2" />
         <span className="mt-1 block text-sm font-medium group-hover:text-action">{formatCategory(tile.slug)}</span>
       </Link>
     )
@@ -23,14 +23,15 @@ function TileLink({ tile, department }: { tile: Tile; department: Department }) 
   const { product } = tile
   return (
     <Link to={`/product/${product.id}`} className="group block">
-      <ProductImage src={product.thumbnail} alt="" className="p-2" />
+      <ProductImage src={product.thumbnail} alt="" eager={eager} className="p-2" />
       <span className="mt-1 block text-sm font-medium group-hover:text-action">{product.title}</span>
       <span className="block text-sm text-muted tabular-nums">{formatPrice(salePrice(product))}</span>
     </Link>
   )
 }
 
-function DepartmentCard({ department, catalog }: { department: Department; catalog: Product[] }) {
+// The first card is in the first screen at every width, so its photos load right away.
+function DepartmentCard({ department, catalog, first }: { department: Department; catalog: Product[]; first: boolean }) {
   const { count, tiles } = departmentTiles(department, catalog)
   const headingId = useId()
   return (
@@ -42,7 +43,7 @@ function DepartmentCard({ department, catalog }: { department: Department; catal
       <ul className="mt-3 grid grid-cols-2 gap-3">
         {tiles.map((tile) => (
           <li key={tile.kind === 'category' ? tile.slug : tile.product.id}>
-            <TileLink tile={tile} department={department} />
+            <TileLink tile={tile} department={department} eager={first} />
           </li>
         ))}
       </ul>
@@ -93,8 +94,8 @@ function HomeContents() {
     <>
       <section aria-label="Departments">
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {DEPARTMENTS.map((d) => (
-            <DepartmentCard key={d.slug} department={d} catalog={catalog} />
+          {DEPARTMENTS.map((d, i) => (
+            <DepartmentCard key={d.slug} department={d} catalog={catalog} first={i === 0} />
           ))}
         </ul>
       </section>

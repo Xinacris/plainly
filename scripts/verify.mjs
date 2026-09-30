@@ -1692,6 +1692,35 @@ FLOWS['decision card: stock styled like the other facts'] = async (page) => {
   expect(low.stock.size === low.warranty.size && low.stock.color !== low.warranty.color, `"Only 4 left" should keep the warning color at fact size`)
 }
 
+// Images load as they come near: on first load of the home page, only the photos in
+// or near the first screen are requested; sideways rows and lower sections wait.
+// The main product photo loads eagerly with high priority.
+FLOWS['images: home first load requests only what is near the first screen'] = async (page) => {
+  for (const [width, height, most] of [[390, 844, 10], [1280, 720, 36]]) {
+    await page.setViewportSize({ width, height })
+    const requested = new Set()
+    const count = (r) => r.resourceType() === 'image' && /dummyjson/.test(r.url()) && requested.add(r.url())
+    page.on('request', count)
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('region', { name: 'Departments' }).locator('img[src]').first().waitFor()
+    await page.waitForTimeout(800)
+    const total = await page.locator('main img').count()
+    expect(requested.size <= most && requested.size >= 4, `${width}px: ${requested.size} of ${total} images requested on first load (expected 4–${most})`)
+    const before = requested.size
+    const row = page.locator('main section ul.snap-x').first()
+    await row.scrollIntoViewIfNeeded()
+    await row.evaluate((el) => el.scrollBy(el.clientWidth, 0))
+    await page.waitForTimeout(1000)
+    expect(requested.size > before, `${width}px: scrolling to and along a row loaded no new images`)
+    page.off('request', count)
+    await page.evaluate(() => scrollTo(0, 0)) // the router saves this position on leaving and restores it on the next load
+  }
+  await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+  const main = page.getByRole('img', { name: /Essence Mascara/ }).first()
+  await main.waitFor()
+  expect((await main.getAttribute('fetchpriority')) === 'high' && (await main.getAttribute('loading')) === 'eager', 'main product photo is not eager with high priority')
+}
+
 // The privacy contact is a real, working mailto link.
 FLOWS['privacy: contact is a working mailto link'] = async (page) => {
   await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })
@@ -2037,6 +2066,7 @@ FLOWS['desktop gallery: thumbnails and arrow keys'] = async (page) => {
   await page.keyboard.press('ArrowLeft')
   expect((await pressed()) === 2, 'ArrowLeft did not go back')
   await page.getByRole('button', { name: 'Show image 5 of 6' }).click()
+  await page.getByRole('region', { name: /photos, 5 of 6$/ }).waitFor() // under full parallel load, the ← scroll could still be landing
   await page.keyboard.press('ArrowRight')
   expect((await pressed()) === 6, 'ArrowRight from a thumbnail did not move')
   expect(await page.getByRole('button', { name: 'Show image 6 of 6' }).evaluate((b) => b === document.activeElement), 'focus did not follow to the new thumbnail')
@@ -2120,3 +2150,4 @@ clearTimeout(budgetTimer)
 for (const task of CLEANUP) await task()
 await browser.close()
 finish('DONE')
+

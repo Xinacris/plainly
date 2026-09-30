@@ -90,7 +90,7 @@ export function Gallery({ product }: { product: Product }) {
             <ProductImage
               src={src}
               alt={many ? `${product.title}, image ${i + 1} of ${images.length}` : product.title}
-              eager={i === 0}
+              priority={i === 0}
               tile={false}
               className="w-full max-h-[45dvh] p-6 md:max-h-none"
             />
