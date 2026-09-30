@@ -20,9 +20,8 @@ export function AccountStatus({ onDone, large = false }: { onDone: () => void; l
   }
   return (
     <div className="border-b border-border pb-1 mb-1">
-      <p className={`px-3 ${large ? 'py-1 text-sm' : 'py-1 text-xs'} text-muted`}>
-        Signed in as <span className="font-medium break-all text-text">{user?.email}</span>
-      </p>
+      <p className="px-3 pt-2 text-xs text-muted">Signed in as</p>
+      <SignedInEmail email={user?.email ?? ''} className={`px-3 pb-2 ${large ? 'text-base' : 'text-sm'}`} />
       <button
         type="button"
         onClick={async () => {
@@ -34,5 +33,15 @@ export function AccountStatus({ onDone, large = false }: { onDone: () => void; l
         Sign out
       </button>
     </div>
+  )
+}
+
+// The address on one line when it fits; only when it doesn't, an ellipsis. The full
+// address stays in the text (screen readers read it whole) and in a tooltip.
+export function SignedInEmail({ email, className = '' }: { email: string; className?: string }) {
+  return (
+    <p title={email} className={`truncate font-medium text-text ${className}`}>
+      {email}
+    </p>
   )
 }

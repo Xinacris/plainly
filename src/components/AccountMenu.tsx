@@ -47,7 +47,7 @@ export function AccountMenu() {
         </svg>
       </button>
       {open && (
-        <div id={listId} className="absolute top-full right-0 z-40 mt-2 w-56 rounded-xl border border-border bg-surface p-1 shadow-lg">
+        <div id={listId} className="absolute top-full right-0 z-40 mt-2 w-max max-w-96 min-w-56 rounded-xl border border-border bg-surface p-1 shadow-lg">
           <AccountStatus onDone={() => setOpen(false)} />
           <ul>
           {links.map((l) => (

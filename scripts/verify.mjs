@@ -35,7 +35,7 @@ fs.mkdirSync(shotDir, { recursive: true })
 
 const SCENE_TIMEOUT = 15_000
 const BUDGET = 120_000
-const CONCURRENCY = 6
+const CONCURRENCY = 10 // 12 cores here; flows that wait on real timers (toasts, swipes) overlap
 const startedAt = Date.now()
 
 function chromiumPath() {
@@ -1568,6 +1568,32 @@ if (ACCOUNTS_AVAILABLE) {
       expect((await page.getByLabel('New password', { exact: true }).count()) === 0, 'demo can see the password form')
       await page.getByText('The demo account’s password can’t be changed', { exact: false }).waitFor()
       await page.getByText('The demo account’s email can’t be changed', { exact: false }).waitFor()
+    }),
+    'account: menu email on one line when it fits, ellipsis and full address when not': accountFlow(async (page) => {
+      const short = await makeUser('m')
+      const longEmail = `a-very-long-address-for-testing-truncation-${Date.now()}@example.com`
+      const { data, error } = await admin.auth.admin.createUser({ email: longEmail, password: PASSWORD, email_confirm: true })
+      if (error) throw new Error(error.message)
+      created.push(data.user.id)
+      const emailBox = (email) => page.locator(`[title="${email}"]`).filter({ visible: true })
+      const measure = (email) => emailBox(email).evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 1, text: el.textContent, menu: el.closest('[id]').getBoundingClientRect().width }))
+      for (const [email, shouldCut] of [[short.email, false], [longEmail, true]]) {
+        await signInUi(page, email)
+        await openAccountMenu(page)
+        const m = await measure(email)
+        expect(m.cut === shouldCut, `${email.length}-character email ${m.cut ? 'truncated' : 'not truncated'} in the desktop menu`)
+        expect(m.text === email, 'the full address is not in the text')
+        expect(m.menu <= 384 + 1, `menu is ${m.menu}px wide, over the 24rem maximum`)
+        if (!shouldCut) expect(m.menu > 224, 'menu did not widen to fit the address')
+        await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+        await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).waitFor({ state: 'attached' }).catch(() => {})
+      }
+      // Phone menu: the same rule.
+      await page.setViewportSize({ width: 390, height: 844 })
+      await signInUi(page, longEmail)
+      await page.getByRole('button', { name: 'Menu' }).click()
+      const phone = await emailBox(longEmail).evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 1, text: el.textContent }))
+      expect(phone.cut && phone.text === longEmail, 'phone menu: long email not truncated with the full address kept')
     }),
     'account: service unreachable, guest shopping still works, account pages say so': Object.assign(accountFlow(async (page) => {
       const { email } = await makeUser('offline')
