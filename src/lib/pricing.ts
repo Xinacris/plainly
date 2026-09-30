@@ -16,3 +16,15 @@ export function discountPercent(product: Product): number {
 export function hasDiscount(product: Product): boolean {
   return discountPercent(product) >= 1
 }
+
+// The sale filter's rule. Uses the same truncated % the cards show, so every
+// product in "10%+ off" shows at least "10% off". See DECISIONS.md for why 10.
+export const SALE_THRESHOLD = 10
+export const SALE_LABEL = `${SALE_THRESHOLD}%+ off`
+
+export function onSale(product: Product): boolean {
+  return discountPercent(product) >= SALE_THRESHOLD
+}
+
+/** Where "10%+ off" links: the sale filter, biggest discounts first. */
+export const SALE_URL = '/search?sale=1&sort=discount'

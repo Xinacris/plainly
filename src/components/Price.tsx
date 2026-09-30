@@ -16,7 +16,7 @@ export function Price({ product, size = 'card' }: Props) {
       <p className="flex flex-wrap items-baseline gap-x-2">
         <span className={`font-bold tabular-nums ${large ? 'text-3xl' : 'text-lg'}`}>{formatPrice(salePrice(product))}</span>
         {hasDiscount(product) && (
-          <span className={`font-semibold text-action ${large ? '' : 'text-sm'}`}>{discountPercent(product)}% off</span>
+          <span className={`font-semibold text-sale ${large ? '' : 'text-sm'}`}>{discountPercent(product)}% off</span>
         )}
       </p>
       {hasDiscount(product) && (

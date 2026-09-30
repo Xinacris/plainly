@@ -7,7 +7,7 @@ import { useCatalog, type Product } from '../lib/catalog'
 import { DEPARTMENTS, type Department } from '../lib/departments'
 import { formatCategory, formatPrice, pluralize } from '../lib/format'
 import { biggestDiscounts, departmentTiles, highestRated, type Tile } from '../lib/home'
-import { salePrice } from '../lib/pricing'
+import { SALE_URL, salePrice } from '../lib/pricing'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 function TileLink({ tile }: { tile: Tile }) {
@@ -100,7 +100,7 @@ function HomeContents() {
       <ProductRow
         title="Biggest discounts right now"
         note="Sorted by real discount %: the price you pay against the list price. In stock only."
-        seeAll="/search?sort=discount"
+        seeAll={SALE_URL}
         products={biggestDiscounts(catalog)}
       />
       <ProductRow title="Highest rated" note={reviewNote(rated)} seeAll="/search?sort=rating" products={rated} />

@@ -76,12 +76,19 @@ const SCENES = [
   { name: 'search-phone', page: 'search', url: '/search?q=phone', ready: 'main li h2 a' },
   { name: 'search-none', page: 'search', url: '/search?q=xyzzy', ready: 'main h2:has-text("No products match")' },
   { name: 'search-department', page: 'search', url: '/search?department=electronics', ready: 'main li h2 a' },
+  { name: 'search-sale', page: 'search', url: '/search?sale=1&sort=discount', ready: 'main li h2 a' },
+  { name: 'search-intent', page: 'search', url: '/search?q=t-shirt', ready: 'main li h2 a' },
+  { name: 'search-department-filtered', page: 'search', url: '/search?department=electronics&brand=Apple&sale=1', ready: 'main li h2 a' },
   { name: 'search-filtered', page: 'search', url: '/search?category=beauty&category=fragrances&rating=4&stock=in&min=5&max=80', ready: 'main li h2 a' },
   { name: 'search-filter-empty', page: 'search', url: '/search?min=100&max=1', ready: 'main h2:has-text("No products match these filters")' },
   { name: 'search-sheet', page: 'search', url: '/search?q=watch&brand=Rolex', ready: 'main li h2 a', widths: [390],
     before: async (page) => { await page.getByRole('button', { name: /^Filters/ }).click(); await page.getByRole('dialog').waitFor() } },
   { name: 'product-1', page: 'product', url: '/product/1', ready: 'main article h1' },
   { name: 'product-167-gallery', page: 'product', url: '/product/167', ready: 'main article h1' },
+  { name: 'product-78-breadcrumb', page: 'product', url: '/product/78', ready: 'main article h1' },
+  { name: 'product-108-long-crumbs', page: 'product', url: '/product/108', ready: 'main article h1' },
+  { name: 'menu-open', page: 'header', url: '/', ready: 'main a:has-text("See all")', widths: [390],
+    before: async (page) => { await page.getByRole('button', { name: 'Menu' }).click(); await page.getByRole('dialog', { name: 'Menu' }).waitFor() } },
   { name: 'product-22-no-warranty', page: 'product', url: '/product/22', ready: 'main article h1' },
   { name: 'product-117-oos', page: 'product', url: '/product/117', ready: 'main article h1' },
   { name: 'product-9999', page: 'product', url: '/product/9999', ready: 'main h1:has-text("Product not found")' },
@@ -156,7 +163,9 @@ function audit() {
         break
       }
     }
-    if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible') issues.push(`truncated: ${describe(el)}`)
+    // Ellipsis truncation with the full text in a title (breadcrumbs) is on purpose.
+    const intentional = getComputedStyle(el).textOverflow === 'ellipsis' && el.title === el.textContent
+    if (el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflowX !== 'visible' && !intentional) issues.push(`truncated: ${describe(el)}`)
   }
 
   const boxes = [...root.querySelectorAll('img, button, input, select, a, h1, h2, h3, p, output, label')]
@@ -298,6 +307,17 @@ await pool(jobs, runScene)
 
 // 2. Flows (light, desktop), also bounded and parallel.
 const expect = (cond, msg) => { if (!cond) throw new Error(msg) }
+
+// Tab through an open modal. Past its last control a native <dialog> hands focus
+// to the browser's own UI (document.body here) and then back in; what must never
+// happen is focus reaching page content behind the modal.
+async function expectFocusTrapped(page, dialog, presses) {
+  for (let i = 0; i < presses; i++) {
+    await page.keyboard.press('Tab')
+    const inside = await dialog.evaluate((d) => d.contains(document.activeElement) || document.activeElement === document.body)
+    expect(inside, `Tab ${i + 1} moved focus behind the modal`)
+  }
+}
 const FLOWS = {
   'search, sort, show more': async (page) => {
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
@@ -450,8 +470,7 @@ const FLOWS = {
     await opener.click()
     const dialog = page.getByRole('dialog', { name: 'Filters' })
     await dialog.waitFor()
-    for (let i = 0; i < 40; i++) await page.keyboard.press('Tab')
-    expect(await dialog.evaluate((d) => d.contains(document.activeElement)), 'focus escaped the sheet')
+    await expectFocusTrapped(page, dialog, 45)
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     expect(await opener.evaluate((b) => b === document.activeElement), 'focus not returned to Filters button')
@@ -580,7 +599,8 @@ const FLOWS = {
     await page.waitForURL(/department=electronics/)
     await page.getByRole('heading', { level: 1, name: 'Electronics' }).waitFor()
     await page.locator('main p[role=status]').getByText('38 results').waitFor() // 16 smartphones + 5 laptops + 3 tablets + 14 accessories
-    await page.getByRole('button', { name: 'Remove filter: Electronics' }).waitFor()
+    expect((await page.getByRole('button', { name: 'Remove filter: Electronics' }).count()) === 0, 'department shown as a chip')
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'All products' }).waitFor()
     const nav = page.getByRole('navigation', { name: 'Departments' })
     expect((await nav.getByRole('link', { name: 'Electronics' }).getAttribute('aria-current')) === 'page', 'category bar not marking the department')
     expect((await page.title()) === 'Electronics · Plainly', `title was ${await page.title()}`)
@@ -642,6 +662,167 @@ const FLOWS = {
     const box = await link.boundingBox()
     expect(box.x >= 0 && box.x + box.width <= 390, `active department at x=${Math.round(box.x)} is outside the bar`)
   }, { width: 390, theme: 'dark' }),
+  'sale: 10%+ off filter, chip, department bar link, home See all': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const bar = page.getByRole('navigation', { name: 'Departments' })
+    const barLinks = await bar.getByRole('link').allTextContents()
+    expect(barLinks[0] === 'All products' && barLinks[1] === '10%+ off', `bar starts ${barLinks.slice(0, 2)}`)
+    const colors = await bar.getByRole('link', { name: '10%+ off' }).evaluate((a) => [getComputedStyle(a).color, getComputedStyle(document.documentElement).getPropertyValue('--sale').trim()])
+    const hex = '#' + colors[0].match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
+    expect(hex === colors[1], `sale link color ${hex}, token ${colors[1]}`)
+    await page.getByRole('region', { name: 'Departments' }).waitFor()
+    await page.getByRole('link', { name: 'See all biggest discounts right now' }).click()
+    await page.waitForURL(/sale=1/)
+    expect(page.url().includes('sort=discount'), 'sale view not sorted by discount')
+    await page.getByRole('button', { name: 'Remove filter: 10%+ off' }).waitFor()
+    await page.locator('main p[role=status]').getByText('104 results').waitFor()
+    while (await page.getByRole('button', { name: /Show \d+ more/ }).count()) await page.getByRole('button', { name: /Show \d+ more/ }).click()
+    const pcts = (await page.locator('main li').getByText(/^\d+% off$/).allTextContents()).map((t) => parseInt(t))
+    expect(pcts.length === 104 && pcts.every((p) => p >= 10), `sale results: ${pcts.length}, min ${Math.min(...pcts)}%`)
+    await page.getByRole('button', { name: 'Remove filter: 10%+ off' }).click()
+    await page.waitForURL((u) => !u.search.includes('sale='))
+  },
+  'department is context: no chip, Clear all keeps it, breadcrumb leaves it': async (page) => {
+    await page.goto(base + '/search?department=electronics&brand=Apple&sale=1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { level: 1, name: 'Electronics' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Apple' }).waitFor() // chips render once the catalog loads
+    const chips = await page.getByRole('list', { name: 'Applied filters' }).getByRole('button').allTextContents()
+    expect(chips.length === 2 && !chips.some((c) => c.includes('Electronics')), `chips: ${chips}`)
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click()
+    await page.waitForURL((u) => u.search === '?department=electronics')
+    await page.getByRole('heading', { level: 1, name: 'Electronics' }).waitFor()
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'All products' }).click()
+    await page.waitForURL((u) => u.pathname === '/search' && u.search === '')
+    await page.getByRole('heading', { level: 1, name: 'All products' }).waitFor()
+  },
+  'search understands categories, chip undoes it': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('searchbox').fill('phone')
+    await page.getByRole('searchbox').press('Enter')
+    await page.waitForURL(/\/search\?q=phone$/)
+    const chip = page.getByRole('button', { name: 'Remove filter: Smartphones (from “phone”)' })
+    await chip.waitFor()
+    await page.locator('main p[role=status]').getByText('16 results').waitFor()
+    await chip.click()
+    await page.waitForURL(/literal=1/)
+    expect(page.url().includes('q=phone'), 'undo dropped the query')
+    const literal = Number((await page.locator('main p[role=status]').textContent()).match(/\d+/)[0])
+    expect(literal !== 16 && literal > 0, `text search for "phone" gave ${literal}`)
+    await page.goto(base + '/search?q=t-shirt', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Remove filter: Mens shirts (from “t-shirt”)' }).waitFor()
+    await page.locator('main p[role=status]').getByText('5 results').waitFor()
+    await page.goto(base + '/search?q=Perfumes', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: /Remove filter: Fragrances/ }).waitFor()
+    await page.goto(base + '/search?q=phone%20case', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    expect((await page.getByRole('button', { name: /from “phone case”/ }).count()) === 0, '"phone case" should stay a text search')
+  },
+  'breadcrumbs: department › category › brand › product': async (page) => {
+    await page.goto(base + '/product/78', { waitUntil: 'domcontentloaded' })
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await crumbs.waitFor()
+    const steps = await crumbs.locator('li:not([aria-hidden])').allTextContents()
+    expect(steps.join(' › ') === 'Electronics › Laptops › Apple › Apple MacBook Pro 14 Inch Space Grey', `crumbs: ${steps}`)
+    expect((await crumbs.getByRole('link').count()) === 3, 'product step should not be a link')
+    const brandHref = await crumbs.getByRole('link', { name: 'Apple' }).getAttribute('href')
+    expect(brandHref === '/search?department=electronics&category=laptops&brand=Apple', `brand link ${brandHref}`)
+    await crumbs.getByRole('link', { name: 'Apple' }).click()
+    await page.getByRole('button', { name: 'Remove filter: Laptops' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Apple' }).waitFor()
+    await page.goto(base + '/product/22', { waitUntil: 'domcontentloaded' }) // no brand
+    await page.getByRole('heading', { level: 1, name: 'Dog Food' }).waitFor()
+    const plain = await page.getByRole('navigation', { name: 'Breadcrumb' }).locator('li:not([aria-hidden])').allTextContents()
+    expect(plain.join(' › ') === 'Groceries › Groceries › Dog Food', `no-brand crumbs: ${plain}`)
+  },
+  'phone: breadcrumb is one line and truncates': Object.assign(async (page) => {
+    await page.goto(base + '/product/108', { waitUntil: 'domcontentloaded' })
+    const ol = page.getByRole('navigation', { name: 'Breadcrumb' }).locator('ol')
+    await ol.waitFor()
+    const { height, lineHeight, overflow } = await ol.evaluate((el) => ({ height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight), overflow: el.scrollWidth - el.clientWidth }))
+    expect(height < lineHeight * 1.5, `breadcrumb is ${height}px tall`)
+    expect(overflow <= 1, `breadcrumb overflows by ${overflow}px`)
+    const last = ol.locator('[aria-current=page]')
+    expect(await last.evaluate((el) => el.scrollWidth > el.clientWidth), 'long product name should be truncated at 390')
+    // The product name gives way first, so the steps before it stay readable.
+    const cut = await ol.getByRole('link').evaluateAll((links) => links.filter((a) => a.scrollWidth > a.clientWidth).map((a) => a.textContent))
+    expect(cut.length === 0, `ancestor steps truncated: ${cut}`)
+  }, { width: 390, theme: 'light' }),
+  'phone header: two rows, cart one tap, menu with Orders and theme': Object.assign(async (page) => {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const header = page.getByRole('banner')
+    const logo = await header.getByRole('link', { name: 'Plainly, home' }).boundingBox()
+    const cart = await header.getByRole('link', { name: 'Cart, 1 item' }).boundingBox()
+    const menu = await header.getByRole('button', { name: 'Menu' }).boundingBox()
+    const search = await header.getByRole('searchbox').boundingBox()
+    expect(Math.abs(logo.y + logo.height / 2 - (cart.y + cart.height / 2)) < 4 && Math.abs(cart.y - menu.y) < 2, 'logo, cart and menu not on one row')
+    expect(search.y > cart.y + cart.height && search.width > 280, 'search is not a full-width second row')
+    expect((await header.getByRole('link', { name: 'Orders' }).count()) === 0, 'Orders visible in the phone header')
+    expect((await header.getByRole('radiogroup', { name: 'Theme' }).count()) === 0, 'theme toggle visible in the phone header')
+    const opener = header.getByRole('button', { name: 'Menu' })
+    await opener.click()
+    const dialog = page.getByRole('dialog', { name: 'Menu' })
+    await dialog.getByRole('link', { name: 'Orders' }).waitFor()
+    await expectFocusTrapped(page, dialog, 12)
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await opener.evaluate((b) => b === document.activeElement), 'focus not returned to the menu button')
+    await opener.click()
+    await dialog.getByRole('radio', { name: 'Dark' }).click()
+    expect(await page.evaluate(() => document.documentElement.classList.contains('dark')), 'menu theme choice not applied')
+    await dialog.getByRole('link', { name: 'Orders' }).click()
+    await page.getByRole('heading', { name: 'No orders yet' }).waitFor()
+    await dialog.waitFor({ state: 'hidden' })
+  }, { width: 390, theme: 'light' }),
+  'desktop header unchanged at 640 and up': Object.assign(async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const header = page.getByRole('banner')
+    await header.getByRole('link', { name: 'Orders' }).waitFor()
+    await header.getByRole('radiogroup', { name: 'Theme' }).waitFor()
+    expect((await header.getByRole('button', { name: 'Menu' }).count()) === 0, 'menu button shown on desktop')
+    const tops = await Promise.all(['Plainly, home', 'Orders'].map(async (n) => (await header.getByRole('link', { name: n }).boundingBox()).y))
+    const search = (await header.getByRole('searchbox').boundingBox()).y
+    expect(Math.abs(tops[0] - tops[1]) < 12 && Math.abs(search - tops[1]) < 12, 'desktop header is not one row')
+  }, { width: 640, theme: 'light' }),
+}
+
+// "System" shows the device's icon: phone, tablet or monitor, by media query.
+FLOWS['theme toggle: System icon follows the device, live on rotation'] = async () => {
+  const visibleIcon = (page) => page.getByRole('radio', { name: 'System' }).first().evaluate((b) =>
+    ['phone', 'tablet', 'desktop'].filter((k) => getComputedStyle(b.querySelector(`.device-icon-${k}`)).display !== 'none'))
+  const cases = [
+    { device: 'phone', ctx: { isMobile: true, hasTouch: true, viewport: { width: 390, height: 844 } }, rotated: { width: 844, height: 390 } },
+    { device: 'tablet', ctx: { isMobile: true, hasTouch: true, viewport: { width: 820, height: 1180 } }, rotated: { width: 1180, height: 820 } },
+    { device: 'desktop', ctx: { viewport: { width: 1440, height: 900 } }, rotated: { width: 1024, height: 768 } },
+  ]
+  for (const { device, ctx, rotated } of cases) {
+    const context = await browser.newContext(ctx)
+    const page = await context.newPage()
+    page.setDefaultTimeout(SCENE_TIMEOUT)
+    try {
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      if (ctx.viewport.width < 640) await page.getByRole('button', { name: 'Menu' }).click() // the toggle lives in the menu
+      const radio = page.getByRole('radio', { name: 'System' }).first()
+      await radio.waitFor()
+      const before = await visibleIcon(page)
+      const box = await radio.boundingBox()
+      expect(before.length === 1 && before[0] === device, `${device}: showing ${before}`)
+      await page.setViewportSize(rotated)
+      if (ctx.viewport.width < 640) {
+        // Turned sideways past sm, the menu closes and the page isn't left inert.
+        await page.getByRole('dialog', { name: 'Menu' }).waitFor({ state: 'hidden' })
+        expect(!(await page.evaluate(() => document.querySelector('dialog[open]'))), 'a modal is still open after rotating')
+      }
+      const after = await visibleIcon(page)
+      expect(after.length === 1 && after[0] === device, `${device} rotated: showing ${after}`)
+      if (ctx.viewport.width >= 640) {
+        const box2 = await radio.boundingBox()
+        expect(box.width === box2.width && box.height === box2.height, 'icon swap changed the button size')
+      }
+    } finally {
+      await context.close()
+    }
+  }
 }
 
 // The tray slides up only when motion is welcome.
@@ -700,6 +881,7 @@ function pathFlow(theme, width) {
     await page.getByRole('button', { name: 'Place order' }).click()
     await page.getByRole('heading', { name: 'Order placed' }).waitFor()
     await shot('confirmation')
+    if (width < 640) await page.getByRole('button', { name: 'Menu' }).click() // Orders lives in the menu on phones
     await page.getByRole('link', { name: 'Orders', exact: true }).click()
     await page.getByRole('heading', { name: 'Your orders' }).waitFor()
     await shot('orders')

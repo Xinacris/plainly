@@ -1,5 +1,6 @@
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
+import { Breadcrumbs, type Crumb } from '../components/Breadcrumbs'
 import { DecisionCard } from '../components/DecisionCard'
 import { ProductImage } from '../components/ProductImage'
 import { Rating } from '../components/Rating'
@@ -7,6 +8,7 @@ import { StatusMessage } from '../components/StatusMessage'
 import { secondaryButton } from '../components/styles'
 import { useProduct, type Product } from '../lib/catalog'
 import { TRANSIT } from '../lib/delivery'
+import { departmentOf } from '../lib/departments'
 import { formatCategory, formatRating, pluralize, reviewRating } from '../lib/format'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
@@ -90,6 +92,26 @@ function DetailList({ rows }: { rows: [string, string][] }) {
   )
 }
 
+// Department › Category › Brand › Product. Each step opens the matching search:
+// the brand step is the category filtered by that brand. No brand, no brand step.
+function productCrumbs(product: Product): Crumb[] {
+  const department = departmentOf(product.category)
+  const params = new URLSearchParams()
+  const crumbs: Crumb[] = []
+  if (department) {
+    params.set('department', department.slug)
+    crumbs.push({ label: department.name, to: `/search?${params}` })
+  }
+  params.append('category', product.category)
+  crumbs.push({ label: formatCategory(product.category), to: `/search?${params}` })
+  if (product.brand) {
+    params.append('brand', product.brand)
+    crumbs.push({ label: product.brand, to: `/search?${params}` })
+  }
+  crumbs.push({ label: product.title })
+  return crumbs
+}
+
 function ProductDetails({ id }: { id: number }) {
   const product = useProduct(id)
   useDocumentTitle(product?.title ?? 'Product not found')
@@ -118,12 +140,10 @@ function ProductDetails({ id }: { id: number }) {
   // first screen. From md: photos on the left, title and card on the right.
   return (
     <article className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_1fr] lg:gap-x-12">
+      {/* grid-cols-1 (minmax(0, 1fr)) so the one-line breadcrumb truncates instead of widening the page. */}
+      <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_1fr] lg:gap-x-12">
         <div className="md:col-start-2">
-          <p className="text-sm text-muted">
-            {formatCategory(product.category)}
-            {product.brand && ` · ${product.brand}`}
-          </p>
+          <Breadcrumbs items={productCrumbs(product)} />
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-balance sm:text-3xl">{product.title}</h1>
           <Rating product={product} className="mt-2" />
         </div>

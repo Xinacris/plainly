@@ -108,7 +108,7 @@ The Gemini prompt, verbatim:
 ### How the return window, home page and polish pass were built
 
 - **Return window (#9):** every item on the orders page and the confirmation shows its return policy and whether the window is still open. It's counted from the order date, as agreed, and the page says so: "Return window open until Oct 30, 2026 (30 days from the order date)". Once the window closes it says when it closed. "No return policy" items say "No returns for this item" in the warning color. A policy in an unknown wording is shown as written.
-- **Departments:** eight departments group all 24 DummyJSON categories, each category in exactly one department (checked against the catalog). `/search?department=…` filters to them, sets the page heading, and shows as a removable chip.
+- **Departments:** eight departments group all 24 DummyJSON categories, each category in exactly one department (checked against the catalog). `/search?department=…` filters to them and sets the page heading. It first showed as a removable chip too; after testing it became navigation context instead (change 6 below).
 - **Department bar:** a department bar under the header on every page. It scrolls sideways on phones and brings the current department into view.
 - **Home:**
   - A one-line intro. On phones only the heading shows, so it stays one line.
@@ -120,6 +120,31 @@ The Gemini prompt, verbatim:
   - Navigation: new pages start at the top, while filter changes keep your scroll position.
   - Errors: the tray has its own error boundary.
   - Checks: `verify.mjs` now runs axe-core (WCAG 2.1 A/AA and best practices) on the 1440-light and 390-dark scene of every page.
+
+### Changes after testing the live site
+
+1. **Breadcrumbs on the product page:** Department › Category › Brand › Product. Each step opens the matching search, and the brand step is the category filtered by that brand. Products without a brand skip that step, and the product name is plain text marked `aria-current`. On phones it stays on one line. The product name, which the heading right below repeats, gives way first, down to 3rem. Only then do the other steps shorten. Truncation is visual only: the full text stays in the DOM and in a tooltip. *Why:* shoppers want to see where a product sits and step back to a wider view in one tap.
+2. **A "10%+ off" sale filter.**
+   - **Why a threshold:** every product has some discount, so a plain "On sale" filter would show nearly everything.
+   - **The numbers:** the displayed discounts spread almost evenly from 0% to 19% (median 10%). 14%+ would have been closest to a third of the catalog (61 products). **10%+ was chosen: 104 of 194 products (54%).** It's the most familiar sale threshold for shoppers, and it still removes the 90 products with small or no discounts.
+   - **The trade-off:** the sale view covers more than half the catalog, so it narrows less than a stricter rule would.
+   - **The rule:** it uses the same truncated whole-number % the cards show, so every product in the view shows at least "10% off". The chip is labeled with the rule itself.
+   - **Where it appears:** a real filter (`sale=1`) in the filter panel, and a link right after "All products" in the department bar. The home page's "Biggest discounts" "See all" opens it sorted by discount, so products with small or no discounts never appear there.
+   - **Colour:** it has its own `sale` token, a calm berry (#a3285b light, #f39abf dark; 7.0 and 8.2:1 on surface). It's clearly a different hue from action green and from the warning color, which means low stock and no returns. The "N% off" text on cards and the decision card uses it too, so the token means "discount" everywhere.
+3. **Two-row phone header.** Below `sm`, the header took three rows and pushed products down. Row 1 is now the logo, a cart icon with its count (the cart stays one tap away), and a menu button; row 2 is full-width search. The menu is the same modal sheet as the filters: focus stays in it, Escape closes it, and focus returns to the button. It holds Orders and the light / dark / system choice. It closes itself if the screen grows past `sm` while open (a phone turned sideways), so the page is never left inert behind a hidden modal. The department bar and the desktop header are unchanged.
+4. **No "Best sellers" sort.** See "Considered, not now".
+5. **Search that understands categories.**
+   - **When it applies:** only when the *whole* query names a category, a department or a common synonym ("tee", "phone", "perfume", "watch"…). Search then applies that category instead of matching the words as text, and shows it as a chip, e.g. "Smartphones (from “phone”)". There's no redirect: the URL keeps `q`.
+   - **Undo:** removing the chip sets `literal=1`, which gives a plain text search for the same words.
+   - **Why whole-query only:** "phone case" means an accessory, not a smartphone, so it stays a text search.
+   - **Plurals:** matching ignores simple plurals ("dresses", "watches", "accessories").
+   - **A mapping changed from the example:** DummyJSON's "tops" holds only frocks and dresses, and every shirt is in "mens-shirts". So "t-shirt", "tee" and "shirt" map to Men's shirts only; mapping them to tops as well would answer "t-shirt" with dresses.
+6. **The department is navigation context, not a filter.** A department chosen from the bar shows as the page heading and in a breadcrumb ("All products › Electronics"), not as a chip. "Clear all" removes only filters chosen on the page (category, brand, price, rating, stock, sale, and a query's category). The department is left through the breadcrumb or "All products".
+7. **The "System" theme option shows the device's icon:** a phone, a tablet or a monitor.
+   - **Detection:** pure CSS media queries, no user-agent check. A coarse pointer with a width under 48rem (Tailwind's `md`), or a height of 500px or less (a phone on its side), is a phone. Any other coarse pointer is a tablet. Anything else is a desktop.
+   - **Live and stable:** all three icons sit in one grid cell and CSS shows one, so the swap is live on resize and rotation and never shifts layout.
+   - **Accessibility:** the accessible name is "System" in every case; the options are now named Light, Dark and System, inside the "Theme" group.
+   - **Where:** the same component serves the header and the phone menu, where it shows the labels.
 
 ## Changed from the proposal
 
@@ -133,6 +158,7 @@ The Gemini prompt, verbatim:
 - **Full return flow:** return reasons, return status, and a replacement option.
 - **Star distribution for reviews:** not meaningful with 3 reviews per product (see #8).
 - **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
+- **A "Best sellers" sort.** DummyJSON has no sales data. Any popularity ranking would have to be invented, from stock, rating or the order of the data, and presenting a made-up signal as popularity is exactly the noise Plainly rejects. The sorts stay relevance, price, rating and discount, each computed from data the page shows.
 
 ## Build order
 
@@ -146,7 +172,8 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | No new features. Bug fixes, README, final deploy |
+| 7 | Changes from testing the live site: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon |
+| 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**
 1. Return window on orders
@@ -195,3 +222,8 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | Orders, home, polish | Every browser tab said "Plainly", whatever the page. | Pages didn't set a title. | Each page sets its own ("Electronics · Plainly", the product name, "Checkout · Plainly"). |
 | Orders, home, polish | The intro strip wrapped to two lines on phones, and the current department could sit out of sight in the department bar. | The full sentence doesn't fit in 358 px; the bar never scrolled to the active link. | Phones show only the intro heading; the bar scrolls the active link to its middle. Both tested at 390 px. |
 | Orders, home, polish | The audit flagged cards in the sideways rows as off-screen, and text inside closed `<details>` as overlapping the footer. | Both are hidden by design. | The audit skips items inside horizontal scrollers and content of closed `<details>`. |
+| Testing the live site | Product pages scrolled sideways on phones once the one-line breadcrumb was added. | The mobile grid had an implicit `auto` column, so the breadcrumb's unbroken width set the column width. | `grid-cols-1` (a `minmax(0, 1fr)` track), so the breadcrumb truncates instead. The audit caught it at 390 px. |
+| Testing the live site | On phones the breadcrumb cut every step ("Electro…", "Ap…") while the product name kept space, and then still cut "Electronics" by a pixel. | Flex shrinking shares the overflow among all items by weight, so even a 1000× weight leaves the others a sliver. | The product step starts at zero width and only takes the leftover space (at least 3rem). The other steps keep their full width unless they overflow on their own. A test checks no ancestor step is cut at 390 px. |
+| Testing the live site | Latent, fixed before shipping: opening the phone menu and then turning the phone sideways past `sm` would hide the menu's container while the modal stayed open, leaving the whole page inert. | The menu lives in the phones-only part of the header. | The menu closes itself when the viewport reaches `sm`. Tested by rotating with the menu open. |
+| Testing the live site | The applied-filter chips weren't reachable as a list. | The `<ul>` used `display: contents`, which can drop its list role. | The list is a real flex container. |
+| Testing the live site | The filter-sheet focus test failed after the sheet gained a control. | The test pressed Tab 40 times and checked the final spot. Past the last control a native modal hands focus to the browser's UI and back, and that's where the 40th press landed. | The test checks every press: focus must stay in the modal or on the browser UI, never on the page behind. The menu uses the same check. |

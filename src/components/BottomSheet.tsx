@@ -1,11 +1,11 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 interface Props {
   open: boolean
   onClose: () => void
   title: string
   children: ReactNode
-  footer: ReactNode
+  footer?: ReactNode
 }
 
 // A modal <dialog>: showModal() makes the rest of the page inert (focus stays
@@ -13,6 +13,8 @@ interface Props {
 export function BottomSheet({ open, onClose, title, children, footer }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
+  // Unique, because the filter sheet and the menu can both be on one page.
+  const titleId = useId()
 
   useEffect(() => {
     const dialog = ref.current
@@ -27,7 +29,7 @@ export function BottomSheet({ open, onClose, title, children, footer }: Props) {
   return (
     <dialog
       ref={ref}
-      aria-labelledby="sheet-title"
+      aria-labelledby={titleId}
       onClose={() => {
         onClose()
         opener.current?.focus()
@@ -37,7 +39,7 @@ export function BottomSheet({ open, onClose, title, children, footer }: Props) {
       className="mx-0 mt-auto mb-0 flex max-h-[85dvh] w-full max-w-none flex-col rounded-t-2xl bg-surface p-0 text-text backdrop:bg-black/50 not-open:hidden"
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 id="sheet-title" className="text-lg font-bold">
+        <h2 id={titleId} className="text-lg font-bold">
           {title}
         </h2>
         <button
@@ -52,7 +54,7 @@ export function BottomSheet({ open, onClose, title, children, footer }: Props) {
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{open && children}</div>
-      <div className="border-t border-border px-4 py-3">{footer}</div>
+      {footer && <div className="border-t border-border px-4 py-3">{footer}</div>}
     </dialog>
   )
 }

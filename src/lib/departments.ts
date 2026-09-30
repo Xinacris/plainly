@@ -30,3 +30,7 @@ export function findDepartment(slug: string | null | undefined): Department | un
 export function inDepartment(product: Product, department: Department): boolean {
   return department.categories.includes(product.category)
 }
+
+export function departmentOf(category: string): Department | undefined {
+  return DEPARTMENTS.find((d) => d.categories.includes(category))
+}

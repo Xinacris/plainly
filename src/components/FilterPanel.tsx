@@ -8,6 +8,7 @@ import {
   type FacetOption,
   type Filters,
 } from '../lib/filters'
+import { SALE_LABEL } from '../lib/pricing'
 
 interface Props {
   /** The products the query matched, before filters. Counts are computed from these. */
@@ -110,6 +111,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
   const categories = categoryOptions(products, filters)
   const brands = brandOptions(products, filters)
   const inStockCount = countWith(products, filters, { inStock: true })
+  const saleCount = countWith(products, filters, { sale: true })
   const priceInverted =
     filters.minPrice !== undefined && filters.maxPrice !== undefined && filters.minPrice > filters.maxPrice
 
@@ -126,6 +128,20 @@ export function FilterPanel({ products, filters, onChange }: Props) {
           />
           In stock only
           <span className={count}>{inStockCount}</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend className={legend}>Discount</legend>
+        <label className={optionRow}>
+          <input
+            type="checkbox"
+            checked={filters.sale}
+            onChange={() => onChange({ ...filters, sale: !filters.sale })}
+            className="size-4 accent-action"
+          />
+          {SALE_LABEL}
+          <span className={count}>{saleCount}</span>
         </label>
       </fieldset>
 

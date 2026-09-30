@@ -1,11 +1,11 @@
 import type { Product } from './catalog'
 import { findDepartment } from './departments'
 import { formatCategory, formatPrice, reviewRating } from './format'
-import { salePrice } from './pricing'
+import { onSale, SALE_LABEL, salePrice } from './pricing'
 
 // Filters live in the URL, so a filtered view can be shared, bookmarked and
 // navigated with Back. Param names: department, category (repeatable), brand
-// (repeatable), min, max, rating, stock=in.
+// (repeatable), min, max, rating, stock=in, sale=1.
 export interface Filters {
   /** A department slug from lib/departments.ts; unknown slugs are ignored. */
   department?: string
@@ -15,11 +15,13 @@ export interface Filters {
   maxPrice?: number
   minRating?: number
   inStock: boolean
+  /** Only products at SALE_THRESHOLD% off or more. */
+  sale: boolean
 }
 
 export const RATING_OPTIONS = [4, 3, 2, 1] as const
 
-type Facet = 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock'
+type Facet = 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock' | 'sale'
 
 function parsePrice(value: string | null): number | undefined {
   if (value === null || value.trim() === '') return undefined
@@ -37,13 +39,14 @@ export function parseFilters(params: URLSearchParams): Filters {
     maxPrice: parsePrice(params.get('max')),
     minRating: (RATING_OPTIONS as readonly number[]).includes(rating) ? rating : undefined,
     inStock: params.get('stock') === 'in',
+    sale: params.get('sale') === '1',
   }
 }
 
 /** Returns a copy of `params` with the filter params replaced; q and sort are kept. */
 export function writeFilters(params: URLSearchParams, filters: Filters): URLSearchParams {
   const next = new URLSearchParams(params)
-  for (const key of ['department', 'category', 'brand', 'min', 'max', 'rating', 'stock']) next.delete(key)
+  for (const key of ['department', 'category', 'brand', 'min', 'max', 'rating', 'stock', 'sale']) next.delete(key)
   if (filters.department) next.set('department', filters.department)
   filters.categories.forEach((c) => next.append('category', c))
   filters.brands.forEach((b) => next.append('brand', b))
@@ -51,10 +54,16 @@ export function writeFilters(params: URLSearchParams, filters: Filters): URLSear
   if (filters.maxPrice !== undefined) next.set('max', String(filters.maxPrice))
   if (filters.minRating !== undefined) next.set('rating', String(filters.minRating))
   if (filters.inStock) next.set('stock', 'in')
+  if (filters.sale) next.set('sale', '1')
   return next
 }
 
-export const NO_FILTERS: Filters = { categories: [], brands: [], inStock: false }
+export const NO_FILTERS: Filters = { categories: [], brands: [], inStock: false, sale: false }
+
+/** "Clear all": drops every filter chosen on the page but stays in the department. */
+export function clearedFilters(filters: Filters): Filters {
+  return { ...NO_FILTERS, department: filters.department }
+}
 
 /** `skip` leaves one facet out, so that facet's own counts show what choosing another option would give. */
 export function matchesFilters(product: Product, filters: Filters, skip?: Facet): boolean {
@@ -67,6 +76,7 @@ export function matchesFilters(product: Product, filters: Filters, skip?: Facet)
   if (skip !== 'price' && filters.maxPrice !== undefined && price > filters.maxPrice) return false
   if (skip !== 'rating' && filters.minRating !== undefined && reviewRating(product) < filters.minRating) return false
   if (skip !== 'stock' && filters.inStock && product.stock <= 0) return false
+  if (skip !== 'sale' && filters.sale && !onSale(product)) return false
   return true
 }
 
@@ -123,11 +133,10 @@ function priceLabel({ minPrice, maxPrice }: Filters): string {
   return `Up to ${formatPrice(maxPrice ?? 0)}`
 }
 
-/** One removable chip per applied filter, each carrying the filters without it. */
+/** One removable chip per filter chosen on the page, each carrying the filters without it.
+ *  The department isn't one: it's where you are (heading and breadcrumb), not a filter. */
 export function filterChips(filters: Filters): Chip[] {
-  const department = findDepartment(filters.department)
   const chips: Chip[] = [
-    ...(department ? [{ key: 'department', label: department.name, without: { ...filters, department: undefined } }] : []),
     ...filters.categories.map((c) => ({
       key: `category:${c}`,
       label: formatCategory(c),
@@ -146,5 +155,6 @@ export function filterChips(filters: Filters): Chip[] {
     chips.push({ key: 'rating', label: `Rated ${filters.minRating} and up`, without: { ...filters, minRating: undefined } })
   }
   if (filters.inStock) chips.push({ key: 'stock', label: 'In stock', without: { ...filters, inStock: false } })
+  if (filters.sale) chips.push({ key: 'sale', label: SALE_LABEL, without: { ...filters, sale: false } })
   return chips
 }

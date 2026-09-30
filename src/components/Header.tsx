@@ -3,11 +3,35 @@ import { useCartCount } from '../cart/cart'
 import { pluralize } from '../lib/format'
 import { DepartmentNav } from './DepartmentNav'
 import { LogoMark } from './Logo'
+import { MobileMenu } from './MobileMenu'
 import { SearchForm } from './SearchForm'
 import { ThemeToggle } from './ThemeToggle'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-2 py-1.5 text-sm font-medium hover:text-action ${isActive ? 'text-action' : 'text-text'}`
+
+// Phones: a cart icon with the count, so the cart stays one tap away.
+function CartIconLink() {
+  const count = useCartCount()
+  return (
+    <NavLink
+      to="/cart"
+      aria-label={`Cart, ${pluralize(count, 'item')}`}
+      className={({ isActive }) => `relative grid size-10 place-items-center rounded-lg hover:bg-bg hover:text-action ${isActive ? 'text-action' : 'text-text'}`}
+    >
+      <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6.2" />
+        <circle cx="10" cy="20.5" r="1" />
+        <circle cx="17" cy="20.5" r="1" />
+      </svg>
+      {count > 0 && (
+        <span aria-hidden="true" className="absolute -top-0.5 -right-0.5 min-w-5 rounded-full bg-action px-1 text-center text-xs leading-5 font-bold text-on-action tabular-nums">
+          {count}
+        </span>
+      )}
+    </NavLink>
+  )
+}
 
 function CartLink() {
   const count = useCartCount()
@@ -34,21 +58,26 @@ export function Header() {
           <span className="text-xl leading-none font-semibold">Plainly</span>
         </Link>
 
-        {/* On phones, search and the theme toggle share a second row, so the first
-            row fits logo, Orders and Cart down to 320 px. Inline from sm up. */}
-        <div className="order-last min-w-0 flex-1 basis-40 sm:order-none sm:basis-0">
+        {/* Phones: logo with cart and menu on row 1, full-width search on row 2.
+            From sm up, one row: logo, search, Orders, Cart, theme. */}
+        <div className="order-last w-full min-w-0 sm:order-none sm:w-auto sm:flex-1 sm:basis-0">
           <SearchForm />
         </div>
 
-        <nav aria-label="Main" className="ml-auto flex items-center gap-1 sm:ml-0">
+        <nav aria-label="Main" className="hidden items-center gap-1 sm:flex">
           <NavLink to="/orders" className={navClass}>
             Orders
           </NavLink>
           <CartLink />
         </nav>
 
-        <div className="order-last sm:order-none">
+        <div className="hidden sm:block">
           <ThemeToggle />
+        </div>
+
+        <div className="ml-auto flex items-center gap-1 sm:hidden">
+          <CartIconLink />
+          <MobileMenu />
         </div>
       </div>
       <DepartmentNav />

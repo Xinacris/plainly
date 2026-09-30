@@ -5,8 +5,10 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* All colors are tokens. Text pairs meet WCAG AA in both themes (≥4.5:1):
-   light — text 15.9, muted 6.5, action 6.5, warning 7.1 on surface;
-   dark  — text 14.1, muted 7.2, action 8.6, warning 8.9 on surface.
+   light — text 15.9, muted 6.5, action 6.5, warning 7.1, sale 7.0 on surface;
+   dark  — text 14.1, muted 7.2, action 8.6, warning 8.9, sale 8.2 on surface.
+   `sale` marks discounts: a calm berry, distinct from action (green) and from
+   warning (orange), which means low stock and no returns.
    border-strong (form controls) ≥3:1 against bg and surface. */
 :root {
   color-scheme: light;
@@ -21,6 +23,7 @@
   --on-action: #ffffff;
   --warning: #8f4309;
   --warning-surface: #fcefe0;
+  --sale: #a3285b;
   /* Product photos have light backgrounds; they always sit on a light tile. */
   --image-tile: #f3f3ef;
 }
@@ -38,6 +41,7 @@
   --on-action: #0c1a13;
   --warning: #f2ae6b;
   --warning-surface: #2b1f13;
+  --sale: #f39abf;
   --image-tile: #e9e9e4;
 }
 
@@ -54,6 +58,7 @@
   --color-on-action: var(--on-action);
   --color-warning: var(--warning);
   --color-warning-surface: var(--warning-surface);
+  --color-sale: var(--sale);
   --color-image-tile: var(--image-tile);
 }
 
@@ -63,5 +68,30 @@
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-action;
+  }
+}
+
+/* The theme toggle's "System" icon matches the device, chosen by media queries
+   (no user-agent sniffing), so it updates live on resize and rotation:
+   coarse pointer + narrow (or short, i.e. a phone on its side) → phone,
+   coarse pointer + wide → tablet, anything else → desktop monitor.
+   48rem is Tailwind's md; 500px of height separates a landscape phone from a tablet.
+   All three icons share one grid cell, so swapping them never shifts layout. */
+.device-icon {
+  display: none;
+}
+@media not (pointer: coarse) {
+  .device-icon-desktop {
+    display: block;
+  }
+}
+@media (pointer: coarse) and (width < 48rem), (pointer: coarse) and (height <= 500px) {
+  .device-icon-phone {
+    display: block;
+  }
+}
+@media (pointer: coarse) and (width >= 48rem) and (height > 500px) {
+  .device-icon-tablet {
+    display: block;
   }
 }

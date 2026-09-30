@@ -1,15 +1,17 @@
 import { Suspense, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { BottomSheet } from '../components/BottomSheet'
-import { FilterChips } from '../components/FilterChips'
+import { Breadcrumbs, type Crumb } from '../components/Breadcrumbs'
+import { FilterChips, type ChipItem } from '../components/FilterChips'
 import { FilterPanel } from '../components/FilterPanel'
 import { ProductCard, ProductCardSkeleton, gridClass } from '../components/ProductCard'
 import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog, type Product } from '../lib/catalog'
 import { findDepartment } from '../lib/departments'
-import { filterChips, matchesFilters, NO_FILTERS, parseFilters, writeFilters, type Filters } from '../lib/filters'
+import { clearedFilters, filterChips, matchesFilters, parseFilters, writeFilters, type Filters } from '../lib/filters'
 import { pluralize } from '../lib/format'
+import { interpretQuery, type QueryIntent } from '../lib/queryIntent'
 import { isSortKey, searchProducts, sortHits, sortLabels, type SortKey } from '../lib/search'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
@@ -54,7 +56,27 @@ function useSearchState() {
     setParams(updated)
   }
   const setFilters = (next: Filters) => setParams(writeFilters(params, next))
-  return { query, sort, setSort, filters, setFilters }
+
+  // A query that names a category ("phone", "perfume") applies it as a filter,
+  // unless the shopper removed that chip, which sets literal=1: plain text search.
+  const intent = query && params.get('literal') !== '1' ? interpretQuery(query) : undefined
+  const withLiteral = (next: URLSearchParams) => {
+    next.set('literal', '1')
+    return next
+  }
+  const dropIntent = () => setParams(withLiteral(new URLSearchParams(params)))
+
+  // Page filters and the query's category are chips; the department is where you
+  // are, so "Clear all" keeps it.
+  const chips: ChipItem[] = [
+    ...(intent ? [{ key: 'intent', label: `${intent.label} (from “${query}”)`, onRemove: dropIntent }] : []),
+    ...filterChips(filters).map((c) => ({ key: c.key, label: c.label, onRemove: () => setFilters(c.without) })),
+  ]
+  const clearAll = () => {
+    const next = writeFilters(params, clearedFilters(filters))
+    setParams(intent ? withLiteral(next) : next)
+  }
+  return { query, intent, sort, setSort, filters, setFilters, chips, clearAll }
 }
 
 function SortSelect({ sort, hasQuery, onChange }: { sort: SortKey; hasQuery: boolean; onChange: (s: SortKey) => void }) {
@@ -104,17 +126,24 @@ function ResultGrid({ products }: { products: Product[] }) {
 
 interface BodyProps {
   query: string
+  intent?: QueryIntent
   sort: SortKey
   filters: Filters
   setFilters: (f: Filters) => void
+  chips: ChipItem[]
+  clearAll: () => void
   sheetOpen: boolean
   setSheetOpen: (open: boolean) => void
 }
 
-function SearchBody({ query, sort, filters, setFilters, sheetOpen, setSheetOpen }: BodyProps) {
+function SearchBody({ query, intent, sort, filters, setFilters, chips, clearAll, sheetOpen, setSheetOpen }: BodyProps) {
   const catalog = useCatalog()
-  // Filter counts are computed from what the query matched, before filters.
-  const hits = useMemo(() => searchProducts(catalog, query), [catalog, query])
+  // Filter counts are computed from what the query matched, before filters. A query
+  // understood as a category matches that category instead of its words.
+  const hits = useMemo(() => {
+    if (!intent) return searchProducts(catalog, query)
+    return searchProducts(catalog, '').filter((h) => intent.categories.includes(h.product.category))
+  }, [catalog, query, intent])
   const matched = useMemo(() => hits.map((h) => h.product), [hits])
   const results = useMemo(
     () => sortHits(hits.filter((h) => matchesFilters(h.product, filters)), sort),
@@ -139,8 +168,7 @@ function SearchBody({ query, sort, filters, setFilters, sheetOpen, setSheetOpen 
   }
 
   const panel = <FilterPanel products={matched} filters={filters} onChange={setFilters} />
-  const clearFilters = () => setFilters(NO_FILTERS)
-  const hasFilters = filterChips(filters).length > 0
+  const hasFilters = chips.length > 0
 
   return (
     <div className={layoutClass}>
@@ -155,7 +183,7 @@ function SearchBody({ query, sort, filters, setFilters, sheetOpen, setSheetOpen 
         footer={
           <div className="flex gap-3">
             {hasFilters && (
-              <button type="button" onClick={clearFilters} className={secondaryButton}>
+              <button type="button" onClick={clearAll} className={secondaryButton}>
                 Clear all
               </button>
             )}
@@ -169,14 +197,14 @@ function SearchBody({ query, sort, filters, setFilters, sheetOpen, setSheetOpen 
       </BottomSheet>
 
       <div className="min-w-0">
-        <FilterChips filters={filters} onChange={setFilters} />
+        <FilterChips chips={chips} onClearAll={clearAll} />
         {results.length === 0 && (
           <StatusMessage
             role="status"
             level="h2"
             title="No products match these filters"
             action={
-              <button type="button" onClick={clearFilters} className={secondaryButton}>
+              <button type="button" onClick={clearAll} className={secondaryButton}>
                 Clear all filters
               </button>
             }
@@ -186,7 +214,7 @@ function SearchBody({ query, sort, filters, setFilters, sheetOpen, setSheetOpen 
         )}
         {/* Keyed so "Show more" starts over whenever the result set changes. */}
         {results.length > 0 && (
-          <ResultGrid key={`${query}|${sort}|${writeFilters(new URLSearchParams(), filters)}`} products={results} />
+          <ResultGrid key={`${query}|${Boolean(intent)}|${sort}|${writeFilters(new URLSearchParams(), filters)}`} products={results} />
         )}
       </div>
     </div>
@@ -211,15 +239,29 @@ function searchHeading(query: string, filters: Filters): string {
   return findDepartment(filters.department)?.name ?? 'All products'
 }
 
+// Shown once you're inside a department: the way back out is "All products".
+function searchCrumbs(query: string, filters: Filters): Crumb[] | undefined {
+  const department = findDepartment(filters.department)
+  if (!department) return undefined
+  if (!query) return [{ label: 'All products', to: '/search' }, { label: department.name }]
+  return [
+    { label: 'All products', to: `/search?q=${encodeURIComponent(query)}` },
+    { label: department.name, to: `/search?department=${department.slug}` },
+    { label: `“${query}”` },
+  ]
+}
+
 export function SearchPage() {
-  const { query, sort, setSort, filters, setFilters } = useSearchState()
+  const { query, intent, sort, setSort, filters, setFilters, chips, clearAll } = useSearchState()
   const [sheetOpen, setSheetOpen] = useState(false)
   const heading = searchHeading(query, filters)
   useDocumentTitle(heading)
-  const activeCount = filterChips(filters).length
+  const activeCount = chips.length
+  const crumbs = searchCrumbs(query, filters)
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+      {crumbs && <Breadcrumbs items={crumbs} className="mb-2" />}
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <h1 className="min-w-0 text-2xl font-bold tracking-tight break-words">{heading}</h1>
         <div className="flex flex-wrap items-center gap-3">
@@ -246,6 +288,9 @@ export function SearchPage() {
       <Suspense fallback={<ResultsSkeleton />}>
         <SearchBody
           query={query}
+          intent={intent}
+          chips={chips}
+          clearAll={clearAll}
           sort={sort}
           filters={filters}
           setFilters={setFilters}
