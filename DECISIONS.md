@@ -5,7 +5,7 @@
 Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
 
 - [x] 0. Setup: pinned `@supabase/supabase-js` and the Supabase CLI; `.env.test.local` pointed at plainly-test (it held production's URL and publishable key); production's "Confirm email" switched off, as decided; secret-scan guard.
-- [ ] 1. Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly
+- [x] 1. Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly. Three files in `supabase/migrations/`, all three applied to both projects; advisors clean. `scripts/rls-test.mjs` passes all 31 checks against plainly-test. It caught that this project grants every table right to `authenticated` by default, which the third migration fixes.
 - [ ] 2. Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained
 - [ ] 3. Profile page
 - [ ] 4. Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account
