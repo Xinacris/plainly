@@ -5,7 +5,7 @@ import { useDocumentTitle } from '../lib/useDocumentTitle'
 // Placeholder until a real address is set up. Shown as plain text, not a mailto
 // link, so it can't look like a working inbox.
 const PRIVACY_CONTACT = 'privacy@plainly.example'
-const UPDATED = 'September 30, 2026'
+const UPDATED = 'October 1, 2026'
 
 const h2 = 'mt-8 text-lg font-bold tracking-tight'
 
@@ -29,15 +29,16 @@ export function PrivacyPage() {
       </p>
 
       <h2 className={h2}>If you sign in</h2>
-      <p className="mt-2">
-        Accounts are being added and aren’t live yet; until they are, everything stays in your browser as described
-        above. Once they are, a signed-in account stores:
-      </p>
+      <p className="mt-2">Signing in is optional. When you do, your account stores:</p>
       <ul className="mt-2 list-disc pl-6">
         <li>your name, email address and phone number, if you add one;</li>
         <li>your saved addresses;</li>
         <li>your orders and returns, so they follow you across devices.</li>
       </ul>
+      <p className="mt-2">
+        When you first sign in, we offer to move this browser’s saved addresses and orders into your account; nothing
+        moves unless you say so. Your password is handled by Supabase and never stored in readable form.
+      </p>
       <p className="mt-2">
         This is kept with Supabase, our database and sign-in provider, in its EU region. Your cart always stays in your
         browser, signed in or not.

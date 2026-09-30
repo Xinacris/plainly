@@ -9,7 +9,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-baseline justify-between gap-x-6 gap-y-2 px-4 py-6 text-sm text-muted">
         <p>
           <span className="font-semibold text-text">Plainly</span> · A demo store: products and reviews come from
-          DummyJSON’s mock API, payment is simulated, and orders stay in this browser.
+          DummyJSON’s mock API, payment is simulated, and orders stay in this browser unless you sign in.
         </p>
         <p className="flex gap-4">
           <Link to="/privacy" className={link}>

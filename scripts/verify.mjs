@@ -123,6 +123,10 @@ const SCENES = [
   { name: 'compare-mixed', page: 'compare', url: '/search?q=chair', compare: compareIds(1, 14, 3), ready: 'section[aria-label="Compare"] li img' },
   { name: 'product-tray', page: 'compare', url: '/product/1', compare: compareIds(1), ready: 'section[aria-label="Compare"] li img' },
   { name: 'privacy', page: 'privacy', url: '/privacy', ready: 'main h1:has-text("Privacy")' },
+  { name: 'signin', page: 'account', url: '/signin', ready: 'main h1:has-text("Sign in")' },
+  { name: 'signup', page: 'account', url: '/signup', ready: 'main h1:has-text("Create an account")' },
+  { name: 'profile-demo', page: 'account', url: '/signin?next=%2Fprofile', ready: 'main h1:has-text("Sign in")', needsAccounts: true,
+    before: async (page) => { await page.getByRole('button', { name: 'Sign in as demo' }).click(); await page.getByRole('heading', { level: 1, name: 'Profile' }).waitFor(); await page.getByLabel('Name').waitFor() } },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
 ]
 
@@ -316,10 +320,13 @@ async function pool(items, worker) {
   }))
 }
 
+// Account scenes and flows need a build pointed at plainly-test (see below).
+const ACCOUNTS_AVAILABLE = !smoke && (await accountTestsAvailable())
+
 // 1. Layout audit. --smoke checks the home page once and skips everything else.
 const jobs = only ? [] : smoke
   ? [{ scene: SCENES.find((s) => s.name === smokeScene), width: 1440, theme: 'light' }]
-  : SCENES.flatMap((scene) =>
+  : SCENES.filter((scene) => !scene.needsAccounts || ACCOUNTS_AVAILABLE).flatMap((scene) =>
   (changed.has(scene.page) ? FULL : QUICK).filter((v) => !scene.widths || scene.widths.includes(v.width)).map((v) => ({ scene, ...v })),
 )
 log(`Layout: ${jobs.length} scenes (full matrix for: ${[...changed].join(', ') || 'none'})`)
@@ -1363,8 +1370,8 @@ FLOWS['orders: return per item with a reason, "No returns" disabled, Requested t
 // so these can never touch production. Each test makes its own throwaway users
 // through the admin API and deletes them afterwards. RLS isolation is tested
 // separately by scripts/rls-test.mjs.
-const TEST_REF = 'mukpydnfpifbqhhakdda'
 async function accountTestsAvailable() {
+  const TEST_REF = 'mukpydnfpifbqhhakdda'
   if (!base.startsWith('http://localhost') || !fs.existsSync('.env.test.local')) return false
   try {
     const html = await (await fetch(base + '/')).text()
@@ -1376,7 +1383,7 @@ async function accountTestsAvailable() {
   return false
 }
 
-if (await accountTestsAvailable()) {
+if (ACCOUNTS_AVAILABLE) {
   const { createClient } = await import('@supabase/supabase-js')
   const { DEMO_EMAIL, DEMO_PASSWORD } = await import('../src/lib/demo.js')
   const env = Object.fromEntries(

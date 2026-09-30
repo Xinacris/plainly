@@ -1,5 +1,3 @@
-// While accounts are being built in checkpoints (each push deploys), the sign-in
-// entry points stay hidden in production: the routes exist, and test builds
-// (`vite build --mode test`, pointed at plainly-test) show them so they can be
-// verified. Switched on for everyone in the last step.
-export const ACCOUNTS_ENABLED = import.meta.env.MODE === 'test'
+// Accounts are on. (While they were built in checkpoints, this hid the sign-in
+// entry points in production and showed them only in test builds.)
+export const ACCOUNTS_ENABLED = true

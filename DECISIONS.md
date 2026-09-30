@@ -1,6 +1,6 @@
 # Plainly: Decisions
 
-## Step 2 progress: accounts on Supabase
+## Step 2 progress: accounts on Supabase (complete)
 
 Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
 
@@ -10,10 +10,10 @@ Resume from the first unticked item. First read this list and `git log`, and che
 - [x] 3. Profile page: `/profile` for name and phone (saved to `profiles`, created on first use), the email shown read-only with why it can't change, and a password change with no email needed. The demo account gets notes instead of the email and password controls. It has an error state with Try again, and signed-out visitors go to sign-in and come back.
 - [x] 4. Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account. `src/account/data.ts` holds the account copy and its writes; `src/account/hooks.ts` gives pages the same shapes whether the data is in the browser or the account. Every account page has loading and error states. After sign-in, a one-time dialog offers to move this browser's data, and an inline notice on Addresses and Orders keeps the offer open. The move is idempotent, and the browser's copy is cleared only after it succeeds. Checked end to end on plainly-test; all 67 existing flows still pass.
 - [x] 5. Demo account: seed and reset script, sign-in page note, "Sign in as demo", README. `scripts/demo-reset.mjs` restores 3 addresses and lasting order states (delivered with a refunded return and a no-returns item, delivered and returnable, cancelled), using real catalog snapshots. It's idempotent and has been run on plainly-test; production is seeded by the workflow (item 6). On demo sign-in the app adds a fresh Preparing and Shipped order when none is on its way, capped at 20 orders. The credentials are on the sign-in page and in the README.
-- [ ] 6. GitHub Actions: keep-alive and demo reset every 3 days, never printing the secret. **Blocked on the owner:** the workflow is written (`.github/workflows/keep-alive.yml`), but GitHub refuses the push until the `gh` login has the `workflow` scope (`gh auth refresh -h github.com -s workflow`). Until then the file is kept locally and excluded via `.git/info/exclude`: remove that line, commit, push, then run it once with `gh workflow run keep-alive.yml` to seed production's demo account.
-- [ ] 7. Tests (sign-up, sign-in, sign-out, profile, data move, demo, RLS isolation), verification, docs, deploy.
+- [x] 6. GitHub Actions: keep-alive and demo reset every 3 days, never printing the secret. `.github/workflows/keep-alive.yml`, pushed after the `gh` login got the `workflow` scope. Its first run created and seeded production's demo account; the log shows the key only as `***`. The demo was checked with the publishable key: 3 addresses, 3 orders, 1 return, and its password change is refused.
+- [x] 7. Tests (sign-up, sign-in, sign-out, profile, data move, demo, RLS isolation), verification, docs, deploy.
   - [x] 7a. Tests: 5 account flows in `verify.mjs` (run only against a `vite build --mode test` preview pointed at plainly-test; they create and delete their own users), plus `scripts/rls-test.mjs` (31 checks). All 72 flows pass. The flows found a real race: the confirm dialog ran its action on the dialog's `close` event, which fires a moment after the dialog disappears. It now runs on the click.
-  - [ ] 7b. Switch accounts on (`src/lib/accounts.ts`), update `/privacy` (accounts are live), record the decisions below, verify, deploy, live smoke check. Waits for item 6, so production's demo account exists before "Sign in as demo" is shown.
+  - [x] 7b. Accounts switched on (`src/lib/accounts.ts`). `/privacy` and the footer now say accounts are live. The decisions are recorded below. Verified on the test build: 154 scenes and 72 flows, including sign-in, sign-up and the demo's profile at every size, plus the RLS test. Deployed, with one live smoke check on `/signin`.
 
 ## Thesis
 
