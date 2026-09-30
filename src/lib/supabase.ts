@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { t } from '../i18n'
 
 // Only the project URL and the publishable key reach the browser. Everything a
 // signed-in user can read or write is limited by row-level security in the
@@ -25,5 +26,4 @@ export function getSupabase(): Promise<SupabaseClient | null> {
 }
 
 /** The words shown when the account service can't be reached; guest shopping keeps working. */
-export const UNREACHABLE =
-  'We couldn’t reach the account service. Browsing, your cart and guest checkout still work; try signing in again in a moment.'
+export const unreachable = (): string => t.auth.errors.unreachable

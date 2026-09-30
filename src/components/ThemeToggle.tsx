@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { t } from '../i18n'
 import { useTheme, type ThemeChoice } from '../theme/theme'
 
 function Icon({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -38,10 +39,9 @@ function SystemIcon() {
   )
 }
 
-const options: { value: ThemeChoice; label: string; icon: ReactNode }[] = [
+const options: { value: ThemeChoice; icon: ReactNode }[] = [
   {
     value: 'light',
-    label: 'Light',
     icon: (
       <Icon>
         <circle cx="12" cy="12" r="4" />
@@ -49,8 +49,8 @@ const options: { value: ThemeChoice; label: string; icon: ReactNode }[] = [
       </Icon>
     ),
   },
-  { value: 'dark', label: 'Dark', icon: <Icon><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" /></Icon> },
-  { value: 'system', label: 'System', icon: <SystemIcon /> },
+  { value: 'dark', icon: <Icon><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z" /></Icon> },
+  { value: 'system', icon: <SystemIcon /> },
 ]
 
 // A radio group by the ARIA pattern: one Tab stop (the checked option), and the
@@ -78,7 +78,7 @@ export function ThemeToggle({ labelled = false }: { labelled?: boolean }) {
   const buttonShape = labelled ? 'flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium' : 'grid size-8 place-items-center rounded-full'
 
   return (
-    <div ref={group} role="radiogroup" aria-label="Theme" onKeyDown={onKeyDown} className={groupClass}>
+    <div ref={group} role="radiogroup" aria-label={t.theme.label} onKeyDown={onKeyDown} className={groupClass}>
       {options.map((o) => {
         const checked = choice === o.value
         return (
@@ -88,13 +88,13 @@ export function ThemeToggle({ labelled = false }: { labelled?: boolean }) {
             role="radio"
             aria-checked={checked}
             tabIndex={checked ? 0 : -1}
-            aria-label={labelled ? undefined : o.label}
-            title={labelled ? undefined : o.label}
+            aria-label={labelled ? undefined : t.theme[o.value]}
+            title={labelled ? undefined : t.theme[o.value]}
             onClick={() => setChoice(o.value)}
             className={`${buttonShape} transition-colors ${checked ? 'bg-action text-on-action' : 'text-muted hover:text-text'}`}
           >
             {o.icon}
-            {labelled && o.label}
+            {labelled && t.theme[o.value]}
           </button>
         )
       })}

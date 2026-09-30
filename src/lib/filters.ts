@@ -1,7 +1,8 @@
 import type { Product } from './catalog'
-import { DEPARTMENTS, findDepartment } from './departments'
+import { t } from '../i18n'
+import { DEPARTMENTS, departmentName, findDepartment } from './departments'
 import { formatCategory, formatPrice, reviewRating } from './format'
-import { onSale, SALE_LABEL, salePrice } from './pricing'
+import { onSale, saleLabel, salePrice } from './pricing'
 
 // Filters live in the URL, so a filtered view can be shared, bookmarked and
 // navigated with Back.
@@ -127,7 +128,7 @@ function options(
 export function departmentOptions(products: Product[], filters: Filters): FacetOption[] {
   return DEPARTMENTS.map((d) => ({
     value: d.slug,
-    label: d.name,
+    label: departmentName(d),
     count: products.filter((p) => d.categories.includes(p.category) && matchesFilters(p, filters, 'departmentFilter')).length,
   })).filter((o) => o.count > 0)
 }
@@ -167,9 +168,9 @@ export interface Chip {
 }
 
 function priceLabel({ minPrice, maxPrice }: Filters): string {
-  if (minPrice !== undefined && maxPrice !== undefined) return `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
-  if (minPrice !== undefined) return `${formatPrice(minPrice)} and up`
-  return `Up to ${formatPrice(maxPrice ?? 0)}`
+  if (minPrice !== undefined && maxPrice !== undefined) return t.filters.chipPriceRange(formatPrice(minPrice), formatPrice(maxPrice))
+  if (minPrice !== undefined) return t.filters.chipPriceMin(formatPrice(minPrice))
+  return t.filters.chipPriceMax(formatPrice(maxPrice ?? 0))
 }
 
 /** One removable chip per filter chosen on the page, each carrying the filters without it.
@@ -178,7 +179,7 @@ export function filterChips(filters: Filters): Chip[] {
   const picked = findDepartment(filters.departmentFilter)
   const chips: Chip[] = [
     // "department" in the label: Beauty and Groceries each hold a category with the same name.
-    ...(picked ? [{ key: 'dept', label: `${picked.name} department`, without: withoutDepartmentFilter(filters) }] : []),
+    ...(picked ? [{ key: 'dept', label: t.filters.chipDepartment(departmentName(picked)), without: withoutDepartmentFilter(filters) }] : []),
     ...filters.categories.map((c) => ({
       key: `category:${c}`,
       label: formatCategory(c),
@@ -194,9 +195,9 @@ export function filterChips(filters: Filters): Chip[] {
     chips.push({ key: 'price', label: priceLabel(filters), without: { ...filters, minPrice: undefined, maxPrice: undefined } })
   }
   if (filters.minRating !== undefined) {
-    chips.push({ key: 'rating', label: `Rated ${filters.minRating} and up`, without: { ...filters, minRating: undefined } })
+    chips.push({ key: 'rating', label: t.filters.chipRating(filters.minRating), without: { ...filters, minRating: undefined } })
   }
-  if (filters.inStock) chips.push({ key: 'stock', label: 'In stock', without: { ...filters, inStock: false } })
-  if (filters.sale) chips.push({ key: 'sale', label: SALE_LABEL, without: { ...filters, sale: false } })
+  if (filters.inStock) chips.push({ key: 'stock', label: t.filters.chipInStock, without: { ...filters, inStock: false } })
+  if (filters.sale) chips.push({ key: 'sale', label: saleLabel(), without: { ...filters, sale: false } })
   return chips
 }

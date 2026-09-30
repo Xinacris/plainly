@@ -1,3 +1,4 @@
+import { formatDate, t } from '../i18n'
 import { returnWindow } from './facts'
 import type { Order, OrderLine, ReturnRequest } from '../orders/orders'
 
@@ -12,12 +13,7 @@ export const REFUND_AFTER_MS = 2 * 60_000
 
 export type OrderStatus = 'preparing' | 'shipped' | 'delivered' | 'cancelled'
 
-export const STATUS_LABELS: Record<OrderStatus, string> = {
-  preparing: 'Preparing',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
+export const statusLabel = (status: OrderStatus): string => t.orders.status[status]
 
 const since = (iso: string, now: number) => now - new Date(iso).getTime()
 
@@ -50,18 +46,19 @@ export function findReturn(order: Order, productId: number): ReturnRequest | und
 
 export type ReturnEligibility = { ok: true; lastDay: Date } | { ok: false; reason: string }
 
-const day = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+export const formatDay = (date: Date): string => formatDate(date, { month: 'short', day: 'numeric', year: 'numeric' })
 
 // Per item: only after delivery, within that item's return window, and once.
 export function canReturn(order: Order, line: OrderLine, now: number): ReturnEligibility {
   const status = orderStatus(order, now)
-  if (status === 'cancelled') return { ok: false, reason: 'This order was cancelled.' }
-  if (status !== 'delivered') return { ok: false, reason: 'Returns open once the order is delivered.' }
-  if (findReturn(order, line.productId)) return { ok: false, reason: 'A return is already on its way.' }
+  const why = t.orders.cannot
+  if (status === 'cancelled') return { ok: false, reason: why.cancelled }
+  if (status !== 'delivered') return { ok: false, reason: why.notDelivered }
+  if (findReturn(order, line.productId)) return { ok: false, reason: why.already }
   const policy = returnWindow(line.returnPolicy, order.placedAt, new Date(now))
-  if (policy.kind === 'none') return { ok: false, reason: 'No returns for this item.' }
-  if (policy.kind === 'unknown') return { ok: false, reason: `Returns: ${line.returnPolicy}` }
-  if (policy.kind === 'closed') return { ok: false, reason: `Return window closed on ${day.format(policy.lastDay)} (${policy.days} days from the order date).` }
+  if (policy.kind === 'none') return { ok: false, reason: why.none }
+  if (policy.kind === 'unknown') return { ok: false, reason: why.unknown(line.returnPolicy) }
+  if (policy.kind === 'closed') return { ok: false, reason: why.closed(formatDay(policy.lastDay), policy.days) }
   return { ok: true, lastDay: policy.lastDay }
 }
 

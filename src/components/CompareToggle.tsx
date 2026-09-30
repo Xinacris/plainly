@@ -1,4 +1,5 @@
 import { useCompare, useInCompare } from '../compare/compare'
+import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { secondaryButton } from './styles'
 
@@ -23,7 +24,7 @@ export function CompareToggle({ product }: { product: Product }) {
       className={`relative z-10 inline-flex min-h-9 items-center gap-2 self-start rounded-md text-sm font-medium ${checked ? 'text-action' : 'text-muted hover:text-text'}`}
     >
       <Box checked={checked} />
-      Compare<span className="sr-only"> {product.title}</span>
+      {t.compare.toggle}<span className="sr-only"> {product.title}</span>
     </button>
   )
 }
@@ -35,7 +36,7 @@ export function CompareButton({ product }: { product: Product }) {
   return (
     <button type="button" onClick={() => toggle(product)} className={`${secondaryButton} w-full gap-2`}>
       <Box checked={checked} />
-      {checked ? 'Added to compare' : 'Add to compare'}
+      {checked ? t.compare.added : t.compare.add}
     </button>
   )
 }

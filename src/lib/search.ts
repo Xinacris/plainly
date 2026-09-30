@@ -1,19 +1,17 @@
+import { t } from '../i18n'
+import { fold } from './queryIntent'
 import type { Product } from './catalog'
 import { reviewRating } from './format'
 import { salePrice } from './pricing'
 
 export type SortKey = 'relevance' | 'price-asc' | 'price-desc' | 'rating' | 'discount'
 
-export const sortLabels: Record<SortKey, string> = {
-  relevance: 'Relevance',
-  'price-asc': 'Price: low to high',
-  'price-desc': 'Price: high to low',
-  rating: 'Highest rated',
-  discount: 'Biggest discount',
-}
+export const SORT_KEYS: SortKey[] = ['relevance', 'price-asc', 'price-desc', 'rating', 'discount']
+export const sortLabel = (key: SortKey): string => t.search.sort[key]
 
+// Folded like the query (see queryIntent.ts), so diacritics never block a match.
 function normalize(text: string): string {
-  return text.toLowerCase().replace(/-/g, ' ')
+  return fold(text).replace(/-/g, ' ')
 }
 
 // Drop a trailing "s" so "phones" finds "phone" and "shoes" finds "shoe".
@@ -74,5 +72,5 @@ export function sortHits(hits: SearchHit[], sort: SortKey): Product[] {
 }
 
 export function isSortKey(value: string | null): value is SortKey {
-  return value !== null && value in sortLabels
+  return value !== null && (SORT_KEYS as string[]).includes(value)
 }

@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { authMessage, isDemo, useAuth } from '../auth/auth'
 import { orderStatus } from '../lib/orderStatus'
-import { isOffline, OFFLINE } from '../lib/network'
-import { getSupabase, UNREACHABLE } from '../lib/supabase'
+import { t } from '../i18n'
+import { isOffline, offlineMessage } from '../lib/network'
+import { getSupabase, unreachable } from '../lib/supabase'
 import { trimAddress, useAddressBook, type SavedAddress } from '../orders/addresses'
 import { newOrderId, useOrders, type Address, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
 
@@ -73,9 +74,9 @@ function toOrder(row: Row, returns: Row[]): Order {
 
 async function client() {
   // Nothing is sent while offline (or simulating it), so nothing half-changes.
-  if (isOffline()) throw new Error(OFFLINE)
+  if (isOffline()) throw new Error(offlineMessage())
   const supabase = await getSupabase()
-  if (!supabase) throw new Error(UNREACHABLE)
+  if (!supabase) throw new Error(unreachable())
   return supabase
 }
 
@@ -212,7 +213,7 @@ export function cancelOrder(orderId: string): Promise<string | null> {
     const { data, error } = await supabase.from('orders').update({ cancelled_at: cancelledAt }).eq('id', orderId).select('id')
     if (error) throw error
     // The database only allows it while Preparing; nothing updated means it has shipped.
-    if (!data?.length) throw new Error('This order has already shipped, so it can’t be cancelled.')
+    if (!data?.length) throw new Error(t.orders.alreadyShipped)
     set({ orders: current().orders.map((o) => (o.id === orderId ? { ...o, cancelledAt } : o)) })
   })
 }
@@ -311,10 +312,6 @@ export async function moveLocalData(userId: string): Promise<string | null> {
   useOrders.setState({ orders: [] })
   markAsked(userId)
   await loadAccountData(userId)
-  const parts = [
-    localAddresses.length ? `${localAddresses.length} address${localAddresses.length === 1 ? '' : 'es'}` : '',
-    localOrders.length ? `${localOrders.length} order${localOrders.length === 1 ? '' : 's'}` : '',
-  ].filter(Boolean)
-  set({ notice: `Moved ${parts.join(' and ')} from this browser into your account.` })
+  set({ notice: t.moveData.moved(localAddresses.length, localOrders.length) })
   return null
 }

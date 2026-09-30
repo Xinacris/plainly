@@ -1,11 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
 import { useAccountData } from '../account/data'
 import { signOut, useAuth } from '../auth/auth'
+import { t } from '../i18n'
 import { useAccountLinks } from '../lib/accountLinks'
 import { ACCOUNTS_ENABLED } from '../lib/accounts'
 import { SignedInEmail } from './AccountStatus'
 import { Drawer } from './Drawer'
+import { takeReopenMenu } from '../i18n/switching'
+import { LanguagePicker } from './LanguagePicker'
 import { primaryButton } from './styles'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -37,9 +40,9 @@ function AccountArea({ onDone }: { onDone: () => void }) {
   if (status === 'signed-out') {
     return (
       <div className="rounded-xl bg-bg p-4">
-        <p className="text-sm text-muted">Your orders and addresses, on any device.</p>
+        <p className="text-sm text-muted">{t.menu.signInPitch}</p>
         <Link to={`/signin?next=${encodeURIComponent(pathname + search)}`} onClick={onDone} className={`${primaryButton} mt-3 w-full`}>
-          Sign in
+          {t.menu.signIn}
         </Link>
       </div>
     )
@@ -51,7 +54,7 @@ function AccountArea({ onDone }: { onDone: () => void }) {
         {initial}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted">Signed in as</p>
+        <p className="text-xs text-muted">{t.menu.signedInAs}</p>
         {name ? (
           <>
             <p title={name} className="truncate font-semibold text-text">
@@ -68,11 +71,13 @@ function AccountArea({ onDone }: { onDone: () => void }) {
 }
 
 // Phones only: a drawer from the right with the account, Orders, Addresses, Profile,
-// the theme, and Sign out at the bottom.
+// the language and theme, and Sign out at the bottom.
 export function MobileMenu() {
   const links = useAccountLinks()
   const signedIn = useAuth((s) => s.status === 'signed-in')
-  const [open, setOpen] = useState(false)
+  // A language switch remounts the app; the menu it was made in opens again.
+  const [open, setOpen] = useState(takeReopenMenu)
+  const button = useRef<HTMLButtonElement>(null)
   const close = () => setOpen(false)
 
   // The menu lives in a phones-only part of the header. If the screen grows past
@@ -95,26 +100,36 @@ export function MobileMenu() {
       className="flex h-12 w-full items-center gap-3 rounded-lg px-3 text-left font-medium text-text hover:bg-bg hover:text-action"
     >
       <Icon><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11" /></Icon>
-      Sign out
+      {t.menu.signOut}
     </button>
   )
 
   return (
     <>
       <button
+        ref={button}
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        aria-label="Menu"
+        aria-label={t.menu.title}
         className="grid size-10 place-items-center rounded-lg text-text hover:bg-bg hover:text-action"
       >
         <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="M4 7h16M4 12h16M4 17h16" />
         </svg>
       </button>
-      <Drawer open={open} onClose={close} title="Menu" footer={ACCOUNTS_ENABLED && signedIn ? signOutRow : undefined}>
+      <Drawer
+        open={open}
+        onClose={() => {
+          close()
+          // Reopened after a language switch, it has no opener to return to; the menu button is it.
+          button.current?.focus()
+        }}
+        title={t.menu.title}
+        footer={ACCOUNTS_ENABLED && signedIn ? signOutRow : undefined}
+      >
         <AccountArea onDone={close} />
-        <nav aria-label="Account" className="mt-3">
+        <nav aria-label={t.menu.account} className="mt-3">
           <ul>
             {links.map((l) => (
               <li key={l.to}>
@@ -134,7 +149,9 @@ export function MobileMenu() {
             ))}
           </ul>
         </nav>
-        <h3 className="mt-6 mb-2 px-1 text-sm font-bold">Theme</h3>
+        <h3 className="mt-6 mb-2 px-1 text-sm font-bold">{t.language.label}</h3>
+        <LanguagePicker labelled />
+        <h3 className="mt-6 mb-2 px-1 text-sm font-bold">{t.theme.label}</h3>
         <ThemeToggle labelled />
       </Drawer>
     </>

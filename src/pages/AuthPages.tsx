@@ -5,7 +5,8 @@ import { useNext } from '../auth/useNext'
 import { authMessage, providerSettings, signIn, signInWithGoogle, signUp, useAuth } from '../auth/auth'
 import { primaryButton, secondaryButton, textLink } from '../components/styles'
 import { DEMO_EMAIL, DEMO_PASSWORD } from '../lib/demo.js'
-import { SUPABASE_CONFIGURED, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, UNREACHABLE } from '../lib/supabase'
+import { t } from '../i18n'
+import { SUPABASE_CONFIGURED, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, unreachable } from '../lib/supabase'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 function AuthShell({ title, intro, children }: { title: string; intro: ReactNode; children: ReactNode }) {
@@ -17,7 +18,7 @@ function AuthShell({ title, intro, children }: { title: string; intro: ReactNode
       {children}
       <p className="mt-8 text-sm text-muted">
         <Link to="/privacy" className={textLink}>
-          How we handle your data
+          {t.common.privacyLink}
         </Link>
       </p>
     </section>
@@ -41,12 +42,11 @@ function ForgotPassword() {
   return (
     <div className="text-sm">
       <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className={textLink}>
-        Forgot your password?
+        {t.auth.forgot}
       </button>
       {open && (
         <p id={id} className="mt-2 text-muted">
-          Resetting a password needs an email, and this demo can’t send email, so reset isn’t available here. Use the demo
-          account below, or create a new account.
+          {t.auth.forgotBody}
         </p>
       )}
     </div>
@@ -73,7 +73,7 @@ export function SignInPage() {
   const google = useGoogleAvailable()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(SUPABASE_CONFIGURED ? '' : UNREACHABLE)
+  const [error, setError] = useState(SUPABASE_CONFIGURED ? '' : unreachable())
   const [busy, setBusy] = useState(false)
 
   if (status === 'signed-in') return <Navigate to={next} replace />
@@ -88,7 +88,7 @@ export function SignInPage() {
   }
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!email.trim() || !password) return setError('Enter your email and password.')
+    if (!email.trim() || !password) return setError(t.auth.enterBoth)
     void submit()
   }
   // Fills the visible form with the demo credentials, then signs in with them.
@@ -100,41 +100,40 @@ export function SignInPage() {
 
   return (
     <AuthShell
-      title="Sign in"
-      intro="An account keeps your addresses and orders across devices. You don’t need one to shop: guest checkout works without it."
+      title={t.auth.signIn}
+      intro={t.auth.signInIntro}
     >
       <aside aria-labelledby="demo-heading" className="mt-6 rounded-xl border border-border bg-surface p-4">
         <h2 id="demo-heading" className="font-bold">
-          Don’t want to register? Use the demo account
+          {t.auth.demoHeading}
         </h2>
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-muted">Email</dt>
+          <dt className="text-muted">{t.auth.email}</dt>
           <dd className="font-mono select-all">{DEMO_EMAIL}</dd>
-          <dt className="text-muted">Password</dt>
+          <dt className="text-muted">{t.auth.password}</dt>
           <dd className="font-mono select-all">{DEMO_PASSWORD}</dd>
         </dl>
         <p className="mt-2 text-sm text-muted">
-          The demo data is shared, so others may change it; it’s reset every few days. Its email and password can’t be
-          changed.
+          {t.auth.demoNote}
         </p>
         <button type="button" onClick={signInAsDemo} disabled={busy || !SUPABASE_CONFIGURED} className={`${secondaryButton} mt-3 w-full`}>
-          Sign in as demo
+          {t.auth.signInAsDemo}
         </button>
       </aside>
 
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-4">
-        <Field label="Email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <Field label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <Field label={t.auth.email} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field label={t.auth.password} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <ErrorText message={error} />
         <button type="submit" disabled={busy || !SUPABASE_CONFIGURED} className={primaryButton}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t.auth.signingIn : t.auth.signIn}
         </button>
         <ForgotPassword />
       </form>
 
       {google && (
         <>
-          <p className="my-4 text-center text-sm text-muted">or</p>
+          <p className="my-4 text-center text-sm text-muted">{t.auth.or}</p>
           <button
             type="button"
             onClick={async () => {
@@ -143,15 +142,15 @@ export function SignInPage() {
             }}
             className={`${secondaryButton} w-full`}
           >
-            Continue with Google
+            {t.auth.google}
           </button>
         </>
       )}
 
       <p className="mt-6 text-sm">
-        New here?{' '}
+        {t.auth.newHere}{' '}
         <Link to={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className={textLink}>
-          Create an account
+          {t.auth.create}
         </Link>
       </p>
     </AuthShell>
@@ -165,15 +164,15 @@ export function SignUpPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState(SUPABASE_CONFIGURED ? '' : UNREACHABLE)
+  const [error, setError] = useState(SUPABASE_CONFIGURED ? '' : unreachable())
   const [busy, setBusy] = useState(false)
 
   if (status === 'signed-in') return <Navigate to={next} replace />
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!email.includes('@')) return setError('Enter your email address.')
-    if (password.length < 8) return setError('Choose a password of at least 8 characters.')
+    if (!email.includes('@')) return setError(t.auth.enterEmail)
+    if (password.length < 8) return setError(t.auth.errors.weak)
     setBusy(true)
     setError('')
     const message = await signUp(name, email, password)
@@ -184,29 +183,29 @@ export function SignUpPage() {
 
   return (
     <AuthShell
-      title="Create an account"
-      intro="Your addresses and orders will follow you across devices. This demo can’t send email, so there’s no confirmation email: your account is ready straight away."
+      title={t.auth.create}
+      intro={t.auth.signUpIntro}
     >
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-4">
-        <Field label="Name (optional)" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
-        <Field label="Email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field label={t.auth.nameOptional} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Field label={t.auth.email} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Field
-          label="Password"
+          label={t.auth.password}
           type="password"
           autoComplete="new-password"
-          hint="At least 8 characters."
+          hint={t.profile.atLeast8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
         <ErrorText message={error} />
         <button type="submit" disabled={busy || !SUPABASE_CONFIGURED} className={primaryButton}>
-          {busy ? 'Creating your account…' : 'Create account'}
+          {busy ? t.auth.creating : t.auth.createButton}
         </button>
       </form>
       <p className="mt-6 text-sm">
-        Already have an account?{' '}
+        {t.auth.haveAccount}{' '}
         <Link to={`/signin${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`} className={textLink}>
-          Sign in
+          {t.auth.signIn}
         </Link>
       </p>
     </AuthShell>
@@ -215,7 +214,7 @@ export function SignUpPage() {
 
 // Google sends people back here; supabase-js exchanges the code for a session.
 export function AuthCallbackPage() {
-  useDocumentTitle('Signing in')
+  useDocumentTitle(t.auth.callbackTitle)
   const status = useAuth((s) => s.status)
   const next = useNext()
   const [params] = useSearchParams()
@@ -230,19 +229,19 @@ export function AuthCallbackPage() {
   if (oauthError || timedOut) {
     return (
       <section className="mx-auto max-w-md px-4 py-12">
-        <h1 className="text-2xl font-bold tracking-tight">Sign-in didn’t finish</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t.auth.didntFinish}</h1>
         <p role="alert" className="mt-2 text-muted">
-          {oauthError ? authMessage({ message: oauthError }) : UNREACHABLE}
+          {oauthError ? authMessage({ message: oauthError }) : unreachable()}
         </p>
         <Link to="/signin" className={`${primaryButton} mt-6`}>
-          Back to sign in
+          {t.auth.backToSignIn}
         </Link>
       </section>
     )
   }
   return (
     <p role="status" className="mx-auto max-w-md px-4 py-12 text-muted">
-      Signing you in…
+      {t.auth.signingYouIn}
     </p>
   )
 }

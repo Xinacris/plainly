@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { t } from '../i18n'
 
 interface Props {
   open: boolean
@@ -45,7 +46,7 @@ export function BottomSheet({ open, onClose, title, children, footer }: Props) {
         <button
           type="button"
           onClick={() => ref.current?.close()}
-          aria-label="Close"
+          aria-label={t.common.close}
           className="grid size-10 place-items-center rounded-full text-muted hover:bg-bg hover:text-text"
         >
           <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

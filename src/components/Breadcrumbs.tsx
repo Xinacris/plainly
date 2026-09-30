@@ -1,5 +1,6 @@
 import { Fragment } from 'react'
 import { Link } from 'react-router'
+import { t } from '../i18n'
 
 export interface Crumb {
   label: string
@@ -13,7 +14,7 @@ export interface Crumb {
 // (and a tooltip), so screen readers read it whole.
 export function Breadcrumbs({ items, className = '' }: { items: Crumb[]; className?: string }) {
   return (
-    <nav aria-label="Breadcrumb" className={className}>
+    <nav aria-label={t.breadcrumb} className={className}>
       <ol className="flex min-w-0 items-center gap-1.5 text-sm whitespace-nowrap text-muted">
         {items.map((item, i) => (
           <Fragment key={`${i}-${item.label}`}>

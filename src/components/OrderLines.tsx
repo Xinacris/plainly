@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
+import { t } from '../i18n'
 import { formatPrice } from '../lib/format'
 import type { Address, OrderLine } from '../orders/orders'
 import { DateRange } from './DateRange'
@@ -7,10 +8,10 @@ import { ProductImage } from './ProductImage'
 import { ReturnStatus } from './ReturnStatus'
 
 function EstimateText({ line }: { line: OrderLine }) {
-  if (!line.estimate) return <p className="text-sm text-muted">No delivery estimate: {line.shippingInformation}</p>
+  if (!line.estimate) return <p className="text-sm text-muted">{t.delivery.none(line.shippingInformation)}</p>
   return (
     <p className="text-sm">
-      <span className="text-muted">Estimated delivery </span>
+      <span className="text-muted">{t.delivery.estimated}</span>
       <DateRange estimate={line.estimate} />
     </p>
   )

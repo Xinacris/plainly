@@ -4,8 +4,9 @@ import { ProductCard, ProductCardSkeleton } from '../components/ProductCard'
 import { ProductImage } from '../components/ProductImage'
 import { textLink } from '../components/styles'
 import { useCatalog, type Product } from '../lib/catalog'
-import { DEPARTMENTS, type Department } from '../lib/departments'
-import { formatCategory, formatPrice, pluralize } from '../lib/format'
+import { t } from '../i18n'
+import { DEPARTMENTS, departmentName, type Department } from '../lib/departments'
+import { formatCategory, formatPrice } from '../lib/format'
 import { biggestDiscounts, departmentTiles, highestRated, type Tile } from '../lib/home'
 import { SALE_URL, salePrice } from '../lib/pricing'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -37,8 +38,8 @@ function DepartmentCard({ department, catalog, first }: { department: Department
   return (
     <li className="flex flex-col rounded-xl border border-border bg-surface p-4">
       <h2 id={headingId} className="flex flex-wrap items-baseline gap-x-2 text-lg font-bold tracking-tight">
-        {department.name}
-        <span className="text-sm font-normal text-muted">{pluralize(count, 'product')}</span>
+        {departmentName(department)}
+        <span className="text-sm font-normal text-muted">{t.common.products(count)}</span>
       </h2>
       <ul className="mt-3 grid grid-cols-2 gap-3">
         {tiles.map((tile) => (
@@ -48,7 +49,7 @@ function DepartmentCard({ department, catalog, first }: { department: Department
         ))}
       </ul>
       <Link to={`/search?department=${department.slug}`} className={`${textLink} mt-auto self-start pt-4 text-sm`}>
-        See all<span className="sr-only"> in {department.name}</span>
+        {t.common.seeAll}<span className="sr-only">{t.home.seeAllIn(departmentName(department))}</span>
       </Link>
     </li>
   )
@@ -66,7 +67,7 @@ function ProductRow({ title, note, seeAll, products }: { title: string; note: st
           <p className="text-sm text-muted">{note}</p>
         </div>
         <Link to={seeAll} className={`${textLink} text-sm`}>
-          See all<span className="sr-only"> {title.toLowerCase()}</span>
+          {t.common.seeAll}<span className="sr-only">{t.home.seeAllRow(title)}</span>
         </Link>
       </div>
       {/* Scrolls sideways; tabbing through the cards scrolls it too. The row runs to
@@ -85,8 +86,8 @@ function ProductRow({ title, note, seeAll, products }: { title: string; note: st
 function reviewNote(products: Product[]): string {
   const counts = new Set(products.map((p) => p.reviews.length))
   const [only] = counts
-  if (counts.size === 1) return `Each rating is the average of just ${pluralize(only, 'review')}. In stock only.`
-  return 'Each rating is the average of that product’s reviews, which are few. In stock only.'
+  if (counts.size === 1) return t.home.ratedNoteSame(only)
+  return t.home.ratedNoteMixed
 }
 
 function HomeContents() {
@@ -94,7 +95,7 @@ function HomeContents() {
   const rated = highestRated(catalog)
   return (
     <>
-      <section aria-label="Departments">
+      <section aria-label={t.home.departments}>
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {DEPARTMENTS.map((d, i) => (
             <DepartmentCard key={d.slug} department={d} catalog={catalog} first={i === 0} />
@@ -102,19 +103,19 @@ function HomeContents() {
         </ul>
       </section>
       <ProductRow
-        title="Biggest discounts right now"
-        note="Sorted by real discount %: the price you pay against the list price. In stock only."
+        title={t.home.discountsTitle}
+        note={t.home.discountsNote}
         seeAll={SALE_URL}
         products={biggestDiscounts(catalog)}
       />
-      <ProductRow title="Highest rated" note={reviewNote(rated)} seeAll="/search?sort=rating" products={rated} />
+      <ProductRow title={t.home.ratedTitle} note={reviewNote(rated)} seeAll="/search?sort=rating" products={rated} />
     </>
   )
 }
 
 function HomeSkeleton() {
   return (
-    <ul aria-label="Loading departments" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <ul aria-label={t.home.loadingDepartments} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: 8 }, (_, i) => (
         <ProductCardSkeleton key={i} />
       ))}
@@ -129,8 +130,8 @@ export function HomePage() {
       <div className="border-b border-border bg-surface">
         <div className="mx-auto max-w-6xl px-4 py-2 text-sm">
           {/* One line at every width: phones get the heading alone. */}
-          <h1 className="inline font-semibold">Shop without the noise.</h1>{' '}
-          <span className="hidden text-muted sm:inline">No sponsored results, no badges, just the facts.</span>
+          <h1 className="inline font-semibold">{t.home.heading}</h1>{' '}
+          <span className="hidden text-muted sm:inline">{t.home.tagline}</span>
         </div>
       </div>
       <div className="mx-auto max-w-6xl px-4 py-6">

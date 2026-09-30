@@ -3,6 +3,7 @@ import { AddressFields } from '../components/AddressFields'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { AddressBlock } from '../components/OrderLines'
 import { primaryButton, secondaryButton } from '../components/styles'
+import { t } from '../i18n'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { validateAddress, type AddressErrors } from '../orders/address'
 import { useAddressBookData } from '../account/hooks'
@@ -40,7 +41,7 @@ function AddressForm({ initial, submitLabel, onSubmit, onCancel }: { initial: Ad
           {submitLabel}
         </button>
         <button type="button" onClick={onCancel} className={secondaryButton}>
-          Cancel
+          {t.common.cancel}
         </button>
       </div>
     </form>
@@ -63,10 +64,10 @@ function AddressCard({ address, isDefault, onDelete, onUpdate, onMakeDefault }: 
   if (editing) {
     return (
       <li className="rounded-xl border border-action bg-surface p-4 sm:col-span-2">
-        <h2 className="font-bold">Edit address</h2>
+        <h2 className="font-bold">{t.addresses.editHeading}</h2>
         <AddressForm
           initial={fields}
-          submitLabel="Save changes"
+          submitLabel={t.addresses.saveChanges}
           onSubmit={async (next) => {
             if (await onUpdate(address.id, next)) setEditing(false)
           }}
@@ -78,18 +79,18 @@ function AddressCard({ address, isDefault, onDelete, onUpdate, onMakeDefault }: 
 
   return (
     <li className="flex flex-col rounded-xl border border-border bg-surface p-4">
-      {isDefault && <p className="mb-1 text-xs font-semibold text-action uppercase">Default</p>}
+      {isDefault && <p className="mb-1 text-xs font-semibold text-action uppercase">{t.common.default}</p>}
       <AddressBlock address={address} />
       <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1 pt-3">
         <button type="button" onClick={() => setEditing(true)} className={linkButton}>
-          Edit<span className="sr-only"> address for {address.fullName}</span>
+          {t.addresses.edit}<span className="sr-only">{t.addresses.forName(address.fullName)}</span>
         </button>
         <button type="button" onClick={onDelete} className={linkButton}>
-          Delete<span className="sr-only"> address for {address.fullName}</span>
+          {t.addresses.delete}<span className="sr-only">{t.addresses.forName(address.fullName)}</span>
         </button>
         {!isDefault && (
           <button type="button" onClick={() => onMakeDefault(address.id)} className={linkButton}>
-            Make default<span className="sr-only"> ({address.fullName})</span>
+            {t.addresses.makeDefault}<span className="sr-only">{t.addresses.forNameShort(address.fullName)}</span>
           </button>
         )}
       </div>
@@ -98,7 +99,7 @@ function AddressCard({ address, isDefault, onDelete, onUpdate, onMakeDefault }: 
 }
 
 export function AddressesPage() {
-  useDocumentTitle('Addresses')
+  useDocumentTitle(t.addresses.title)
   const book = useAddressBookData()
   const { addresses, defaultId } = book
   const [actionError, setActionError] = useState('')
@@ -111,15 +112,15 @@ export function AddressesPage() {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<SavedAddress | null>(null)
 
-  if (book.status === 'loading') return <StatusMessage role="status" title="Loading your addresses…" />
+  if (book.status === 'loading') return <StatusMessage role="status" title={t.addresses.loading} />
   if (book.status === 'error') {
     return (
       <StatusMessage
         role="alert"
-        title="Your addresses couldn’t load"
+        title={t.addresses.loadError}
         action={
           <button type="button" onClick={book.retry} className={primaryButton}>
-            Try again
+            {t.common.tryAgain}
           </button>
         }
       >
@@ -132,15 +133,14 @@ export function AddressesPage() {
     <section className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Addresses</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t.addresses.title}</h1>
           <p className="mt-1 text-sm text-muted">
-            {book.mode === 'account' ? 'Saved to your account, so they follow you across devices.' : 'Saved in this browser only.'}{' '}
-            Checkout preselects the default. Past orders keep their own copy, so changes here never alter them.
+            {book.mode === 'account' ? t.addresses.savedAccount : t.addresses.savedBrowser} {t.addresses.intro}
           </p>
         </div>
         {!adding && (
           <button type="button" onClick={() => setAdding(true)} className={primaryButton}>
-            Add an address
+            {t.addresses.add}
           </button>
         )}
       </div>
@@ -154,10 +154,10 @@ export function AddressesPage() {
 
       {adding && (
         <div className="mt-4 rounded-xl border border-action bg-surface p-4">
-          <h2 className="font-bold">New address</h2>
+          <h2 className="font-bold">{t.addresses.newHeading}</h2>
           <AddressForm
             initial={EMPTY_ADDRESS}
-            submitLabel="Save address"
+            submitLabel={t.addresses.save}
             onSubmit={async (address) => {
               if (await run(book.add(address))) setAdding(false)
             }}
@@ -168,7 +168,7 @@ export function AddressesPage() {
 
       {addresses.length === 0 && !adding && (
         <p className="mt-8 rounded-xl border border-dashed border-border-strong p-6 text-center text-muted">
-          No saved addresses yet. Add one here, or tick “Save this address for later” at checkout.
+          {t.addresses.none}
         </p>
       )}
 
@@ -189,8 +189,8 @@ export function AddressesPage() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title="Delete this address?"
-        confirmLabel="Delete"
+        title={t.addresses.deleteTitle}
+        confirmLabel={t.addresses.delete}
         onConfirm={() => {
           if (deleting) void run(book.remove(deleting.id))
           setDeleting(null)
@@ -201,8 +201,8 @@ export function AddressesPage() {
           <>
             <AddressBlock address={deleting} />
             <p className="mt-2 text-muted">
-              {deleting.id === defaultId && addresses.length > 1 ? 'The next address becomes your default. ' : ''}
-              Past orders keep their own copy of this address.
+              {deleting.id === defaultId && addresses.length > 1 ? t.addresses.nextDefault : ''}
+              {t.addresses.keepCopy}
             </p>
           </>
         )}

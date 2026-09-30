@@ -139,6 +139,12 @@ const SCENES = [
   { name: 'signup', page: 'account', url: '/signup', ready: 'main h1:has-text("Create an account")' },
   { name: 'profile-demo', page: 'account', url: '/signin?next=%2Fprofile', ready: 'main h1:has-text("Sign in")', needsAccounts: true,
     before: async (page) => { await page.getByRole('button', { name: 'Sign in as demo' }).click(); await page.getByRole('heading', { level: 1, name: 'Profile' }).waitFor(); await page.getByLabel('Name').waitFor() } },
+  // Turkish: the longer words, audited for overlap and accessibility like the English pages.
+  { name: 'tr-home', page: 'home', url: '/', locale: 'tr-TR', ready: 'main a[href^="/search?department"]', widths: [390, 768, 1440] },
+  { name: 'tr-product', page: 'product', url: '/product/1', locale: 'tr-TR', ready: 'main h1', widths: [390, 1440] },
+  { name: 'tr-search', page: 'search', url: '/search?q=telefon', locale: 'tr-TR', ready: 'main li h2 a', widths: [390, 1440] },
+  { name: 'tr-menu-open', page: 'header', url: '/', locale: 'tr-TR', ready: 'main a[href^="/search?department"]', widths: [390],
+    before: async (page) => { await page.getByRole('button', { name: 'Menü' }).click(); await page.getByRole('dialog', { name: 'Menü' }).waitFor() } },
   { name: 'offline-banner', page: 'header', url: '/?simulate=offline', ready: 'main a:has-text("See all")', widths: [390, 1440] },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("This page isn’t here")' },
 ]
@@ -280,9 +286,15 @@ const budgetTimer = setTimeout(() => {
 }, BUDGET)
 
 const browser = await chromium.launch({ executablePath: chromiumPath() })
+// Tests run in English by default: the first visit follows the browser's language,
+// and this machine's may not be English. The Turkish flows ask for tr-TR themselves.
+const rawNewContext = browser.newContext.bind(browser)
+browser.newContext = (options = {}) => rawNewContext({ locale: 'en-US', ...options })
+const rawNewPage = browser.newPage.bind(browser)
+browser.newPage = (options = {}) => rawNewPage({ locale: 'en-US', ...options })
 
-async function newPage(theme, width, { cart, orders, compare, addresses, allowErrors = false } = {}) {
-  const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 } })
+async function newPage(theme, width, { cart, orders, compare, addresses, allowErrors = false, locale = 'en-US' } = {}) {
+  const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 }, locale })
   if (cart) await ctx.addInitScript((s) => localStorage.setItem('plainly-cart', s), cart)
   if (orders) await ctx.addInitScript((s) => localStorage.setItem('plainly-orders', s), orders)
   if (compare) await ctx.addInitScript((s) => localStorage.setItem('plainly-compare', s), compare)
@@ -661,9 +673,12 @@ const FLOWS = {
     expect(await skip.evaluate((a) => a === document.activeElement), 'first Tab is not the skip link')
     await page.keyboard.press('Enter')
     expect(await page.evaluate(() => document.activeElement?.id === 'main'), 'skip link did not move focus to main')
-    const radios = page.getByRole('radio')
-    expect((await page.locator('[role=radio][tabindex="0"]').count()) === 1, 'theme toggle should be one Tab stop')
-    await page.locator('[role=radio][tabindex="0"]').focus()
+    // The header has two radio groups now, language and theme; each is one Tab stop.
+    const theme = page.getByRole('banner').getByRole('radiogroup', { name: 'Theme' })
+    const radios = theme.getByRole('radio')
+    expect((await theme.locator('[role=radio][tabindex="0"]').count()) === 1, 'theme toggle should be one Tab stop')
+    expect((await page.getByRole('banner').getByRole('radiogroup', { name: 'Language' }).locator('[role=radio][tabindex="0"]').count()) === 1, 'language picker should be one Tab stop')
+    await theme.locator('[role=radio][tabindex="0"]').focus()
     await page.keyboard.press('ArrowLeft') // system → dark
     expect((await radios.nth(1).getAttribute('aria-checked')) === 'true', 'ArrowLeft did not select dark')
     expect(await page.evaluate(() => document.documentElement.classList.contains('dark')), 'dark theme not applied')
@@ -892,15 +907,23 @@ const FLOWS = {
     await page.getByRole('heading', { name: 'No orders yet' }).waitFor()
     await dialog.waitFor({ state: 'hidden' })
   }, { width: 390, theme: 'light' }),
-  'desktop header unchanged at 640 and up': Object.assign(async (page) => {
-    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
-    const header = page.getByRole('banner')
-    await header.getByRole('link', { name: 'Orders' }).waitFor()
-    await header.getByRole('radiogroup', { name: 'Theme' }).waitFor()
-    expect((await header.getByRole('button', { name: 'Menu' }).count()) === 0, 'menu button shown on desktop')
-    const tops = await Promise.all(['Plainly, home', 'Orders'].map(async (n) => (await header.getByRole('link', { name: n }).boundingBox()).y))
-    const search = (await header.getByRole('searchbox').boundingBox()).y
-    expect(Math.abs(tops[0] - tops[1]) < 12 && Math.abs(search - tops[1]) < 12, 'desktop header is not one row')
+  // From sm: the desktop links and pickers. Search gets its own full-width row until md,
+  // since at 640px (more so in Turkish, with the language picker) it would be squeezed.
+  'desktop header: search on its own row at 640, one row from 768': Object.assign(async (page) => {
+    for (const [width, oneRow] of [[640, false], [768, true], [1024, true]]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      const header = page.getByRole('banner')
+      await header.getByRole('link', { name: 'Orders' }).waitFor()
+      await header.getByRole('radiogroup', { name: 'Theme' }).waitFor()
+      await header.getByRole('radiogroup', { name: 'Language' }).waitFor()
+      expect((await header.getByRole('button', { name: 'Menu' }).count()) === 0, `${width}px: menu button shown on desktop`)
+      const tops = await Promise.all(['Plainly, home', 'Orders'].map(async (n) => (await header.getByRole('link', { name: n }).boundingBox()).y))
+      const search = await header.getByRole('searchbox').boundingBox()
+      expect(Math.abs(tops[0] - tops[1]) < 12, `${width}px: logo and links not on one row`)
+      expect((Math.abs(search.y - tops[1]) < 12) === oneRow, `${width}px: search ${oneRow ? 'not on' : 'on'} the first row`)
+      expect(search.width >= 160, `${width}px: search box only ${Math.round(search.width)}px wide`)
+    }
   }, { width: 640, theme: 'light' }),
   'two-step category filter: departments, then categories, back, chips, focus': async (page) => {
     await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
@@ -1938,6 +1961,138 @@ FLOWS['offline: ?simulate=offline forces it, account actions explain, Exit simul
   await page.goto(base + '/signin', { waitUntil: 'domcontentloaded' })
   await page.getByLabel('Email').waitFor()
   expect((await page.getByRole('status').filter({ hasText: 'You’re offline' }).count()) === 0, 'simulation came back after Exit')
+}
+
+// Turkish. The first visit follows the browser's language (English otherwise), the
+// choice is remembered, <html lang> follows, and prices, dates and plurals are Turkish.
+async function trContext(options = {}) {
+  const context = await browser.newContext({ locale: 'tr-TR', viewport: { width: 1280, height: 900 }, ...options })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  return { context, page }
+}
+
+FLOWS['turkish: first visit follows the browser, picker switches and is remembered'] = async () => {
+  for (const [locale, lang] of [['tr-TR', 'tr'], ['de-DE', 'en'], ['en-GB', 'en']]) {
+    const { context, page } = await trContext({ locale })
+    try {
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      await page.locator('main a[href^="/search?department"]').first().waitFor()
+      const htmlLang = await page.evaluate(() => document.documentElement.lang)
+      expect(htmlLang === lang, `${locale} browser: <html lang="${htmlLang}">, expected ${lang}`)
+      const heading = await page.locator('main').getByRole('heading', { level: 1 }).innerText()
+      expect(heading === (lang === 'tr' ? 'Gürültüsüz alışveriş.' : 'Shop without the noise.'), `${locale} browser: heading "${heading}"`)
+    } finally {
+      await context.close()
+    }
+  }
+  // Switching in the header: everything changes, focus stays on the picker, and it's remembered.
+  const { context, page } = await trContext({ locale: 'en-US' })
+  try {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('region', { name: 'Price and key facts' }).waitFor()
+    const picker = page.getByRole('banner').getByRole('radiogroup', { name: 'Language' })
+    await picker.getByRole('radio', { name: 'Türkçe' }).click()
+    await page.getByRole('region', { name: 'Fiyat ve temel bilgiler' }).waitFor()
+    expect((await page.evaluate(() => document.documentElement.lang)) === 'tr', 'html lang not tr after switching')
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('lang') === 'tr' && document.activeElement?.getAttribute('aria-checked') === 'true'), 'focus not back on the picker after switching')
+    expect((await page.title()).endsWith('· Plainly'), `title: ${await page.title()}`)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('region', { name: 'Fiyat ve temel bilgiler' }).waitFor()
+    // The keyboard works too: → goes back to English.
+    await page.getByRole('banner').getByRole('radiogroup', { name: 'Dil' }).getByRole('radio', { checked: true }).focus()
+    await page.keyboard.press('ArrowLeft')
+    await page.getByRole('region', { name: 'Price and key facts' }).waitFor()
+  } finally {
+    await context.close()
+  }
+  // In the phone menu: the drawer stays open in the new language.
+  const phone = await trContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  try {
+    await phone.page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await phone.page.getByRole('button', { name: 'Menu' }).click()
+    await phone.page.getByRole('dialog', { name: 'Menu' }).getByRole('radio', { name: 'Türkçe' }).click()
+    const drawer = phone.page.getByRole('dialog', { name: 'Menü' })
+    await drawer.getByRole('link', { name: 'Siparişler' }).waitFor()
+    await phone.page.keyboard.press('Escape')
+    await drawer.waitFor({ state: 'hidden' })
+    expect(await phone.page.getByRole('button', { name: 'Menü' }).evaluate((b) => b === document.activeElement), 'focus not returned to the menu button after switching in the drawer')
+  } finally {
+    await phone.context.close()
+  }
+}
+
+FLOWS['turkish: prices, dates, plurals and facts in Turkish; product data stays English'] = async () => {
+  const { context, page } = await trContext()
+  try {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    const card = page.getByRole('region', { name: 'Fiyat ve temel bilgiler' })
+    await card.waitFor()
+    await card.getByText('$8,94', { exact: true }).waitFor() // USD, Turkish number format
+    await card.getByText('%10 indirim').waitFor()
+    await card.getByText('İade yok').waitFor()
+    await card.getByText('1 hafta', { exact: true }).waitFor()
+    const dates = await card.locator('dd').first().locator('p').first().innerText()
+    expect(/(Oca|Şub|Mar|Nis|May|Haz|Tem|Ağu|Eyl|Eki|Kas|Ara)/.test(dates), `delivery dates not Turkish: ${dates}`)
+    await page.getByText('3 değerlendirme').first().waitFor()
+    await page.getByText('4,0', { exact: true }).first().waitFor()
+    // Product data stays English, marked as such, with the note in Turkish.
+    expect((await page.locator('main h1').getAttribute('lang')) === 'en', 'product title not marked lang="en"')
+    await page.getByText('DummyJSON’dan geldiği için İngilizce gösterilir').waitFor()
+    // Plurals: one and many.
+    await page.goto(base + '/search?department=vehicles', { waitUntil: 'domcontentloaded' })
+    await page.getByText('10 sonuç').waitFor()
+  } finally {
+    await context.close()
+  }
+}
+
+FLOWS['turkish: search synonyms and typos find the right category'] = async () => {
+  const { context, page } = await trContext()
+  try {
+    for (const [q, chip] of [
+      ['telefon', 'Akıllı telefonlar'],
+      ['tişört', 'Erkek gömlek ve tişörtleri'],
+      ['tisort', 'Erkek gömlek ve tişörtleri'],
+      ['gömlek', 'Erkek gömlek ve tişörtleri'],
+      ['parfüm', 'Parfüm'],
+      ['dizüstü', 'Dizüstü bilgisayarlar'],
+    ]) {
+      await page.goto(base + `/search?q=${encodeURIComponent(q)}`, { waitUntil: 'domcontentloaded' })
+      await page.getByRole('button', { name: `Filtreyi kaldır: ${chip} (“${q}” aramasından)` }).waitFor()
+    }
+    // A typo: corrected, said so, and still understood as the category.
+    await page.goto(base + '/search?q=telefn', { waitUntil: 'domcontentloaded' })
+    await page.getByText('Şunun için sonuçlar gösteriliyor:').waitFor()
+    await page.getByRole('button', { name: /^Filtreyi kaldır: Akıllı telefonlar/ }).waitFor()
+    await page.goto(base + '/search?q=parfm', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: /^Filtreyi kaldır: Parfüm/ }).waitFor()
+  } finally {
+    await context.close()
+  }
+}
+
+FLOWS['turkish: checkout in Turkish, validation and confirmation'] = async () => {
+  const { context, page } = await trContext({ viewport: { width: 390, height: 844 } })
+  try {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Sepete ekle' }).click()
+    await page.getByRole('region', { name: 'Sepet güncellemesi' }).getByRole('link', { name: 'Ödemeye geç' }).click()
+    await page.getByRole('heading', { name: 'Ödeme', level: 1 }).waitFor()
+    await page.getByRole('button', { name: 'Siparişi ver' }).click()
+    await page.getByText('Adınızı ve soyadınızı girin.').waitFor()
+    expect(await page.getByLabel('Ad soyad').evaluate((el) => el === document.activeElement), 'focus not on the first invalid field')
+    await page.getByLabel('Ad soyad').fill('Ayşe Yılmaz')
+    await page.getByLabel('Açık adres').fill('Atatürk Cad. 1')
+    await page.getByLabel('Şehir').fill('İzmir')
+    await page.getByLabel('Eyalet ya da bölge').fill('İzmir')
+    await page.getByLabel('Posta kodu').fill('35000')
+    await page.getByRole('button', { name: 'Siparişi ver' }).click()
+    await page.getByRole('heading', { name: 'Siparişiniz alındı' }).waitFor()
+    await page.getByText('Ödeme simüle edildi, hiçbir ücret alınmadı.', { exact: false }).waitFor()
+  } finally {
+    await context.close()
+  }
 }
 
 // The privacy contact is a real, working mailto link.

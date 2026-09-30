@@ -1,5 +1,5 @@
 import type { Product } from './catalog'
-import { INTENT_WORDS, interpretQuery, type QueryIntent } from './queryIntent'
+import { fold, INTENT_WORDS, interpretQuery, type QueryIntent } from './queryIntent'
 import { searchProducts } from './search'
 
 // Typo tolerance, entirely in the browser. It only runs when the query as typed
@@ -11,8 +11,7 @@ import { searchProducts } from './search'
 // The page always says when this happened.
 
 function words(text: string): string[] {
-  return text
-    .toLowerCase()
+  return fold(text)
     .replace(/[’']/g, '')
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length >= 3)
@@ -97,13 +96,12 @@ export function resolveQuery(query: string, literal: boolean, catalog: Product[]
   if (searchProducts(catalog, query).length > 0) return { text: query }
 
   const vocab = vocabulary(catalog)
-  const fixed = query
-    .toLowerCase()
+  const fixed = fold(query)
     .split(/\s+/)
     .filter(Boolean)
     .map((w) => (isKnown(w, vocab) ? w : (closestWord(w.replace(/[^a-z0-9]/g, ''), vocab.candidates) ?? w)))
     .join(' ')
-  if (fixed === query.toLowerCase()) return { text: query }
+  if (fixed === fold(query)) return { text: query }
   const fixedIntent = interpretQuery(fixed)
   if (!fixedIntent && searchProducts(catalog, fixed).length === 0) return { text: query }
   return { text: fixed, corrected: fixed, intent: fixedIntent }

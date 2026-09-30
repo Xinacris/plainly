@@ -7,7 +7,8 @@ import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog } from '../lib/catalog'
 import { estimateDelivery, formatIsoDate, latestArrival, TRANSIT } from '../lib/delivery'
-import { formatPrice, pluralize } from '../lib/format'
+import { t } from '../i18n'
+import { formatPrice } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { validateAddress, type AddressErrors } from '../orders/address'
 import { useAddressBookData, useOrdersData } from '../account/hooks'
@@ -79,7 +80,7 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
     const { order, error } = saveError ? { order: undefined, error: saveError } : await ordersData.place({ address, lines, total })
     if (!order) {
       placing.current = false
-      setPlaceError(`Your order wasn’t placed. ${error ?? ''}`.trim())
+      setPlaceError(t.checkout.notPlaced(error ?? ''))
       return
     }
     // Leave checkout before emptying the cart, so it never flashes "Your cart is empty".
@@ -92,14 +93,14 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
       <div className="flex flex-col gap-6">
         <section aria-labelledby="address-heading" className={section}>
           <h2 id="address-heading" className={sectionHeading}>
-            Shipping address
+            {t.checkout.shippingAddress}
           </h2>
-          {book.status === 'loading' && <p className="mt-3 text-muted">Loading your addresses…</p>}
+          {book.status === 'loading' && <p className="mt-3 text-muted">{t.checkout.loadingAddresses}</p>}
           {book.status === 'error' && (
             <p role="alert" className="mt-3 text-sm text-warning">
-              Your saved addresses couldn’t load. {book.error}{' '}
+              {t.checkout.addressesError} {book.error}{' '}
               <button type="button" onClick={book.retry} className="font-medium underline underline-offset-2">
-                Try again
+                {t.common.tryAgain}
               </button>
             </p>
           )}
@@ -120,44 +121,39 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
 
         <section aria-labelledby="delivery-heading" className={section}>
           <h2 id="delivery-heading" className={sectionHeading}>
-            Items and delivery estimates
+            {t.checkout.itemsHeading}
           </h2>
-          <p className="mt-1 mb-4 text-sm text-muted">
-            Each estimate is the item’s shipping time from its product listing plus {TRANSIT.min}–{TRANSIT.max} business
-            days in transit, which is our assumption. They’re estimates, not promises.
-          </p>
+          <p className="mt-1 mb-4 text-sm text-muted">{t.checkout.itemsNote(TRANSIT.min, TRANSIT.max)}</p>
           <OrderLines lines={lines} />
         </section>
 
         <section aria-labelledby="payment-heading" className={section}>
           <h2 id="payment-heading" className={sectionHeading}>
-            Payment
+            {t.checkout.payment}
           </h2>
-          <p className="mt-1">
-            Payment is simulated. Plainly is a demo store: there’s no card to enter and nothing is charged.
-          </p>
+          <p className="mt-1">{t.checkout.paymentNote}</p>
         </section>
       </div>
 
-      <aside aria-label="Order summary" className={`${section} lg:sticky lg:top-4`}>
+      <aside aria-label={t.checkout.summary} className={`${section} lg:sticky lg:top-4`}>
         <dl className="flex flex-col gap-2">
           <div className="flex justify-between gap-4">
-            <dt>Items ({itemCount})</dt>
+            <dt>{t.checkout.itemsLine(itemCount)}</dt>
             <dd className="tabular-nums">{formatPrice(total)}</dd>
           </div>
           <div className="flex justify-between gap-4 text-muted">
-            <dt>Shipping and tax</dt>
-            <dd>None in this demo</dd>
+            <dt>{t.checkout.shippingTax}</dt>
+            <dd>{t.checkout.noneInDemo}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-border pt-2 text-lg font-bold">
-            <dt>Total</dt>
+            <dt>{t.checkout.total}</dt>
             <dd className="tabular-nums">{formatPrice(total)}</dd>
           </div>
         </dl>
         {arrivesBy && (
           <p className="mt-3 text-sm text-muted">
-            Estimated to arrive by <span className="font-medium text-text">{formatIsoDate(arrivesBy)}</span>
-            {lines.length > 1 && ' (all items)'}
+            {t.checkout.arrivesBy} <span className="font-medium text-text">{formatIsoDate(arrivesBy)}</span>
+            {lines.length > 1 && t.checkout.allItems}
           </p>
         )}
         {placeError && (
@@ -166,7 +162,7 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
           </p>
         )}
         <button type="submit" disabled={book.status !== 'ready'} className={`${primaryButton} mt-4 w-full`}>
-          Place order
+          {t.checkout.place}
         </button>
       </aside>
     </form>
@@ -181,14 +177,14 @@ function CheckoutContents() {
   if (resolved.length === 0) {
     return (
       <StatusMessage
-        title="Your cart is empty"
+        title={t.cartPage.empty}
         action={
           <Link to="/search" className={secondaryButton}>
-            Browse all products
+            {t.common.browseAll}
           </Link>
         }
       >
-        Add something to your cart to check out.
+        {t.checkout.emptyBody}
       </StatusMessage>
     )
   }
@@ -197,11 +193,11 @@ function CheckoutContents() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">Checkout</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t.checkout.title}</h1>
         <p className="text-sm text-muted">
-          {pluralize(itemCount, 'item')} ·{' '}
+          {t.common.items(itemCount)} ·{' '}
           <Link to="/cart" className="underline underline-offset-2 hover:text-text">
-            Edit cart
+            {t.checkout.editCart}
           </Link>
         </p>
       </div>
@@ -211,9 +207,9 @@ function CheckoutContents() {
 }
 
 export function CheckoutPage() {
-  useDocumentTitle('Checkout')
+  useDocumentTitle(t.checkout.title)
   return (
-    <Suspense fallback={<StatusMessage role="status" title="Loading checkout…" />}>
+    <Suspense fallback={<StatusMessage role="status" title={t.checkout.loading} />}>
       <CheckoutContents />
     </Suspense>
   )

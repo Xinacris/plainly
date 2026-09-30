@@ -12,12 +12,13 @@ import type { Product } from '../lib/catalog'
 import { estimateDelivery } from '../lib/delivery'
 import { departmentOf } from '../lib/departments'
 import { returnFact, warrantyFact } from '../lib/facts'
-import { formatRating, pluralize, reviewRating } from '../lib/format'
+import { t } from '../i18n'
+import { formatRating, reviewRating } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 interface Attribute {
-  label: string
+  label: () => string
   /** Two products differ on this row when their keys differ. */
   key: (p: Product) => string
   render: (p: Product) => ReactNode
@@ -30,7 +31,7 @@ function stockKey(p: Product): string {
 }
 
 function Delivery({ product }: { product: Product }) {
-  if (product.stock <= 0) return <span className="text-muted">Not available</span>
+  if (product.stock <= 0) return <span className="text-muted">{t.compare.notAvailable}</span>
   const estimate = estimateDelivery(product.shippingInformation)
   if (!estimate) return <>{product.shippingInformation}</>
   return <DateRange estimate={estimate} />
@@ -42,21 +43,21 @@ function Flagged({ text, flagged }: { text: string; flagged: boolean }) {
 
 // The same facts as the decision card, in the same words.
 const ATTRIBUTES: Attribute[] = [
-  { label: 'Price you pay', key: (p) => String(salePrice(p)), render: (p) => <Price product={p} /> },
+  { label: () => t.compare.rows.price, key: (p) => String(salePrice(p)), render: (p) => <Price product={p} /> },
   {
-    label: 'Rating',
+    label: () => t.compare.rows.rating,
     key: (p) => formatRating(reviewRating(p)),
-    render: (p) => `${formatRating(reviewRating(p))} out of 5`,
+    render: (p) => t.rating.outOf5(formatRating(reviewRating(p))),
   },
-  { label: 'Reviews', key: (p) => String(p.reviews.length), render: (p) => pluralize(p.reviews.length, 'review') },
+  { label: () => t.compare.rows.reviews, key: (p) => String(p.reviews.length), render: (p) => t.common.reviews(p.reviews.length) },
   {
-    label: 'Delivery (estimate)',
+    label: () => t.compare.rows.delivery,
     key: (p) => (p.stock <= 0 ? 'none' : JSON.stringify(estimateDelivery(p.shippingInformation) ?? p.shippingInformation)),
     render: (p) => <Delivery product={p} />,
   },
-  { label: 'Returns', key: (p) => p.returnPolicy, render: (p) => <Flagged {...returnFact(p.returnPolicy)} /> },
-  { label: 'Warranty', key: (p) => p.warrantyInformation, render: (p) => <Flagged {...warrantyFact(p.warrantyInformation)} /> },
-  { label: 'Stock', key: stockKey, render: (p) => <StockNote product={p} fact /> },
+  { label: () => t.compare.rows.returns, key: (p) => p.returnPolicy, render: (p) => <Flagged {...returnFact(p.returnPolicy)} /> },
+  { label: () => t.compare.rows.warranty, key: (p) => p.warrantyInformation, render: (p) => <Flagged {...warrantyFact(p.warrantyInformation)} /> },
+  { label: () => t.compare.rows.stock, key: stockKey, render: (p) => <StockNote product={p} fact /> },
 ]
 
 function differs(attribute: Attribute, products: Product[]): boolean {
@@ -64,7 +65,7 @@ function differs(attribute: Attribute, products: Product[]): boolean {
 }
 
 function DiffersLabel() {
-  return <span className="ml-2 rounded bg-action px-1.5 py-0.5 text-xs font-semibold text-on-action">Differs</span>
+  return <span className="ml-2 rounded bg-action px-1.5 py-0.5 text-xs font-semibold text-on-action">{t.compare.differs}</span>
 }
 
 function CompareTable({ products, onlyDifferences }: { products: Product[]; onlyDifferences: boolean }) {
@@ -76,7 +77,7 @@ function CompareTable({ products, onlyDifferences }: { products: Product[]; only
 
   return (
     <table className="w-full table-fixed border-collapse">
-      <caption className="sr-only">Comparing {products.map((p) => p.title).join(', ')}</caption>
+      <caption className="sr-only">{t.compare.caption(products.map((p) => p.title).join(', '))}</caption>
       <colgroup>
         <col className="hidden w-44 sm:table-column" />
         {products.map((p) => (
@@ -99,24 +100,24 @@ function CompareTable({ products, onlyDifferences }: { products: Product[]; only
                 onClick={() => remove(p.id)}
                 className="mt-1 text-sm font-medium text-muted underline underline-offset-2 hover:text-text"
               >
-                Remove<span className="sr-only"> {p.title}</span>
+                {t.common.remove}<span className="sr-only"> {p.title}</span>
               </button>
             </th>
           ))}
         </tr>
       </thead>
       {rows.map((row) => (
-        <tbody key={row.label} className="border-t border-border" data-differs={row.differs || undefined}>
+        <tbody key={row.label()} className="border-t border-border" data-differs={row.differs || undefined}>
           {/* On phones the label gets its own full-width row above the values. */}
           <tr className="sm:hidden">
             <th scope="colgroup" colSpan={cols} className={`px-2 pt-3 text-left text-sm font-semibold ${row.differs ? highlight : ''}`}>
-              {row.label}
+              {row.label()}
               {row.differs && <DiffersLabel />}
             </th>
           </tr>
           <tr className={row.differs ? highlight : ''}>
             <th scope="row" className={`${cell} hidden text-left font-semibold sm:table-cell`}>
-              {row.label}
+              {row.label()}
               {row.differs && (
                 <span className="block pt-1">
                   <DiffersLabel />
@@ -146,14 +147,14 @@ function CompareContents() {
   if (products.length < 2) {
     return (
       <StatusMessage
-        title={products.length === 0 ? 'Nothing to compare yet' : 'Add one more product to compare'}
+        title={products.length === 0 ? t.compare.nothingYet : t.compare.oneMore}
         action={
           <Link to={addMoreUrl} className={secondaryButton}>
-            {products.length === 0 ? 'Browse products' : `Browse ${departmentName}`}
+            {products.length === 0 ? t.compare.browseProducts : t.compare.browseDepartment(departmentName)}
           </Link>
         }
       >
-        Tick “Compare” on up to {MAX_COMPARE} products from one department, then compare them side by side here.
+        {t.compare.howTo(MAX_COMPARE)}
       </StatusMessage>
     )
   }
@@ -163,18 +164,16 @@ function CompareContents() {
     <section className="mx-auto max-w-6xl px-2 py-6 sm:px-4 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3 px-2 sm:px-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Comparing in {departmentName}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t.compare.comparingIn(departmentName)}</h1>
           <MixedNotice department={departmentName} />
           <p className="mt-1 text-sm text-muted">
-            {differingCount === 0
-              ? 'These products match on every fact below.'
-              : `${differingCount} of ${ATTRIBUTES.length} facts differ, marked “Differs”.`}
+            {differingCount === 0 ? t.compare.allMatch : t.compare.someDiffer(differingCount, ATTRIBUTES.length)}
             {products.length < MAX_COMPARE && (
               <>
                 {' '}
-                You can{' '}
+                {t.compare.youCan}{' '}
                 <Link to={addMoreUrl} className={textLink}>
-                  add one more
+                  {t.compare.addOneMore}
                 </Link>
                 .
               </>
@@ -189,10 +188,10 @@ function CompareContents() {
               onChange={(e) => setOnlyDifferences(e.target.checked)}
               className="size-4 accent-action"
             />
-            Show only what differs
+            {t.compare.onlyDiffers}
           </label>
           <button type="button" onClick={clear} className="text-sm font-medium text-muted underline underline-offset-2 hover:text-text">
-            Clear all
+            {t.common.clearAll}
           </button>
         </div>
       </div>
@@ -204,9 +203,9 @@ function CompareContents() {
 }
 
 export function ComparePage() {
-  useDocumentTitle('Compare')
+  useDocumentTitle(t.compare.pageTitle)
   return (
-    <Suspense fallback={<StatusMessage role="status" title="Loading comparison…" />}>
+    <Suspense fallback={<StatusMessage role="status" title={t.compare.loading} />}>
       <CompareContents />
     </Suspense>
   )

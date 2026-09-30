@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { Product } from './catalog'
 
 // DummyJSON's `price` is the list price before the discount: its own carts API
@@ -20,7 +21,7 @@ export function hasDiscount(product: Product): boolean {
 // The sale filter's rule. Uses the same truncated % the cards show, so every
 // product in "10%+ off" shows at least "10% off". See DECISIONS.md for why 10.
 export const SALE_THRESHOLD = 10
-export const SALE_LABEL = `${SALE_THRESHOLD}%+ off`
+export const saleLabel = (): string => t.sale.label(SALE_THRESHOLD)
 
 export function onSale(product: Product): boolean {
   return discountPercent(product) >= SALE_THRESHOLD

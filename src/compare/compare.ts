@@ -3,7 +3,7 @@ import { useLocation } from 'react-router'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useCatalog, type Product } from '../lib/catalog'
-import { departmentOf } from '../lib/departments'
+import { departmentName, departmentOf } from '../lib/departments'
 
 export const MAX_COMPARE = 3
 
@@ -114,7 +114,9 @@ export function useInCompare(id: number): boolean {
 
 /** The comparison's department, read from its first product. */
 export function compareDepartmentName(products: Product[]): string {
-  return products[0] ? (departmentOf(products[0].category)?.name ?? products[0].category) : ''
+  const department = products[0] ? departmentOf(products[0].category) : undefined
+  if (department) return departmentName(department)
+  return products[0]?.category ?? ''
 }
 
 /** The products being compared, repaired against the catalog once it's loaded. */

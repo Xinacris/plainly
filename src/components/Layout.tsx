@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration, useLocation } from 'react-router'
 import { useTrayVisible } from '../compare/compare'
+import { t } from '../i18n'
 import { CartToast } from './CartToast'
 import { CompareTray } from './CompareTray'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -19,7 +20,7 @@ export function Layout() {
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2 focus:font-semibold focus:shadow"
       >
-        Skip to main content
+        {t.common.skip}
       </a>
       <Header />
       <OfflineBanner />

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { localDataCounts, markAsked, moveLocalData, useAccountData, wasAsked } from '../account/data'
 import { useAuth } from '../auth/auth'
-import { pluralize } from '../lib/format'
+import { t } from '../i18n'
 import { useAddressBook } from '../orders/addresses'
 import { useOrders } from '../orders/orders'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -13,9 +13,7 @@ function useLocalCounts() {
 }
 
 function describe({ addresses, orders }: { addresses: number; orders: number }): string {
-  return [addresses ? pluralize(addresses, 'saved address', 'saved addresses') : '', orders ? pluralize(orders, 'order') : '']
-    .filter(Boolean)
-    .join(' and ')
+  return t.moveData.describe(addresses, orders)
 }
 
 function useSignedInReady(): string | null {
@@ -26,7 +24,7 @@ function useSignedInReady(): string | null {
 
 async function move(userId: string) {
   const error = await moveLocalData(userId)
-  if (error) useAccountData.setState({ notice: `Couldn’t move this browser’s data: ${error} It’s still here; try again from Addresses or Orders.` })
+  if (error) useAccountData.setState({ notice: t.moveData.failed(error) })
 }
 
 // On the first sign-in in a browser that has addresses or orders, offer once to
@@ -39,9 +37,9 @@ export function MoveDataPrompt() {
   return (
     <ConfirmDialog
       open={open}
-      title="Move this browser’s data into your account?"
-      confirmLabel="Move them"
-      cancelLabel="Not now"
+      title={t.moveData.title}
+      confirmLabel={t.moveData.confirm}
+      cancelLabel={t.moveData.notNow}
       onConfirm={() => {
         if (!userId) return
         setAnswered(userId)
@@ -54,11 +52,8 @@ export function MoveDataPrompt() {
         markAsked(userId)
       }}
     >
-      <p>
-        This browser has {describe(localDataCounts())} from before you signed in. Moving them makes them follow you to your
-        other devices. Anything already in your account isn’t duplicated.
-      </p>
-      <p className="mt-2 text-muted">If you choose Not now, they stay in this browser and show again when you’re signed out.</p>
+      <p>{t.moveData.body(describe(localDataCounts()))}</p>
+      <p className="mt-2 text-muted">{t.moveData.notNowNote}</p>
     </ConfirmDialog>
   )
 }
@@ -71,7 +66,7 @@ export function LocalDataNotice() {
   if (!userId || !counts.any) return null
   return (
     <p className="mt-4 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
-      This browser also has {describe(counts)} from before you signed in.{' '}
+      {t.moveData.alsoHas(describe(counts))}{' '}
       <button
         type="button"
         disabled={busy}
@@ -82,7 +77,7 @@ export function LocalDataNotice() {
         }}
         className="font-medium text-action underline underline-offset-2 hover:text-action-hover"
       >
-        {busy ? 'Moving…' : 'Move them into your account'}
+        {busy ? t.moveData.moving : t.moveData.moveThem}
       </button>
     </p>
   )
@@ -101,7 +96,7 @@ export function AccountNotice() {
           onClick={() => useAccountData.setState({ notice: '' })}
           className="shrink-0 font-medium text-action underline underline-offset-2"
         >
-          Dismiss
+          {t.common.dismiss}
         </button>
       </p>
     </div>

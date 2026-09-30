@@ -5,17 +5,19 @@ import { AddressBlock, OrderLines } from '../components/OrderLines'
 import { ProductImage } from '../components/ProductImage'
 import { StatusMessage } from '../components/StatusMessage'
 import { secondaryButton } from '../components/styles'
-import { formatPrice, pluralize } from '../lib/format'
+import { formatDate, t } from '../i18n'
+import { formatPrice } from '../lib/format'
 import {
   canReturn,
   DELIVER_AFTER_MS,
+  formatDay,
   keptLines,
   orderStatus,
   REFUND_AFTER_MS,
   returnedCount,
   returnStatus,
   SHIP_AFTER_MS,
-  STATUS_LABELS,
+  statusLabel,
   statusTime,
   type OrderStatus,
 } from '../lib/orderStatus'
@@ -27,17 +29,11 @@ import { primaryButton } from '../components/styles'
 import { Select } from '../components/Select'
 import { orderItemCount, RETURN_REASONS, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
 
-const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+const dateTime = { format: (date: Date) => formatDate(date, { dateStyle: 'medium', timeStyle: 'short' }) }
 const minutes = (ms: number) => ms / 60_000
 
 type Tab = 'active' | 'delivered' | 'cancelled' | 'returns'
-const TABS: { value: Tab; label: string }[] = [
-  { value: 'active', label: 'Active' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'returns', label: 'Returns' },
-]
+const TABS: Tab[] = ['active', 'delivered', 'cancelled', 'returns']
 const inTab: Record<Exclude<Tab, 'returns'>, OrderStatus[]> = {
   active: ['preparing', 'shipped'],
   delivered: ['delivered'],
@@ -49,12 +45,12 @@ const disabledButton = 'cursor-not-allowed text-sm font-medium text-muted underl
 
 function Progress({ order, status }: { order: Order; status: OrderStatus }) {
   if (status === 'cancelled') {
-    return <p className="text-sm font-semibold text-warning">Cancelled {dateTime.format(statusTime(order, 'cancelled'))}</p>
+    return <p className="text-sm font-semibold text-warning">{t.orders.cancelledAt(dateTime.format(statusTime(order, 'cancelled')))}</p>
   }
   const steps: OrderStatus[] = ['preparing', 'shipped', 'delivered']
   const reached = steps.indexOf(status)
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-label="Order progress (simulated)">
+    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" aria-label={t.orders.progress}>
       {steps.map((step, i) => (
         <li key={step} className="flex items-center gap-2">
           {i > 0 && (
@@ -63,7 +59,7 @@ function Progress({ order, status }: { order: Order; status: OrderStatus }) {
             </span>
           )}
           <span className={i <= reached ? 'font-semibold text-action' : 'text-muted'} aria-current={i === reached ? 'step' : undefined}>
-            {STATUS_LABELS[step]}
+            {statusLabel(step)}
             {i === reached && i > 0 && <span className="font-normal text-muted"> {dateTime.format(statusTime(order, step))}</span>}
           </span>
         </li>
@@ -78,10 +74,10 @@ function ReturnAction({ order, line, now, onStart }: { order: Order; line: Order
   if (eligible.ok) {
     return (
       <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm">
-        <button type="button" onClick={onStart} aria-label={`Return this item: ${line.title}`} className={linkButton}>
-          Return this item
+        <button type="button" onClick={onStart} aria-label={t.orders.returnItemLabel(line.title)} className={linkButton}>
+          {t.orders.returnItem}
         </button>
-        <span className="text-muted">Return window open until {shortDate.format(eligible.lastDay)}</span>
+        <span className="text-muted">{t.orders.windowOpenUntil(formatDay(eligible.lastDay))}</span>
       </p>
     )
   }
@@ -89,8 +85,8 @@ function ReturnAction({ order, line, now, onStart }: { order: Order; line: Order
   const whyId = `why-${order.id}-${line.productId}`
   return (
     <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-sm">
-      <button type="button" disabled aria-label={`Return this item: ${line.title}`} aria-describedby={whyId} className={disabledButton}>
-        Return this item
+      <button type="button" disabled aria-label={t.orders.returnItemLabel(line.title)} aria-describedby={whyId} className={disabledButton}>
+        {t.orders.returnItem}
       </button>
       <span id={whyId} className="text-muted">
         {eligible.reason}
@@ -123,10 +119,10 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
         <header className="flex flex-col gap-2 border-b border-border px-4 py-3 sm:px-6">
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
             <h2 id={headingId} className="font-bold">
-              Order {order.id}
+              {t.orders.order(order.id)}
             </h2>
             <p className="text-sm text-muted">
-              Placed {dateTime.format(new Date(order.placedAt))} · {pluralize(orderItemCount(order), 'item')} ·{' '}
+              {t.orders.placed(dateTime.format(new Date(order.placedAt)), t.common.items(orderItemCount(order)))}
               <span className="font-semibold text-text tabular-nums">{formatPrice(order.total)}</span>
             </p>
           </div>
@@ -134,7 +130,7 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
             <Progress order={order} status={status} />
             {status === 'preparing' && (
               <button type="button" onClick={() => setConfirmCancel(true)} className={linkButton}>
-                Cancel order<span className="sr-only"> {order.id}</span>
+                {t.orders.cancel}<span className="sr-only"> {order.id}</span>
               </button>
             )}
           </div>
@@ -150,25 +146,25 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
             />
             {status === 'delivered' && returnedCount(order) > 0 && (
               <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
-                {pluralize(returnedCount(order), 'item')} returned ·{' '}
+                {t.orders.returnedNote(returnedCount(order))}
                 <Link to="/orders?tab=returns" replace className={linkButton}>
-                  see Returns
+                  {t.orders.seeReturns}
                 </Link>
               </p>
             )}
           </div>
           <div className="text-sm md:border-l md:border-border md:pl-4">
-            <h3 className="font-medium text-muted">Shipping to</h3>
+            <h3 className="font-medium text-muted">{t.orders.shippingTo}</h3>
             <AddressBlock address={order.address} />
-            {(status === 'preparing' || status === 'shipped') && <p className="mt-3 text-muted">Returns open once it’s delivered.</p>}
+            {(status === 'preparing' || status === 'shipped') && <p className="mt-3 text-muted">{t.orders.returnsOnceDelivered}</p>}
           </div>
         </div>
       </article>
 
       <ConfirmDialog
         open={confirmCancel}
-        title="Cancel this order?"
-        confirmLabel="Cancel order"
+        title={t.orders.cancelTitle}
+        confirmLabel={t.orders.cancel}
         onConfirm={() => {
           // Checked again on confirming: it may have shipped while the dialog was open.
           if (orderStatus(order, Date.now()) === 'preparing') onCancel(order.id)
@@ -176,16 +172,13 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
         }}
         onCancel={() => setConfirmCancel(false)}
       >
-        <p>
-          Order {order.id}, {pluralize(orderItemCount(order), 'item')}, {formatPrice(order.total)}. It hasn’t shipped yet, so it
-          can still be cancelled. Payment was simulated, so there’s nothing to refund.
-        </p>
+        <p>{t.orders.cancelBody(order.id, t.common.items(orderItemCount(order)), formatPrice(order.total))}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
         open={returning !== null}
-        title="Return this item?"
-        confirmLabel="Request return"
+        title={t.orders.returnTitle}
+        confirmLabel={t.orders.requestReturn}
         onConfirm={() => {
           if (returning && canReturn(order, returning, Date.now()).ok) onReturn(order.id, returning.productId, reason)
           setReturning(null)
@@ -198,7 +191,7 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
               {returning.quantity} × {returning.title}, {formatPrice(returning.price * returning.quantity)}.
             </p>
             <label htmlFor={reasonId} className="mt-3 block font-medium">
-              Reason
+              {t.orders.reason}
             </label>
             <Select
               id={reasonId}
@@ -207,7 +200,9 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
               wrapperClassName="mt-1 w-full"
             >
               {RETURN_REASONS.map((r) => (
-                <option key={r}>{r}</option>
+                <option key={r} value={r}>
+                  {t.orders.reasons[r]}
+                </option>
               ))}
             </Select>
           </>
@@ -224,25 +219,27 @@ function ReturnsList({ orders, now }: { orders: Order[]; now: number }) {
       return line ? [{ order, request, line }] : []
     }),
   )
-  if (entries.length === 0) return <p className="mt-6 text-muted">No returns yet. Delivered items can be returned from the Delivered tab.</p>
+  if (entries.length === 0) return <p className="mt-6 text-muted">{t.orders.noReturns}</p>
   return (
-    <ul aria-label="Returned items" className="mt-4 flex flex-col gap-3">
+    <ul aria-label={t.orders.returnedItems} className="mt-4 flex flex-col gap-3">
       {entries.map(({ order, request, line }) => {
         const refunded = returnStatus(request, now) === 'refunded'
         const amount = formatPrice(line.price * line.quantity)
         const detail = refunded
-          ? `· ${amount} back (simulated)`
-          : `${dateTime.format(new Date(request.requestedAt))} · a refund of ${amount} (simulated) follows in about ${minutes(REFUND_AFTER_MS)} minutes`
+          ? t.orders.refundedDetail(amount)
+          : t.orders.requestedDetail(dateTime.format(new Date(request.requestedAt)), amount, minutes(REFUND_AFTER_MS))
         return (
           <li key={`${order.id}-${line.productId}`} className="flex gap-3 rounded-xl border border-border bg-surface p-4">
             <ProductImage src={line.thumbnail} alt="" className="w-16 shrink-0 self-start p-1.5" />
             <div className="min-w-0 flex-1 text-sm">
-              <p className="font-semibold">{line.title}</p>
+              <p lang="en" className="font-semibold">
+                {line.title}
+              </p>
               <p className="text-muted">
-                Order {order.id} · {line.quantity} × {formatPrice(line.price)} · {request.reason}
+                {t.orders.returnLine(order.id, line.quantity, formatPrice(line.price), t.orders.reasons[request.reason] ?? request.reason)}
               </p>
               <p className="mt-1">
-                <span className="font-semibold">{refunded ? 'Refunded' : 'Requested'}</span>
+                <span className="font-semibold">{refunded ? t.orders.refunded : t.orders.requested}</span>
                 <span className="text-muted"> {detail}</span>
               </p>
             </div>
@@ -254,11 +251,11 @@ function ReturnsList({ orders, now }: { orders: Order[]; now: number }) {
 }
 
 function isTab(value: string | null): value is Tab {
-  return TABS.some((t) => t.value === value)
+  return TABS.some((tab) => tab === value)
 }
 
 export function OrdersPage() {
-  useDocumentTitle('Your orders')
+  useDocumentTitle(t.orders.title)
   const data = useOrdersData()
   const { orders } = data
   const [actionError, setActionError] = useState('')
@@ -277,15 +274,15 @@ export function OrdersPage() {
     // Also once the orders have loaded: before that the tabs aren't on the page yet.
   }, [tab, data.status])
 
-  if (data.status === 'loading') return <StatusMessage role="status" title="Loading your orders…" />
+  if (data.status === 'loading') return <StatusMessage role="status" title={t.orders.loading} />
   if (data.status === 'error') {
     return (
       <StatusMessage
         role="alert"
-        title="Your orders couldn’t load"
+        title={t.orders.loadError}
         action={
           <button type="button" onClick={data.retry} className={primaryButton}>
-            Try again
+            {t.common.tryAgain}
           </button>
         }
       >
@@ -296,14 +293,14 @@ export function OrdersPage() {
   if (orders.length === 0) {
     return (
       <StatusMessage
-        title="No orders yet"
+        title={t.orders.none}
         action={
           <Link to="/search" className={secondaryButton}>
-            Browse all products
+            {t.common.browseAll}
           </Link>
         }
       >
-        {data.mode === 'account' ? 'Orders you place while signed in show up here, on any device.' : 'Orders you place in this browser show up here.'}
+        {data.mode === 'account' ? t.orders.noneAccount : t.orders.noneBrowser}
         <LocalDataNotice />
       </StatusMessage>
     )
@@ -311,16 +308,17 @@ export function OrdersPage() {
 
   // Delivered lists an order only while it still has an item that wasn't returned, so
   // no item is counted under both Delivered and Returns.
-  const inStatusTab = (t: Exclude<Tab, 'returns'>) =>
-    orders.filter((o) => inTab[t].includes(orderStatus(o, now)) && (t !== 'delivered' || keptLines(o).length > 0))
-  const count = (t: Tab) => (t === 'returns' ? orders.reduce((sum, o) => sum + (o.returns?.length ?? 0), 0) : inStatusTab(t).length)
+  const inStatusTab = (which: Exclude<Tab, 'returns'>) =>
+    orders.filter((o) => inTab[which].includes(orderStatus(o, now)) && (which !== 'delivered' || keptLines(o).length > 0))
+  const count = (which: Tab) => (which === 'returns' ? orders.reduce((sum, o) => sum + (o.returns?.length ?? 0), 0) : inStatusTab(which).length)
   const shown = tab === 'returns' ? [] : inStatusTab(tab)
-  const tabLabel = TABS.find((t) => t.value === tab)?.label.toLowerCase()
 
   return (
     <section className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Your orders</h1>
-      <p className="mt-1 text-sm text-muted">Newest first. Prices are what you paid at the time. {data.mode === 'account' ? 'Saved to your account, so they follow you across devices.' : 'Orders are saved in this browser only.'}</p>
+      <h1 className="text-2xl font-bold tracking-tight">{t.orders.title}</h1>
+      <p className="mt-1 text-sm text-muted">
+        {t.orders.intro} {data.mode === 'account' ? t.orders.savedAccount : t.orders.savedBrowser}
+      </p>
       <LocalDataNotice />
       {actionError && (
         <p role="alert" className="mt-3 rounded-lg bg-warning-surface px-3 py-2 text-sm text-warning">
@@ -328,24 +326,23 @@ export function OrdersPage() {
         </p>
       )}
       <p className="mt-2 rounded-lg bg-warning-surface px-3 py-2 text-sm">
-        <span className="font-semibold">Status is simulated.</span> There’s no real shipping: an order ships {minutes(SHIP_AFTER_MS)}{' '}
-        minutes after it’s placed and is delivered {minutes(DELIVER_AFTER_MS - SHIP_AFTER_MS)} minutes after that. A refund follows{' '}
-        {minutes(REFUND_AFTER_MS)} minutes after a return is requested. Delivery dates shown are the real estimates.
+        <span className="font-semibold">{t.orders.simulatedLead}</span>
+        {t.orders.simulated(minutes(SHIP_AFTER_MS), minutes(DELIVER_AFTER_MS - SHIP_AFTER_MS), minutes(REFUND_AFTER_MS))}
       </p>
 
-      <nav aria-label="Order status" className="mt-4 border-b border-border">
+      <nav aria-label={t.orders.tabsLabel} className="mt-4 border-b border-border">
         <ul ref={tabList} className="relative -mb-px flex gap-1 overflow-x-auto">
-          {TABS.map((t) => {
-            const current = t.value === tab
+          {TABS.map((which) => {
+            const current = which === tab
             return (
-              <li key={t.value}>
+              <li key={which}>
                 <Link
-                  to={t.value === 'active' ? '/orders' : `/orders?tab=${t.value}`}
+                  to={which === 'active' ? '/orders' : `/orders?tab=${which}`}
                   replace
                   aria-current={current ? 'page' : undefined}
                   className={`block border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap ${current ? 'border-action text-action' : 'border-transparent text-muted hover:text-text'}`}
                 >
-                  {t.label} <span className="tabular-nums">({count(t.value)})</span>
+                  {t.orders.tabs[which]} <span className="tabular-nums">({count(which)})</span>
                 </Link>
               </li>
             )
@@ -354,7 +351,7 @@ export function OrdersPage() {
       </nav>
 
       {tab === 'returns' && <ReturnsList orders={orders} now={now} />}
-      {tab !== 'returns' && shown.length === 0 && <p className="mt-6 text-muted">No {tabLabel} orders.</p>}
+      {tab !== 'returns' && shown.length === 0 && <p className="mt-6 text-muted">{t.orders.emptyTab[tab]}</p>}
       {shown.length > 0 && (
         <ul className="mt-4 flex flex-col gap-4">
           {shown.map((order) => (

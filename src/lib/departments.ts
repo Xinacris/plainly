@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { Product } from './catalog'
 
 export interface Department {
@@ -22,6 +23,11 @@ export const DEPARTMENTS: Department[] = [
   { slug: 'sports-outdoors', name: 'Sports & outdoors', categories: ['sports-accessories', 'sunglasses'] },
   { slug: 'vehicles', name: 'Vehicles', categories: ['motorcycle', 'vehicle'] },
 ]
+
+/** The department's name in the current language. `name` stays English: search matches it. */
+export function departmentName(department: Department): string {
+  return t.departments[department.slug] ?? department.name
+}
 
 export function findDepartment(slug: string | null | undefined): Department | undefined {
   return DEPARTMENTS.find((d) => d.slug === slug)

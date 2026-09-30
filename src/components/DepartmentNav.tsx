@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
-import { DEPARTMENTS } from '../lib/departments'
-import { SALE_LABEL, SALE_URL } from '../lib/pricing'
+import { t } from '../i18n'
+import { DEPARTMENTS, departmentName } from '../lib/departments'
+import { saleLabel, SALE_URL } from '../lib/pricing'
 
 const linkBase = 'block rounded-md px-2.5 py-2 text-sm font-medium whitespace-nowrap underline-offset-4'
 // The current link is underlined as well as colored, so it isn't marked by color alone.
@@ -28,11 +29,11 @@ export function DepartmentNav() {
   }, [current, allActive, saleActive])
 
   return (
-    <nav aria-label="Departments" className="border-t border-border">
+    <nav aria-label={t.header.departments} className="border-t border-border">
       <ul ref={list} className="relative mx-auto flex max-w-6xl gap-1 overflow-x-auto px-2 sm:px-3">
         <li>
           <Link to="/search" aria-current={allActive ? 'page' : undefined} className={linkClass(allActive)}>
-            All products
+            {t.header.allProducts}
           </Link>
         </li>
         {/* A filter, not a department: it opens the sale view with its removable chip. */}
@@ -42,7 +43,7 @@ export function DepartmentNav() {
             aria-current={saleActive ? 'page' : undefined}
             className={`${linkBase} text-sale hover:underline ${saleActive ? 'underline decoration-2' : ''}`}
           >
-            {SALE_LABEL}
+            {saleLabel()}
           </Link>
         </li>
         {DEPARTMENTS.map((d) => {
@@ -54,7 +55,7 @@ export function DepartmentNav() {
                 aria-current={active ? 'page' : undefined}
                 className={linkClass(active)}
               >
-                {d.name}
+                {departmentName(d)}
               </Link>
             </li>
           )

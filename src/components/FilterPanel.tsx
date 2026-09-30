@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Product } from '../lib/catalog'
-import { findDepartment } from '../lib/departments'
+import { t } from '../i18n'
+import { departmentName, findDepartment } from '../lib/departments'
 import {
   brandOptions,
   categoryOptions,
@@ -11,7 +12,7 @@ import {
   type FacetOption,
   type Filters,
 } from '../lib/filters'
-import { SALE_LABEL } from '../lib/pricing'
+import { saleLabel } from '../lib/pricing'
 
 interface Props {
   /** The products the query matched, before filters. Counts are computed from these. */
@@ -53,7 +54,7 @@ function BrandFilter({ options, selected, onToggle }: { options: FacetOption[]; 
   const hidden = options.length - shown.length
   return (
     <fieldset>
-      <legend className={legend}>Brand</legend>
+      <legend className={legend}>{t.filters.brand}</legend>
       <CheckboxList options={shown} selected={selected} onToggle={onToggle} />
       {(hidden > 0 || showAll) && (
         <button
@@ -62,7 +63,7 @@ function BrandFilter({ options, selected, onToggle }: { options: FacetOption[]; 
           aria-expanded={showAll}
           className="mt-1 text-sm font-medium text-action underline underline-offset-2 hover:text-action-hover"
         >
-          {showAll ? 'Show fewer brands' : `Show all ${options.length} brands`}
+          {showAll ? t.filters.showFewerBrands : t.filters.showAllBrands(options.length)}
         </button>
       )}
     </fieldset>
@@ -90,7 +91,7 @@ function CategoryFilter({ products, filters, onChange }: Props) {
     if (categories.length === 0) return null
     return (
       <fieldset>
-        <legend className={legend}>Category</legend>
+        <legend className={legend}>{t.filters.category}</legend>
         <CheckboxList options={categories} selected={filters.categories} onToggle={toggleCategory} />
       </fieldset>
     )
@@ -99,7 +100,7 @@ function CategoryFilter({ products, filters, onChange }: Props) {
   if (picked) {
     return (
       <fieldset ref={fieldset}>
-        <legend className={legend}>Category</legend>
+        <legend className={legend}>{t.filters.category}</legend>
         <button
           type="button"
           data-step-back
@@ -109,9 +110,9 @@ function CategoryFilter({ products, filters, onChange }: Props) {
           }}
           className="mb-1 inline-flex min-h-9 items-center gap-1 text-sm font-medium text-action underline underline-offset-2 hover:text-action-hover"
         >
-          <span aria-hidden="true">‹</span> All departments
+          <span aria-hidden="true">‹</span> {t.filters.allDepartments}
         </button>
-        <p className="py-1 text-sm font-semibold">{picked.name}</p>
+        <p className="py-1 text-sm font-semibold">{departmentName(picked)}</p>
         <CheckboxList options={categories} selected={filters.categories} onToggle={toggleCategory} />
       </fieldset>
     )
@@ -123,7 +124,7 @@ function CategoryFilter({ products, filters, onChange }: Props) {
   if (departments.length === 0 && loose.length === 0) return null
   return (
     <fieldset ref={fieldset}>
-      <legend className={legend}>Category</legend>
+      <legend className={legend}>{t.filters.category}</legend>
       {loose.length > 0 && <CheckboxList options={loose} selected={filters.categories} onToggle={toggleCategory} />}
       <ul>
         {departments.map((d) => (
@@ -201,7 +202,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <fieldset>
-        <legend className={legend}>Availability</legend>
+        <legend className={legend}>{t.filters.availability}</legend>
         <label className={optionRow}>
           <input
             type="checkbox"
@@ -209,7 +210,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
             onChange={() => onChange({ ...filters, inStock: !filters.inStock })}
             className="size-4 accent-action"
           />
-          In stock only
+          {t.filters.inStockOnly}
           <span className={count}>{inStockCount}</span>
         </label>
       </fieldset>
@@ -217,7 +218,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
       {/* In the sale view the rule is the context itself, so the checkbox would only contradict it. */}
       {!filters.saleView && (
         <fieldset>
-          <legend className={legend}>Discount</legend>
+          <legend className={legend}>{t.filters.discount}</legend>
           <label className={optionRow}>
             <input
               type="checkbox"
@@ -225,23 +226,23 @@ export function FilterPanel({ products, filters, onChange }: Props) {
               onChange={() => onChange({ ...filters, sale: !filters.sale })}
               className="size-4 accent-action"
             />
-            {SALE_LABEL}
+            {saleLabel()}
             <span className={count}>{saleCount}</span>
           </label>
         </fieldset>
       )}
 
       <fieldset>
-        <legend className={legend}>Price you pay</legend>
+        <legend className={legend}>{t.filters.price}</legend>
         <div className="flex gap-2">
-          <PriceInput label="Min" value={filters.minPrice} onCommit={(minPrice) => onChange({ ...filters, minPrice })} />
-          <PriceInput label="Max" value={filters.maxPrice} onCommit={(maxPrice) => onChange({ ...filters, maxPrice })} />
+          <PriceInput label={t.filters.min} value={filters.minPrice} onCommit={(minPrice) => onChange({ ...filters, minPrice })} />
+          <PriceInput label={t.filters.max} value={filters.maxPrice} onCommit={(maxPrice) => onChange({ ...filters, maxPrice })} />
         </div>
-        {priceInverted && <p className="mt-2 text-sm text-warning">The minimum is higher than the maximum.</p>}
+        {priceInverted && <p className="mt-2 text-sm text-warning">{t.filters.inverted}</p>}
       </fieldset>
 
       <fieldset>
-        <legend className={legend}>Rating</legend>
+        <legend className={legend}>{t.filters.rating}</legend>
         <ul>
           <li>
             <label className={optionRow}>
@@ -252,7 +253,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
                 onChange={() => onChange({ ...filters, minRating: undefined })}
                 className="size-4 accent-action"
               />
-              Any rating
+              {t.filters.anyRating}
             </label>
           </li>
           {RATING_OPTIONS.map((r) => (
@@ -265,7 +266,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
                   onChange={() => onChange({ ...filters, minRating: r })}
                   className="size-4 accent-action"
                 />
-                {r} and up
+                {t.filters.andUp(r)}
                 <span className={count}>{countWith(products, filters, { minRating: r })}</span>
               </label>
             </li>

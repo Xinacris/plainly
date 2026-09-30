@@ -1,14 +1,12 @@
+import { formatNumber, t } from '../i18n'
 import type { Product } from './catalog'
 
-const priceFormat = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+// Prices stay in US dollars in both languages; the format follows the language.
+export { formatPrice } from '../i18n'
 
-export function formatPrice(amount: number): string {
-  return priceFormat.format(amount)
-}
-
-// Ratings are truncated, never rounded up: 4.99 shows as 4.9.
+// Ratings are truncated, never rounded up: 4.99 shows as 4.9 (4,9 in Turkish).
 export function formatRating(rating: number): string {
-  return (Math.floor(rating * 10 + 1e-9) / 10).toFixed(1)
+  return formatNumber(Math.floor(rating * 10 + 1e-9) / 10, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 }
 
 // DummyJSON's own `rating` field doesn't match the reviews it ships with, so the
@@ -19,11 +17,10 @@ export function reviewRating(product: Product): number {
   return reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
 }
 
-export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`
-}
-
+/** A category's name in the current language; English makes the slug readable ("Mens shirts"). */
 export function formatCategory(slug: string): string {
+  const translated = t.categories[slug]
+  if (translated) return translated
   const words = slug.replace(/-/g, ' ')
   return words.charAt(0).toUpperCase() + words.slice(1)
 }

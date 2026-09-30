@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
+import { t } from '../i18n'
 
 interface Props {
   /** A second search on a page (the 404) needs its own input id and landmark name. */
@@ -34,19 +35,19 @@ export function SearchForm({ inputId = 'site-search', landmarkLabel, visibleLabe
       }}
     >
       <label htmlFor={inputId} className={visibleLabel ? 'mb-1 w-full text-sm font-medium' : 'sr-only'}>
-        Search products
+        {t.header.searchLabel}
       </label>
       <input
         id={inputId}
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search products"
+        placeholder={t.header.searchLabel}
         className="h-10 min-w-0 flex-1 rounded-l-lg border border-r-0 border-border-strong bg-surface px-3 text-text placeholder:text-muted"
       />
       <button
         type="submit"
-        aria-label="Search"
+        aria-label={t.header.searchButton}
         className="grid h-10 w-11 place-items-center rounded-r-lg bg-action text-on-action hover:bg-action-hover"
       >
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

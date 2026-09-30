@@ -1,6 +1,7 @@
 import { QueryErrorResetBoundary } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router'
+import { t } from '../i18n'
 import { ErrorBoundary } from './ErrorBoundary'
 import { StatusMessage } from './StatusMessage'
 import { primaryButton } from './styles'
@@ -18,14 +19,14 @@ export function RouteErrorBoundary({ children }: { children: ReactNode }) {
           fallback={(retry) => (
             <StatusMessage
               role="alert"
-              title="Something went wrong"
+              title={t.errors.title}
               action={
                 <button type="button" onClick={retry} className={primaryButton}>
-                  Try again
+                  {t.common.tryAgain}
                 </button>
               }
             >
-              We couldn’t load this page. Check your connection and try again.
+              {t.errors.body}
             </StatusMessage>
           )}
         >

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { estimateDelivery, TRANSIT } from '../lib/delivery'
 import { returnFact, warrantyFact, type Fact } from '../lib/facts'
@@ -30,7 +31,7 @@ function FactText({ fact }: { fact: Fact }) {
 }
 
 function Delivery({ product }: { product: Product }) {
-  if (product.stock <= 0) return <p className="text-muted">Not available while out of stock</p>
+  if (product.stock <= 0) return <p className="text-muted">{t.facts.unavailable}</p>
   const estimate = estimateDelivery(product.shippingInformation)
   if (!estimate) return <p>{product.shippingInformation}</p>
   return (
@@ -39,7 +40,7 @@ function Delivery({ product }: { product: Product }) {
         <DateRange estimate={estimate} />
       </p>
       <p className="text-sm text-muted">
-        Estimate: {product.shippingInformation.toLowerCase()}, plus {TRANSIT.min}–{TRANSIT.max} business days in transit.
+        {t.facts.estimateNote(t.facts.ships(product.shippingInformation), TRANSIT.min, TRANSIT.max)}
       </p>
     </>
   )
@@ -48,19 +49,19 @@ function Delivery({ product }: { product: Product }) {
 // The facts that decide a purchase, together and above the fold (decision #5).
 export function DecisionCard({ product }: { product: Product }) {
   return (
-    <section aria-label="Price and key facts" className="rounded-xl border border-border bg-surface p-4">
+    <section aria-label={t.facts.region} className="rounded-xl border border-border bg-surface p-4">
       <Price product={product} size="page" />
       <dl className="mt-3 divide-y divide-border border-t border-border">
-        <Row label="Delivery">
+        <Row label={t.facts.delivery}>
           <Delivery product={product} />
         </Row>
-        <Row label="Returns">
+        <Row label={t.facts.returns}>
           <FactText fact={returnFact(product.returnPolicy)} />
         </Row>
-        <Row label="Warranty">
+        <Row label={t.facts.warranty}>
           <FactText fact={warrantyFact(product.warrantyInformation)} />
         </Row>
-        <Row label="Stock">
+        <Row label={t.facts.stock}>
           <StockNote product={product} fact />
         </Row>
       </dl>

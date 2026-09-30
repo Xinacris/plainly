@@ -1,3 +1,5 @@
+import { formatDate } from '../i18n/state'
+
 // Delivery estimates. DummyJSON's `shippingInformation` says when an item *ships*
 // ("Ships in 1-2 business days"), not when it arrives, so an estimate is:
 //   ship window (from the data) + TRANSIT (Plainly's stated assumption).
@@ -64,9 +66,7 @@ export function latestArrival(estimates: (Estimate | undefined)[]): string | und
   return known.length ? known.sort().at(-1) : undefined
 }
 
-const dateFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-
 export function formatIsoDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number)
-  return dateFormat.format(new Date(y, m - 1, d))
+  return formatDate(new Date(y, m - 1, d), { weekday: 'short', month: 'short', day: 'numeric' })
 }

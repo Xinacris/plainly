@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { formatPrice } from '../lib/format'
 import { discountPercent, hasDiscount, salePrice } from '../lib/pricing'
@@ -16,12 +17,12 @@ export function Price({ product, size = 'card' }: Props) {
       <p className="flex flex-wrap items-baseline gap-x-2">
         <span className={`font-bold tabular-nums ${large ? 'text-3xl' : 'text-lg'}`}>{formatPrice(salePrice(product))}</span>
         {hasDiscount(product) && (
-          <span className={`font-semibold text-sale ${large ? '' : 'text-sm'}`}>{discountPercent(product)}% off</span>
+          <span className={`font-semibold text-sale ${large ? '' : 'text-sm'}`}>{t.sale.off(discountPercent(product))}</span>
         )}
       </p>
       {hasDiscount(product) && (
         <p className="text-sm text-muted">
-          List price <s className="tabular-nums">{formatPrice(product.price)}</s>
+          {t.sale.listPrice} <s className="tabular-nums">{formatPrice(product.price)}</s>
         </p>
       )}
     </div>

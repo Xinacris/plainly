@@ -5,6 +5,7 @@ import { isDemo, useAuth } from '../auth/auth'
 import { Field } from '../components/Field'
 import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
+import { t } from '../i18n'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const card = 'mt-6 rounded-xl border border-border bg-surface p-4 sm:p-6'
@@ -30,16 +31,16 @@ function DetailsForm({ userId, profile }: { userId: string; profile: Profile }) 
     setBusy(true)
     const error = await saveProfile(userId, name, phone)
     setBusy(false)
-    setResult(error ? { tone: 'error', text: error } : { tone: 'ok', text: 'Saved.' })
+    setResult(error ? { tone: 'error', text: error } : { tone: 'ok', text: t.profile.saved })
   }
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-      <Field label="Name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
-      <Field label="Phone (optional)" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
+      <Field label={t.profile.name} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
+      <Field label={t.profile.phone} type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={40} />
       {result && <Notice tone={result.tone}>{result.text}</Notice>}
       <button type="submit" disabled={busy} className={`${primaryButton} self-start`}>
-        {busy ? 'Saving…' : 'Save details'}
+        {busy ? t.profile.saving : t.profile.saveDetails}
       </button>
     </form>
   )
@@ -53,31 +54,31 @@ function PasswordForm() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (password.length < 8) return setResult({ tone: 'error', text: 'Choose a password of at least 8 characters.' })
-    if (password !== confirm) return setResult({ tone: 'error', text: 'The two passwords don’t match.' })
+    if (password.length < 8) return setResult({ tone: 'error', text: t.profile.tooShort })
+    if (password !== confirm) return setResult({ tone: 'error', text: t.profile.mismatch })
     setBusy(true)
     const error = await changePassword(password)
     setBusy(false)
     if (error) return setResult({ tone: 'error', text: error })
     setPassword('')
     setConfirm('')
-    setResult({ tone: 'ok', text: 'Password changed.' })
+    setResult({ tone: 'ok', text: t.profile.changed })
   }
 
   return (
     <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
-      <Field label="New password" type="password" autoComplete="new-password" hint="At least 8 characters." value={password} onChange={(e) => setPassword(e.target.value)} />
-      <Field label="Repeat new password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+      <Field label={t.profile.newPassword} type="password" autoComplete="new-password" hint={t.profile.atLeast8} value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Field label={t.profile.repeatPassword} type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
       {result && <Notice tone={result.tone}>{result.text}</Notice>}
       <button type="submit" disabled={busy} className={`${secondaryButton} self-start`}>
-        {busy ? 'Changing…' : 'Change password'}
+        {busy ? t.profile.changing : t.profile.change}
       </button>
     </form>
   )
 }
 
 export function ProfilePage() {
-  useDocumentTitle('Profile')
+  useDocumentTitle(t.profile.title)
   const status = useAuth((s) => s.status)
   const user = useAuth((s) => s.user)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -100,15 +101,15 @@ export function ProfilePage() {
   }, [user, attempt])
 
   if (status === 'signed-out') return <Navigate to="/signin?next=%2Fprofile" replace />
-  if (status === 'loading' || !user) return <StatusMessage role="status" title="Loading your profile…" />
+  if (status === 'loading' || !user) return <StatusMessage role="status" title={t.profile.loading} />
   if (error) {
     return (
       <StatusMessage
         role="alert"
-        title="Your profile couldn’t load"
+        title={t.profile.loadError}
         action={
           <button type="button" onClick={() => setAttempt((a) => a + 1)} className={primaryButton}>
-            Try again
+            {t.common.tryAgain}
           </button>
         }
       >
@@ -116,37 +117,35 @@ export function ProfilePage() {
       </StatusMessage>
     )
   }
-  if (!profile) return <StatusMessage role="status" title="Loading your profile…" />
+  if (!profile) return <StatusMessage role="status" title={t.profile.loading} />
 
   const demo = isDemo(user)
   return (
     <section className="mx-auto max-w-2xl px-4 py-6 sm:py-8">
-      <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
+      <h1 className="text-2xl font-bold tracking-tight">{t.profile.title}</h1>
       {demo && (
         <p className="mt-2 rounded-lg bg-warning-surface px-3 py-2 text-sm">
-          This is the shared demo account: others may change these details, and they’re reset every few days.
+          {t.profile.demoNote}
         </p>
       )}
 
       <div className={card}>
-        <h2 className="mb-4 text-lg font-bold">Your details</h2>
+        <h2 className="mb-4 text-lg font-bold">{t.profile.details}</h2>
         <DetailsForm key={user.id} userId={user.id} profile={profile} />
       </div>
 
       <div className={card}>
-        <h2 className="text-lg font-bold">Email</h2>
+        <h2 className="text-lg font-bold">{t.profile.email}</h2>
         <p className="mt-2 font-medium break-all">{user.email}</p>
         <p className="mt-1 text-sm text-muted">
-          {demo
-            ? 'The demo account’s email can’t be changed, so nobody can lock other reviewers out.'
-            : 'Changing your email isn’t available in this demo: it needs a confirmation email, and this demo can’t send email.'}
+          {demo ? t.profile.demoEmail : t.profile.noEmailChange}
         </p>
       </div>
 
       <div className={card}>
-        <h2 className="mb-4 text-lg font-bold">Password</h2>
+        <h2 className="mb-4 text-lg font-bold">{t.profile.password}</h2>
         {demo ? (
-          <p className="text-sm text-muted">The demo account’s password can’t be changed, so nobody can lock other reviewers out.</p>
+          <p className="text-sm text-muted">{t.profile.demoPassword}</p>
         ) : (
           <PasswordForm />
         )}
@@ -154,7 +153,7 @@ export function ProfilePage() {
 
       <p className="mt-6 text-sm">
         <Link to="/privacy" className="font-medium text-action underline underline-offset-2">
-          How we handle your data
+          {t.common.privacyLink}
         </Link>
       </p>
     </section>

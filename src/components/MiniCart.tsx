@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router'
 import { cartTotals, resolveCart, useCart } from '../cart/cart'
 import { useCartToast } from '../cart/toast'
 import { useCatalog } from '../lib/catalog'
-import { formatPrice, pluralize } from '../lib/format'
+import { t } from '../i18n'
+import { formatPrice } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ProductImage } from './ProductImage'
@@ -18,9 +19,9 @@ function Contents({ close }: { close: () => void }) {
   if (lines.length === 0) {
     return (
       <div className="p-4 text-sm">
-        <p className="font-semibold">Your cart is empty</p>
+        <p className="font-semibold">{t.miniCart.empty}</p>
         <Link to="/search" onClick={close} className="mt-2 inline-block font-medium text-action underline underline-offset-2">
-          Browse all products
+          {t.common.browseAll}
         </Link>
       </div>
     )
@@ -38,7 +39,7 @@ function Contents({ close }: { close: () => void }) {
                 {product.title}
               </Link>
               <p className="flex justify-between gap-2 text-muted">
-                <span>Qty {quantity}</span>
+                <span>{t.miniCart.qty(quantity)}</span>
                 <span className="text-text tabular-nums">{formatPrice(salePrice(product) * quantity)}</span>
               </p>
             </div>
@@ -46,15 +47,15 @@ function Contents({ close }: { close: () => void }) {
         ))}
       </ul>
       <p className="mt-2 flex justify-between border-t border-border pt-2 text-sm">
-        <span>Subtotal ({pluralize(itemCount, 'item')})</span>
+        <span>{t.miniCart.subtotal(t.common.items(itemCount))}</span>
         <span className="font-bold tabular-nums">{formatPrice(subtotal)}</span>
       </p>
       <div className="mt-3 flex gap-2">
         <Link to="/cart" onClick={close} className={`${secondaryButton} ${small}`}>
-          View cart
+          {t.common.viewCart}
         </Link>
         <Link to="/checkout" onClick={close} className={`${primaryButton} ${small}`}>
-          Checkout
+          {t.common.checkout}
         </Link>
       </div>
     </div>
@@ -115,11 +116,11 @@ export function MiniCart({ children }: { children: (props: { expanded: boolean; 
           id={panelId}
           data-mini-cart
           role="region"
-          aria-label="Cart preview"
+          aria-label={t.miniCart.region}
           className="absolute top-full right-0 z-40 mt-2 w-80 rounded-xl border border-border bg-surface shadow-lg"
         >
-          <ErrorBoundary onReset={() => {}} fallback={() => <p className="p-4 text-sm">Couldn’t load your cart right now.</p>}>
-            <Suspense fallback={<p className="p-4 text-sm text-muted">Loading your cart…</p>}>
+          <ErrorBoundary onReset={() => {}} fallback={() => <p className="p-4 text-sm">{t.miniCart.loadError}</p>}>
+            <Suspense fallback={<p className="p-4 text-sm text-muted">{t.miniCart.loading}</p>}>
               <Contents close={close} />
             </Suspense>
           </ErrorBoundary>

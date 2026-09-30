@@ -16,6 +16,10 @@ The demo data (addresses, orders in different states, a return) is shared, so ot
 
 Guest checkout works without an account.
 
+## Languages
+
+The interface is in English and Turkish. The first visit follows your browser's language (English if it's neither); switch with EN / TR in the header, or under Language in the phone menu, and the choice is remembered in that browser. Prices stay in US dollars, formatted for the language. Product names, descriptions and reviews come from DummyJSON and stay in English.
+
 ## Stack
 
 Vite, React, TypeScript, React Router, TanStack Query, Zustand and Tailwind v4. Product data comes from [DummyJSON](https://dummyjson.com).

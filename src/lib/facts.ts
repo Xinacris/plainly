@@ -1,5 +1,8 @@
-// Turns DummyJSON's policy strings into short facts for the decision card.
-// Anything that doesn't match a known phrasing is shown exactly as written.
+import { t } from '../i18n'
+
+// Turns DummyJSON's policy strings into short facts for the decision card, in the
+// current language. Anything that doesn't match a known phrasing is shown exactly as
+// written (in English, like the rest of the product data).
 
 export interface Fact {
   text: string
@@ -8,13 +11,16 @@ export interface Fact {
 }
 
 export function returnFact(policy: string): Fact {
-  if (policy === 'No return policy') return { text: 'No returns', flagged: true }
+  if (policy === 'No return policy') return { text: t.facts.noReturns, flagged: true }
   const days = returnDays(policy)
-  return { text: days ? `${days}-day returns` : policy, flagged: false }
+  return { text: days ? t.facts.returnDays(days) : policy, flagged: false }
 }
 
 export function warrantyFact(warranty: string): Fact {
-  if (warranty === 'No warranty') return { text: 'None', flagged: false }
+  if (warranty === 'No warranty') return { text: t.facts.noWarranty, flagged: false }
+  if (warranty === 'Lifetime warranty') return { text: t.facts.lifetime, flagged: false }
+  const period = warranty.match(/^(\d+) (week|month|year)s? warranty$/)
+  if (period) return { text: t.facts.warrantyPeriod(Number(period[1]), period[2] as 'week' | 'month' | 'year'), flagged: false }
   return { text: warranty.replace(/ warranty$/, ''), flagged: false }
 }
 

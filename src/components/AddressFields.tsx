@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { ADDRESS_FIELDS, type AddressErrors } from '../orders/address'
+import { ADDRESS_FIELDS, fieldLabel, type AddressErrors } from '../orders/address'
 import type { Address } from '../orders/orders'
 
 interface Props {
@@ -18,7 +18,7 @@ export function AddressFields({ value, errors, onChange }: Props) {
         return (
           <div key={field.name} className={`flex flex-col gap-1 ${field.wide ? 'sm:col-span-3' : ''}`}>
             <label htmlFor={inputId} className="text-sm font-medium">
-              {field.label}
+              {fieldLabel(field.name)}
             </label>
             <input
               id={inputId}

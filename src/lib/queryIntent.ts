@@ -1,4 +1,5 @@
-import { DEPARTMENTS } from './departments'
+import { tr } from '../i18n/tr'
+import { DEPARTMENTS, departmentName, findDepartment } from './departments'
 import { formatCategory } from './format'
 
 // Search that understands categories. When the whole query names a category, a
@@ -8,9 +9,15 @@ import { formatCategory } from './format'
 // search, because "phone" there means an accessory, not a smartphone.
 
 export interface QueryIntent {
-  /** What the chip says, e.g. "Smartphones" or "Tops, Mens shirts". */
+  /** What the chip says, in the current language, e.g. "Smartphones" or "Tops, Mens shirts". */
   label: string
   categories: string[]
+}
+
+interface Term {
+  categories: string[]
+  /** Set when the term names a whole department, so the chip says its name. */
+  department?: string
 }
 
 const SYNONYMS: [string[], string[]][] = [
@@ -33,7 +40,24 @@ const SYNONYMS: [string[], string[]][] = [
   [['food', 'grocery'], ['groceries']],
   [['decor', 'home decor'], ['home-decoration']],
   [['kitchen'], ['kitchen-accessories']],
+  // Turkish. Diacritics are folded before matching, so "tisort" finds "tişört" too.
+  [['telefon', 'telefonlar', 'cep telefonu', 'akıllı telefon'], ['smartphones']],
+  [['tişört', 'tişörtler', 'gömlek', 'gömlekler'], ['mens-shirts']],
+  [['parfüm', 'parfümler'], ['fragrances']],
+  [['dizüstü', 'dizüstü bilgisayar', 'dizüstü bilgisayarlar'], ['laptops']],
 ]
+
+/**
+ * Lowercase and without diacritics, so Turkish letters match with or without them:
+ * "Tişört" and "tisort" both become "tisort", "DİZÜSTÜ" becomes "dizustu".
+ */
+export function fold(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ı/g, 'i')
+}
 
 // "Dresses" → "dress", "watches" → "watch", "accessories" → "accessory", "shoes" → "shoe".
 function singular(word: string): string {
@@ -45,8 +69,7 @@ function singular(word: string): string {
 }
 
 export function normalizeTerm(text: string): string {
-  return text
-    .toLowerCase()
+  return fold(text)
     .replace(/[’']/g, '')
     .replace(/&/g, ' and ')
     .replace(/[-_]/g, ' ')
@@ -56,16 +79,23 @@ export function normalizeTerm(text: string): string {
     .join(' ')
 }
 
-function buildTerms(): Map<string, QueryIntent> {
-  const terms = new Map<string, QueryIntent>()
-  const add = (term: string, intent: QueryIntent) => terms.set(normalizeTerm(term), intent)
-  const label = (categories: string[]) => categories.map(formatCategory).join(', ')
-  for (const [words, categories] of SYNONYMS) words.forEach((w) => add(w, { label: label(categories), categories }))
+// Names count in both languages, whichever is showing: "smartphones" and "akıllı
+// telefonlar" find the same category.
+function buildTerms(): Map<string, Term> {
+  const terms = new Map<string, Term>()
+  const add = (term: string, value: Term) => terms.set(normalizeTerm(term), value)
+  for (const [words, categories] of SYNONYMS) words.forEach((w) => add(w, { categories }))
   for (const d of DEPARTMENTS) {
-    for (const c of d.categories) add(c, { label: formatCategory(c), categories: [c] })
+    for (const c of d.categories) {
+      add(c, { categories: [c] })
+      if (tr.categories[c]) add(tr.categories[c], { categories: [c] })
+    }
   }
   // Departments last, so "beauty" means the whole Beauty department, not just its first category.
-  for (const d of DEPARTMENTS) add(d.name, { label: d.name, categories: d.categories })
+  for (const d of DEPARTMENTS) {
+    add(d.name, { categories: d.categories, department: d.slug })
+    add(tr.departments[d.slug], { categories: d.categories, department: d.slug })
+  }
   return terms
 }
 
@@ -74,9 +104,13 @@ const TERMS = buildTerms()
 /** Every synonym and name above, for the spelling correction's vocabulary. */
 export const INTENT_WORDS: string[] = [
   ...SYNONYMS.flatMap(([words]) => words),
-  ...DEPARTMENTS.flatMap((d) => [d.name, ...d.categories]),
+  ...DEPARTMENTS.flatMap((d) => [d.name, tr.departments[d.slug], ...d.categories, ...d.categories.map((c) => tr.categories[c] ?? '')]),
 ]
 
 export function interpretQuery(query: string): QueryIntent | undefined {
-  return TERMS.get(normalizeTerm(query))
+  const term = TERMS.get(normalizeTerm(query))
+  if (!term) return undefined
+  const department = findDepartment(term.department)
+  const label = department ? departmentName(department) : term.categories.map(formatCategory).join(', ')
+  return { label, categories: term.categories }
 }

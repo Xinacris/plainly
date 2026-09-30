@@ -1,8 +1,9 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { create } from 'zustand'
 import { DEMO_EMAIL } from '../lib/demo.js'
-import { isOffline, OFFLINE } from '../lib/network'
-import { getSupabase, SUPABASE_CONFIGURED, UNREACHABLE } from '../lib/supabase'
+import { t } from '../i18n'
+import { isOffline, offlineMessage } from '../lib/network'
+import { getSupabase, SUPABASE_CONFIGURED, unreachable } from '../lib/supabase'
 
 // The session lives in this browser (Supabase keeps it in localStorage) and is
 // read without a network call, so a slow or unreachable account service never
@@ -45,22 +46,22 @@ export function useUser(): User | null {
 
 /** A plain-language message for an auth error, never a raw code. */
 export function authMessage(error: unknown): string {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const e = error as { message?: string; status?: number; name?: string; code?: string } | null
   const message = e?.message ?? ''
-  if (!e || e.name === 'AuthRetryableFetchError' || /fetch|network|Failed to/i.test(message) || e.status === 0) return UNREACHABLE
-  if (e.code === 'invalid_credentials' || /invalid login credentials/i.test(message)) return 'That email and password don’t match an account.'
-  if (e.code === 'user_already_exists' || /already registered/i.test(message)) return 'An account with this email already exists. Sign in instead.'
-  if (e.code === 'weak_password' || /password should be/i.test(message)) return 'Choose a password of at least 8 characters.'
-  if (e.code === 'over_request_rate_limit' || e.status === 429) return 'Too many attempts. Wait a minute and try again.'
-  if (e.code === 'same_password') return 'That’s already your password. Choose a different one.'
-  return message || 'Something went wrong. Try again.'
+  if (!e || e.name === 'AuthRetryableFetchError' || /fetch|network|Failed to/i.test(message) || e.status === 0) return unreachable()
+  if (e.code === 'invalid_credentials' || /invalid login credentials/i.test(message)) return t.auth.errors.invalid
+  if (e.code === 'user_already_exists' || /already registered/i.test(message)) return t.auth.errors.exists
+  if (e.code === 'weak_password' || /password should be/i.test(message)) return t.auth.errors.weak
+  if (e.code === 'over_request_rate_limit' || e.status === 429) return t.auth.errors.rateLimit
+  if (e.code === 'same_password') return t.auth.errors.samePassword
+  return message || t.auth.errors.generic
 }
 
 export async function signIn(email: string, password: string): Promise<string | null> {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const supabase = await getSupabase()
-  if (!supabase) return UNREACHABLE
+  if (!supabase) return unreachable()
   try {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
     return error ? authMessage(error) : null
@@ -70,14 +71,14 @@ export async function signIn(email: string, password: string): Promise<string | 
 }
 
 export async function signUp(fullName: string, email: string, password: string): Promise<string | null> {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const supabase = await getSupabase()
-  if (!supabase) return UNREACHABLE
+  if (!supabase) return unreachable()
   try {
     // Email confirmation is off in this demo (it can't send email), so this signs you in.
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } })
     if (error) return authMessage(error)
-    if (!data.session) return 'Your account was created, but it needs an email confirmation this demo can’t send. Sign in instead.'
+    if (!data.session) return t.auth.errors.needsConfirmation
     return null
   } catch (error) {
     return authMessage(error)
@@ -85,9 +86,9 @@ export async function signUp(fullName: string, email: string, password: string):
 }
 
 export async function signInWithGoogle(next: string): Promise<string | null> {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const supabase = await getSupabase()
-  if (!supabase) return UNREACHABLE
+  if (!supabase) return unreachable()
   try {
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })

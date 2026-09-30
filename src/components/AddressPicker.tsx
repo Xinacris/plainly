@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Link } from 'react-router'
+import { t } from '../i18n'
 import type { AddressErrors } from '../orders/address'
 import type { SavedAddress } from '../orders/addresses'
 import type { Address } from '../orders/orders'
@@ -31,7 +32,7 @@ export function AddressPicker({ saved, defaultId, choice, onChoose, draft, onDra
       <AddressFields value={draft} errors={errors} onChange={onDraftChange} />
       <label className="mt-4 flex min-h-9 cursor-pointer items-center gap-2 text-sm">
         <input type="checkbox" checked={save} onChange={(e) => onSaveChange(e.target.checked)} className="size-4 accent-action" />
-        Save this address for later
+        {t.address.saveForLater}
       </label>
     </>
   )
@@ -41,7 +42,7 @@ export function AddressPicker({ saved, defaultId, choice, onChoose, draft, onDra
   return (
     <>
       <fieldset className="mt-4">
-        <legend className="sr-only">Choose a shipping address</legend>
+        <legend className="sr-only">{t.address.choose}</legend>
         <ul className="grid gap-3 sm:grid-cols-2">
           {saved.map((a) => (
             <li key={a.id}>
@@ -54,7 +55,7 @@ export function AddressPicker({ saved, defaultId, choice, onChoose, draft, onDra
                   className="mt-1 size-4 shrink-0 accent-action"
                 />
                 <span className="min-w-0 text-sm">
-                  {a.id === defaultId && <span className="mb-1 block text-xs font-semibold text-action uppercase">Default</span>}
+                  {a.id === defaultId && <span className="mb-1 block text-xs font-semibold text-action uppercase">{t.common.default}</span>}
                   <AddressBlock address={a} />
                 </span>
               </label>
@@ -69,7 +70,7 @@ export function AddressPicker({ saved, defaultId, choice, onChoose, draft, onDra
                 onChange={() => onChoose({ kind: 'new' })}
                 className="size-4 shrink-0 accent-action"
               />
-              <span className="text-sm font-semibold">Add a new address</span>
+              <span className="text-sm font-semibold">{t.address.addNew}</span>
             </label>
           </li>
         </ul>
@@ -77,7 +78,7 @@ export function AddressPicker({ saved, defaultId, choice, onChoose, draft, onDra
       {choice.kind === 'new' && newForm}
       <p className="mt-3 text-sm">
         <Link to="/addresses" className="font-medium text-action underline underline-offset-2 hover:text-action-hover">
-          Manage addresses
+          {t.address.manage}
         </Link>
       </p>
     </>

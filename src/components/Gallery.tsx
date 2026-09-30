@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
+import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { ProductImage } from './ProductImage'
 
@@ -61,7 +62,7 @@ export function Gallery({ product }: { product: Product }) {
     if (thumbnails.current?.contains(document.activeElement)) thumbnails.current.querySelectorAll('button')[next]?.focus()
   }
 
-  const label = (i: number) => `Show image ${i + 1} of ${images.length}`
+  const label = (i: number) => t.gallery.show(i + 1, images.length)
 
   return (
     <div onKeyDown={onKeyDown}>
@@ -70,7 +71,7 @@ export function Gallery({ product }: { product: Product }) {
         onScroll={onScroll}
         onScrollEnd={onScrollEnd}
         role={many ? 'region' : undefined}
-        aria-label={many ? `${product.title} photos, ${index + 1} of ${images.length}` : undefined}
+        aria-label={many ? t.gallery.region(product.title, index + 1, images.length) : undefined}
         tabIndex={many ? 0 : undefined}
         // Keyboard users Tab here for ←/→ (and see the focus ring). A tap or click
         // shouldn't focus it: some browsers then draw the ring on touch.
@@ -89,7 +90,7 @@ export function Gallery({ product }: { product: Product }) {
                 left-aligned. Now only the height is capped; the photo centers in the tile. */}
             <ProductImage
               src={src}
-              alt={many ? `${product.title}, image ${i + 1} of ${images.length}` : product.title}
+              alt={many ? t.gallery.image(product.title, i + 1, images.length) : product.title}
               priority={i === 0}
               tile={false}
               className="w-full max-h-[45dvh] p-6 md:max-h-none"
@@ -101,7 +102,7 @@ export function Gallery({ product }: { product: Product }) {
       {many && (
         <>
           {/* Phones: dots show the position and can be tapped. */}
-          <ul className="mt-2 flex justify-center gap-1 md:hidden" aria-label="Choose a photo">
+          <ul className="mt-2 flex justify-center gap-1 md:hidden" aria-label={t.gallery.dots}>
             {images.map((src, i) => (
               <li key={src}>
                 <button type="button" onClick={() => goTo(i, true)} aria-label={label(i)} aria-pressed={i === index} className="grid size-6 place-items-center rounded-full">
@@ -111,7 +112,7 @@ export function Gallery({ product }: { product: Product }) {
             ))}
           </ul>
           {/* Desktop: thumbnails, as before. */}
-          <ul ref={thumbnails} className="mt-3 hidden flex-wrap gap-2 md:flex" aria-label="Product images">
+          <ul ref={thumbnails} className="mt-3 hidden flex-wrap gap-2 md:flex" aria-label={t.gallery.thumbnails}>
             {images.map((src, i) => (
               <li key={src}>
                 <button

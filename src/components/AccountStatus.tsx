@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router'
 import { signOut, useAuth } from '../auth/auth'
+import { t } from '../i18n'
 import { ACCOUNTS_ENABLED } from '../lib/accounts'
 
 // The top of the desktop Account menu: who's signed in, or a "Sign in" link. Hidden while accounts are switched off.
@@ -12,13 +13,13 @@ export function AccountHeader({ onDone }: { onDone: () => void }) {
     const next = encodeURIComponent(pathname + search)
     return (
       <Link to={`/signin?next=${next}`} onClick={onDone} className="block rounded-lg px-3 py-2 text-sm font-medium text-action hover:bg-bg">
-        Sign in
+        {t.menu.signIn}
       </Link>
     )
   }
   return (
     <div className="mb-1 border-b border-border pb-1">
-      <p className="px-3 pt-2 text-xs text-muted">Signed in as</p>
+      <p className="px-3 pt-2 text-xs text-muted">{t.menu.signedInAs}</p>
       <SignedInEmail email={user?.email ?? ''} className="px-3 pb-2 text-sm" />
     </div>
   )
@@ -38,7 +39,7 @@ export function SignOutButton({ onDone, className = '' }: { onDone: () => void; 
         }}
         className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-text hover:bg-bg hover:text-action ${className}`}
       >
-        Sign out
+        {t.menu.signOut}
       </button>
     </div>
   )

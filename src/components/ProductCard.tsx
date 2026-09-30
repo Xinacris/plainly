@@ -12,8 +12,13 @@ export function ProductCard({ product, className = '' }: { product: Product; cla
     <li className={`group relative flex flex-col rounded-xl border border-border bg-surface p-3 ${className}`}>
       <ProductImage src={product.thumbnail} alt="" />
       <div className="mt-3 flex flex-1 flex-col gap-1">
-        {product.brand && <p className="text-xs font-medium tracking-wide text-muted uppercase">{product.brand}</p>}
-        <h2 className="font-semibold leading-snug">
+        {/* lang="en": brands are English data, and Turkish uppercase would turn "i" into "İ". */}
+        {product.brand && (
+          <p lang="en" className="text-xs font-medium tracking-wide text-muted uppercase">
+            {product.brand}
+          </p>
+        )}
+        <h2 lang="en" className="font-semibold leading-snug">
           {/* The stretched link makes the whole card clickable with one tab stop. */}
           <Link to={`/product/${product.id}`} className="after:absolute after:inset-0 after:rounded-xl group-hover:text-action">
             {product.title}

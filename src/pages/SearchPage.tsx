@@ -8,11 +8,11 @@ import { ProductCard, ProductCardSkeleton, gridClass } from '../components/Produ
 import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton, textLink } from '../components/styles'
 import { useCatalog, type Product } from '../lib/catalog'
-import { findDepartment } from '../lib/departments'
+import { t } from '../i18n'
+import { departmentName, findDepartment } from '../lib/departments'
 import { clearedFilters, filterChips, matchesFilters, parseFilters, writeFilters, type Filters } from '../lib/filters'
-import { pluralize } from '../lib/format'
-import { SALE_LABEL, SALE_URL } from '../lib/pricing'
-import { isSortKey, searchProducts, sortHits, sortLabels, type SortKey } from '../lib/search'
+import { saleLabel, SALE_URL } from '../lib/pricing'
+import { isSortKey, searchProducts, SORT_KEYS, sortHits, sortLabel, type SortKey } from '../lib/search'
 import { resolveQuery, type ResolvedQuery } from '../lib/spelling'
 import { Select } from '../components/Select'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -72,10 +72,10 @@ function literalUrl(params: URLSearchParams, q: string): URLSearchParams {
 }
 
 function SortSelect({ sort, hasQuery, onChange }: { sort: SortKey; hasQuery: boolean; onChange: (s: SortKey) => void }) {
-  const options = (Object.keys(sortLabels) as SortKey[]).filter((key) => hasQuery || key !== 'relevance')
+  const options = SORT_KEYS.filter((key) => hasQuery || key !== 'relevance')
   return (
     <label className="flex items-center gap-2 text-sm">
-      <span className="text-muted">Sort by</span>
+      <span className="text-muted">{t.search.sortBy}</span>
       <Select
         value={sort}
         onChange={(e) => onChange(e.target.value as SortKey)}
@@ -83,7 +83,7 @@ function SortSelect({ sort, hasQuery, onChange }: { sort: SortKey; hasQuery: boo
       >
         {options.map((key) => (
           <option key={key} value={key}>
-            {sortLabels[key]}
+            {sortLabel(key)}
           </option>
         ))}
       </Select>
@@ -97,8 +97,8 @@ function ResultGrid({ products }: { products: Product[] }) {
   return (
     <>
       <p role="status" className="mb-4 text-sm text-muted">
-        {pluralize(products.length, 'result')}
-        {shown.length < products.length && ` · showing ${shown.length}`}
+        {t.common.results(products.length)}
+        {shown.length < products.length && t.search.showing(shown.length)}
       </p>
       <ul className={gridClass}>
         {shown.map((p) => (
@@ -108,7 +108,7 @@ function ResultGrid({ products }: { products: Product[] }) {
       {shown.length < products.length && (
         <div className="mt-8 flex justify-center">
           <button type="button" onClick={() => setVisible((v) => v + PAGE_SIZE)} className={secondaryButton}>
-            Show {Math.min(PAGE_SIZE, products.length - shown.length)} more
+            {t.search.showMore(Math.min(PAGE_SIZE, products.length - shown.length))}
           </button>
         </div>
       )}
@@ -118,8 +118,9 @@ function ResultGrid({ products }: { products: Product[] }) {
 
 // Context is what was picked in the top bar: a department or the sale view.
 function contextLabel(filters: Filters): string | undefined {
-  if (filters.saleView) return SALE_LABEL
-  return findDepartment(filters.department)?.name
+  if (filters.saleView) return saleLabel()
+  const department = findDepartment(filters.department)
+  return department ? departmentName(department) : undefined
 }
 
 function contextUrl(filters: Filters): string {
@@ -128,19 +129,19 @@ function contextUrl(filters: Filters): string {
 }
 
 function searchHeading(query: string, filters: Filters): string {
-  if (query) return `Results for “${query}”`
-  return contextLabel(filters) ?? 'All products'
+  if (query) return t.search.resultsFor(query)
+  return contextLabel(filters) ?? t.header.allProducts
 }
 
 // Shown inside a context; the way back out is "All products".
 function searchCrumbs(query: string, filters: Filters): Crumb[] | undefined {
   const context = contextLabel(filters)
   if (!context) return undefined
-  if (!query) return [{ label: 'All products', to: '/search' }, { label: context }]
+  if (!query) return [{ label: t.header.allProducts, to: '/search' }, { label: context }]
   return [
-    { label: 'All products', to: `/search?q=${encodeURIComponent(query)}` },
+    { label: t.header.allProducts, to: `/search?q=${encodeURIComponent(query)}` },
     { label: context, to: contextUrl(filters) },
-    { label: `“${query}”` },
+    { label: t.search.quoted(query) },
   ]
 }
 
@@ -165,13 +166,13 @@ function FiltersButton({ count, onClick }: { count: number; onClick: () => void 
       type="button"
       onClick={onClick}
       aria-haspopup="dialog"
-      aria-label={count > 0 ? `Filters, ${count} applied` : 'Filters'}
+      aria-label={count > 0 ? t.search.filtersApplied(count) : t.search.filters}
       className="inline-flex h-10 items-center gap-2 rounded-lg border border-border-strong bg-surface px-3 text-sm font-semibold hover:border-action hover:text-action lg:hidden"
     >
       <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
         <path d="M4 6h16M7 12h10M10 18h4" />
       </svg>
-      Filters
+      {t.search.filters}
       {count > 0 && (
         <span aria-hidden="true" className="min-w-5 rounded-full bg-action px-1.5 text-center text-xs leading-5 text-on-action tabular-nums">
           {count}
@@ -186,12 +187,12 @@ function CorrectionNote({ resolved, typed, params }: { resolved: ResolvedQuery; 
   if (!resolved.corrected) return null
   return (
     <p role="status" className="mb-3 text-sm">
-      Showing results for <strong className="font-semibold">{resolved.corrected}</strong>
+      {t.search.correction} <strong className="font-semibold">{resolved.corrected}</strong>
       <span aria-hidden="true" className="text-muted">
         {' · '}
       </span>
       <Link to={`/search?${literalUrl(params, typed)}`} className={textLink}>
-        Search instead for {typed}
+        {t.search.insteadFor(typed)}
       </Link>
     </p>
   )
@@ -217,7 +218,7 @@ function SearchResults({ state }: { state: SearchState }) {
   // category chip keeps the (corrected) words but searches them as text.
   const dropIntent = () => setParams(literalUrl(params, resolved.text))
   const chips: ChipItem[] = [
-    ...(intent ? [{ key: 'intent', label: `${intent.label} (from “${resolved.text}”)`, onRemove: dropIntent }] : []),
+    ...(intent ? [{ key: 'intent', label: t.search.intentChip(intent.label, resolved.text), onRemove: dropIntent }] : []),
     ...filterChips(filters).map((c) => ({ key: c.key, label: c.label, onRemove: () => setFilters(c.without) })),
   ]
   const clearAll = () => {
@@ -232,14 +233,14 @@ function SearchResults({ state }: { state: SearchState }) {
         <StatusMessage
           role="status"
           level="h2"
-          title={`No products match “${query}”`}
+          title={t.search.noMatch(query)}
           action={
             <Link to="/search" className={secondaryButton}>
-              Browse all products
+              {t.common.browseAll}
             </Link>
           }
         >
-          Try fewer or different words.
+          {t.search.fewerWords}
         </StatusMessage>
       </>
     )
@@ -257,23 +258,23 @@ function SearchResults({ state }: { state: SearchState }) {
     <>
       <PageHead query={resolved.text} filters={filters} toolbar={toolbar} />
       <div className={layoutClass}>
-        <aside aria-label="Filters" className="hidden lg:block">
+        <aside aria-label={t.search.filters} className="hidden lg:block">
           {panel}
         </aside>
 
         <BottomSheet
           open={sheetOpen}
           onClose={() => setSheetOpen(false)}
-          title="Filters"
+          title={t.search.filters}
           footer={
             <div className="flex gap-3">
               {chips.length > 0 && (
                 <button type="button" onClick={clearAll} className={secondaryButton}>
-                  Clear all
+                  {t.common.clearAll}
                 </button>
               )}
               <button type="button" onClick={() => setSheetOpen(false)} className={`${primaryButton} flex-1`}>
-                Show {pluralize(results.length, 'result')}
+                {t.search.showResults(results.length)}
               </button>
             </div>
           }
@@ -288,14 +289,14 @@ function SearchResults({ state }: { state: SearchState }) {
             <StatusMessage
               role="status"
               level="h2"
-              title="No products match these filters"
+              title={t.search.noFilterMatch}
               action={
                 <button type="button" onClick={clearAll} className={secondaryButton}>
-                  Clear all filters
+                  {t.search.clearAllFilters}
                 </button>
               }
             >
-              Remove a filter above, or clear them all.
+              {t.search.removeOrClear}
             </StatusMessage>
           )}
           {/* Keyed so "Show more" starts over whenever the result set changes. */}
@@ -312,7 +313,7 @@ function ResultsSkeleton() {
   return (
     <div className={layoutClass}>
       <div className="hidden lg:block" />
-      <ul className={gridClass} aria-label="Loading products">
+      <ul className={gridClass} aria-label={t.search.loadingProducts}>
         {Array.from({ length: 8 }, (_, i) => (
           <ProductCardSkeleton key={i} />
         ))}

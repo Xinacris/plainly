@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { t } from '../i18n'
 
 interface Props {
   open: boolean
   title: string
   children: ReactNode
   confirmLabel: string
-  /** Defaults to "Cancel". */
+  /** Defaults to "Cancel" in the current language. */
   cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
@@ -14,7 +15,7 @@ interface Props {
 // A small modal <dialog>, by the same overlay rules as the sheets: focus stays
 // inside, Escape cancels, and focus returns to whatever opened it. Cancel gets the
 // initial focus, because confirming here is the step that throws something away.
-export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = 'Cancel', onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = t.common.cancel, onConfirm, onCancel }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   // Set when a button already ran its action, so the close event doesn't run one again.

@@ -2,13 +2,14 @@ import { useId, useState } from 'react'
 import { Link } from 'react-router'
 import { MAX_PER_LINE, maxQuantity, useCart, useCartQuantity } from '../cart/cart'
 import { useCartToast } from '../cart/toast'
+import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { Select } from './Select'
 import { primaryButton, textLink } from './styles'
 
 // Which limit applies, in words: the stock, or the per-item cap.
 function limitReason(product: Product): string {
-  return product.stock <= MAX_PER_LINE ? `only ${product.stock} in stock` : `limit ${MAX_PER_LINE} per item`
+  return product.stock <= MAX_PER_LINE ? t.addToCart.onlyInStock(product.stock) : t.addToCart.limitPerItem(MAX_PER_LINE)
 }
 
 export function AddToCart({ product }: { product: Product }) {
@@ -35,7 +36,7 @@ export function AddToCart({ product }: { product: Product }) {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor={selectId} className="text-sm text-muted">
-              Quantity
+              {t.addToCart.quantity}
             </label>
             {/* Only what can still be added, within stock and the per-item limit. */}
             <Select
@@ -51,7 +52,7 @@ export function AddToCart({ product }: { product: Product }) {
             </Select>
           </div>
           <button type="button" onClick={handleAdd} className={`${primaryButton} flex-1 sm:flex-none`}>
-            Add to cart
+            {t.addToCart.add}
           </button>
         </div>
       )}
@@ -59,22 +60,20 @@ export function AddToCart({ product }: { product: Product }) {
       <div aria-live="polite" className="text-sm">
         {inCart > 0 && (
           <p>
-            <span className="font-semibold">{inCart} in your cart</span>
+            <span className="font-semibold">{t.addToCart.inCart(inCart)}</span>
             <span aria-hidden="true" className="text-muted">
               {' · '}
             </span>
             <Link to="/cart" className={textLink}>
-              View cart
+              {t.common.viewCart}
             </Link>
           </p>
         )}
         {inCart > 0 && remaining > 0 && (
-          <p className="text-muted">
-            You can add up to {remaining} more ({limitReason(product)}).
-          </p>
+          <p className="text-muted">{t.addToCart.canAddMore(remaining, limitReason(product))}</p>
         )}
         {remaining <= 0 && (
-          <p className="text-muted">You can’t add more: that’s the most you can buy ({limitReason(product)}).</p>
+          <p className="text-muted">{t.addToCart.maxed(limitReason(product))}</p>
         )}
       </div>
     </div>

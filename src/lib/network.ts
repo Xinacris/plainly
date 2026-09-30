@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { t } from '../i18n'
 
 // Whether the browser is online, from the browser's own online/offline events.
 // `?simulate=offline` forces the offline state for this tab, so it can be seen and
@@ -57,4 +58,4 @@ export const isOffline = (): boolean => {
 export const useOffline = (): boolean => useNetwork((s) => s.simulated || !s.online)
 
 /** What account actions say when there's no connection. Nothing is sent, so nothing changes. */
-export const OFFLINE = 'You’re offline, and this needs a connection. Nothing was changed; try again when you’re back online.'
+export const offlineMessage = (): string => t.offline.action

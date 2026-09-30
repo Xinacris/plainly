@@ -1,6 +1,7 @@
 import { authMessage } from '../auth/auth'
-import { isOffline, OFFLINE } from '../lib/network'
-import { getSupabase, UNREACHABLE } from '../lib/supabase'
+import { t } from '../i18n'
+import { isOffline, offlineMessage } from '../lib/network'
+import { getSupabase, unreachable } from '../lib/supabase'
 import { useAccountData } from './data'
 
 export interface Profile {
@@ -16,9 +17,9 @@ const failed = (error: unknown): { ok: false; message: string } => ({ ok: false,
 // Loads the signed-in user's profile, creating it on first use (no database
 // trigger: the row is made by the user themselves, under RLS).
 export async function loadProfile(userId: string, fallbackName: string): Promise<Result<Profile>> {
-  if (isOffline()) return { ok: false, message: OFFLINE }
+  if (isOffline()) return { ok: false, message: offlineMessage() }
   const supabase = await getSupabase()
-  if (!supabase) return { ok: false, message: UNREACHABLE }
+  if (!supabase) return { ok: false, message: unreachable() }
   try {
     const { data, error } = await supabase.from('profiles').select('full_name, phone, default_address_id').eq('id', userId).maybeSingle()
     if (error) return failed(error)
@@ -32,9 +33,9 @@ export async function loadProfile(userId: string, fallbackName: string): Promise
 }
 
 export async function saveProfile(userId: string, fullName: string, phone: string): Promise<string | null> {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const supabase = await getSupabase()
-  if (!supabase) return UNREACHABLE
+  if (!supabase) return unreachable()
   try {
     const { error } = await supabase
       .from('profiles')
@@ -48,9 +49,9 @@ export async function saveProfile(userId: string, fullName: string, phone: strin
 }
 
 export async function changePassword(password: string): Promise<string | null> {
-  if (isOffline()) return OFFLINE
+  if (isOffline()) return offlineMessage()
   const supabase = await getSupabase()
-  if (!supabase) return UNREACHABLE
+  if (!supabase) return unreachable()
   try {
     const { error } = await supabase.auth.updateUser({ password })
     return error ? authMessage(error) : null
@@ -63,6 +64,6 @@ export async function changePassword(password: string): Promise<string | null> {
 export function phoneError(phone: string): string | null {
   const value = phone.trim()
   if (!value) return null
-  if (value.length > 40 || !/^\+?[0-9 ()./-]{4,}$/.test(value)) return 'Enter a phone number using digits, spaces, + ( ) - or .'
+  if (value.length > 40 || !/^\+?[0-9 ()./-]{4,}$/.test(value)) return t.profile.phoneInvalid
   return null
 }

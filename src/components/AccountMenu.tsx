@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
+import { t } from '../i18n'
 import { useAccountLinks } from '../lib/accountLinks'
 import { AccountHeader, SignOutButton } from './AccountStatus'
 
@@ -41,7 +42,7 @@ export function AccountMenu() {
         onClick={() => setOpen(!open)}
         className={`flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium hover:text-action ${open ? 'text-action' : 'text-text'}`}
       >
-        Account
+        {t.header.account}
         <svg viewBox="0 0 24 24" className={`size-4 ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>
