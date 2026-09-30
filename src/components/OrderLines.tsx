@@ -1,0 +1,69 @@
+import { Link } from 'react-router'
+import { formatIsoDate, type Estimate } from '../lib/delivery'
+import { formatPrice } from '../lib/format'
+import type { Address, OrderLine } from '../orders/orders'
+import { ProductImage } from './ProductImage'
+
+// Each date stays on one line; the range may wrap between them.
+function DateRange({ estimate: { earliest, latest } }: { estimate: Estimate }) {
+  const date = (iso: string) => <span className="font-medium whitespace-nowrap">{formatIsoDate(iso)}</span>
+  if (earliest === latest) return date(earliest)
+  return (
+    <>
+      {date(earliest)} – {date(latest)}
+    </>
+  )
+}
+
+function EstimateText({ line }: { line: OrderLine }) {
+  if (!line.estimate) return <p className="text-sm text-muted">No delivery estimate: {line.shippingInformation}</p>
+  return (
+    <p className="text-sm">
+      <span className="text-muted">Estimated delivery </span>
+      <DateRange estimate={line.estimate} />
+    </p>
+  )
+}
+
+// One list for checkout, confirmation and past orders, all fed from order-line snapshots.
+export function OrderLines({ lines }: { lines: OrderLine[] }) {
+  return (
+    <ul className="divide-y divide-border">
+      {lines.map((line) => (
+        <li key={line.productId} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+          <ProductImage src={line.thumbnail} alt="" className="w-16 shrink-0 self-start p-1.5" />
+          <div className="min-w-0 flex-1">
+            <Link to={`/product/${line.productId}`} className="font-semibold hover:text-action">
+              {line.title}
+            </Link>
+            <p className="flex justify-between gap-4">
+              <span className="text-sm text-muted">
+                {line.quantity} × {formatPrice(line.price)}
+              </span>
+              <span className="font-semibold tabular-nums">{formatPrice(line.price * line.quantity)}</span>
+            </p>
+            <EstimateText line={line} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export function AddressBlock({ address }: { address: Address }) {
+  return (
+    <address className="not-italic">
+      {address.fullName}
+      <br />
+      {address.line1}
+      {address.line2 && (
+        <>
+          <br />
+          {address.line2}
+        </>
+      )}
+      <br />
+      {address.city}, {address.region} {address.postalCode}
+    </address>
+  )
+}

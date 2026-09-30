@@ -1,16 +1,12 @@
 import { Suspense } from 'react'
 import { Link } from 'react-router'
-import { maxQuantity, useCart, type CartLine } from '../cart/cart'
+import { cartTotals, maxQuantity, resolveCart, useCart, type ResolvedLine } from '../cart/cart'
 import { ProductImage } from '../components/ProductImage'
 import { QuantityStepper } from '../components/QuantityStepper'
 import { StatusMessage } from '../components/StatusMessage'
-import { secondaryButton } from '../components/styles'
-import { useCatalog, type Product } from '../lib/catalog'
+import { primaryButton, secondaryButton } from '../components/styles'
+import { useCatalog } from '../lib/catalog'
 import { formatPrice, pluralize } from '../lib/format'
-
-interface ResolvedLine extends CartLine {
-  product: Product
-}
 
 function CartRow({ line }: { line: ResolvedLine }) {
   const { product, quantity } = line
@@ -48,13 +44,7 @@ function CartRow({ line }: { line: ResolvedLine }) {
 function CartContents() {
   const catalog = useCatalog()
   const lines = useCart((s) => s.lines)
-  // Lines whose product is gone or out of stock are skipped, and stored quantities
-  // are clamped to what can actually be bought.
-  const resolved: ResolvedLine[] = lines.flatMap((line) => {
-    const product = catalog.find((p) => p.id === line.productId)
-    if (!product || maxQuantity(product) === 0) return []
-    return [{ ...line, product, quantity: Math.min(line.quantity, maxQuantity(product)) }]
-  })
+  const resolved = resolveCart(lines, catalog)
 
   if (resolved.length === 0) {
     return (
@@ -69,8 +59,7 @@ function CartContents() {
     )
   }
 
-  const itemCount = resolved.reduce((sum, l) => sum + l.quantity, 0)
-  const subtotal = resolved.reduce((sum, l) => sum + l.product.price * l.quantity, 0)
+  const { itemCount, subtotal } = cartTotals(resolved)
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
@@ -86,6 +75,9 @@ function CartContents() {
             <span>Subtotal ({pluralize(itemCount, 'item')})</span>
             <span className="font-bold">{formatPrice(subtotal)}</span>
           </p>
+          <Link to="/checkout" className={`${primaryButton} mt-4 w-full`}>
+            Go to checkout
+          </Link>
         </aside>
       </div>
     </section>

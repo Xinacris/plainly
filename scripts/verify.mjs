@@ -38,6 +38,24 @@ const CART = JSON.stringify({
   version: 1,
 })
 
+const ADDRESS = { fullName: 'Ada Lovelace', line1: '12 St James’s Square', line2: 'Flat 4', city: 'Springfield', region: 'IL', postalCode: '62701' }
+const line = (productId, title, thumb, price, quantity, shippingInformation, estimate) => ({
+  productId, title, price, quantity, shippingInformation, returnPolicy: '30 days return policy',
+  thumbnail: `https://cdn.dummyjson.com/product-images/${thumb}/thumbnail.webp`, estimate,
+})
+const ORDERS = JSON.stringify({
+  state: {
+    orders: [
+      { id: 'PL-TEST0002', placedAt: '2026-09-30T15:10:00.000Z', address: ADDRESS, total: 639.97,
+        lines: [line(14, 'Knoll Saarinen Executive Conference Chair', 'furniture/knoll-saarinen-executive-conference-chair', 499.99, 1, 'Ships overnight', { earliest: '2026-10-05', latest: '2026-10-08' }),
+                line(9, 'Dolce Shine Eau de', 'fragrances/dolce-shine-eau-de', 69.99, 2, 'Ships in 1 month', { earliest: '2026-11-02', latest: '2026-11-05' })] },
+      { id: 'PL-TEST0001', placedAt: '2026-09-28T09:00:00.000Z', address: ADDRESS, total: 9.99,
+        lines: [line(1, 'Essence Mascara Lash Princess', 'beauty/essence-mascara-lash-princess', 9.99, 1, 'Ships in some odd way', undefined)] },
+    ],
+  },
+  version: 1,
+})
+
 // `page` groups scenes for --changed; `ready` is the selector that proves main content rendered.
 const SCENES = [
   { name: 'home', page: 'home', url: '/', ready: 'main a:has-text("Browse all")' },
@@ -50,6 +68,13 @@ const SCENES = [
   { name: 'product-9999', page: 'product', url: '/product/9999', ready: 'main h1:has-text("Product not found")' },
   { name: 'cart-empty', page: 'cart', url: '/cart', ready: 'main h1:has-text("Your cart is empty")' },
   { name: 'cart-items', page: 'cart', url: '/cart', cart: CART, ready: 'main aside[aria-label="Order summary"]' },
+  { name: 'checkout', page: 'checkout', url: '/checkout', cart: CART, ready: 'main aside[aria-label="Order summary"] button' },
+  { name: 'checkout-prefilled', page: 'checkout', url: '/checkout', cart: CART, orders: ORDERS, ready: 'main aside[aria-label="Order summary"] button' },
+  { name: 'checkout-empty', page: 'checkout', url: '/checkout', ready: 'main h1:has-text("Your cart is empty")' },
+  { name: 'confirmation', page: 'orders', url: '/orders/PL-TEST0002/confirmation', orders: ORDERS, ready: 'main h1:has-text("Order placed")' },
+  { name: 'confirmation-missing', page: 'orders', url: '/orders/PL-NOPE/confirmation', ready: 'main h1:has-text("Order not found")' },
+  { name: 'orders', page: 'orders', url: '/orders', orders: ORDERS, ready: 'main h1:has-text("Your orders")' },
+  { name: 'orders-empty', page: 'orders', url: '/orders', ready: 'main h1:has-text("No orders yet")' },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
 ]
 
@@ -147,9 +172,10 @@ const budgetTimer = setTimeout(() => {
 
 const browser = await chromium.launch({ executablePath: chromiumPath() })
 
-async function newPage(theme, width, cart, { allowErrors = false } = {}) {
+async function newPage(theme, width, { cart, orders, allowErrors = false } = {}) {
   const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 } })
   if (cart) await ctx.addInitScript((s) => localStorage.setItem('plainly-cart', s), cart)
+  if (orders) await ctx.addInitScript((s) => localStorage.setItem('plainly-orders', s), orders)
   const page = await ctx.newPage()
   page.setDefaultTimeout(SCENE_TIMEOUT)
   page.setDefaultNavigationTimeout(SCENE_TIMEOUT)
@@ -163,7 +189,7 @@ async function newPage(theme, width, cart, { allowErrors = false } = {}) {
 async function runScene({ scene, width, theme }) {
   const label = `${scene.name} ${theme} ${width}`
   const t0 = Date.now()
-  const { ctx, page } = await newPage(theme, width, scene.cart)
+  const { ctx, page } = await newPage(theme, width, scene)
   try {
     await withTimeout(
       (async () => {
@@ -276,13 +302,96 @@ const FLOWS = {
     await page.getByRole('button', { name: 'Show image 6 of 6' }).click()
     expect((await page.getByRole('button', { name: 'Show image 6 of 6' }).getAttribute('aria-pressed')) === 'true', 'gallery did not switch')
   },
+  'checkout: validation, place, confirmation, cart cleared, snapshot, prefill': async (page) => {
+    await page.addInitScript(() => localStorage.getItem('plainly-cart') || localStorage.setItem('plainly-cart', JSON.stringify({ state: { lines: [{ productId: 9, quantity: 2 }] }, version: 1 })))
+    await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByText('Enter your full name.').waitFor()
+    await page.getByText('Enter your ZIP or postal code.').waitFor()
+    expect(await page.getByLabel('Full name').evaluate((el) => el === document.activeElement), 'first invalid field not focused')
+    expect(!page.url().includes('/orders/'), 'order placed with an empty address')
+    await page.getByLabel('Full name').fill('Ada Lovelace')
+    await page.getByLabel('Street address').fill('1 Main St')
+    await page.getByLabel('City').fill('Springfield')
+    await page.getByLabel('State or region').fill('IL')
+    await page.getByLabel('ZIP or postal code').fill('62701')
+    expect((await page.getByText(/^Enter your/).count()) === 0, 'errors stay after fixing fields')
+    await page.getByText(/Estimated delivery/).first().waitFor()
+    await page.getByText('Payment is simulated', { exact: false }).waitFor()
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.waitForURL(/\/orders\/PL-[A-Z0-9]{8}\/confirmation$/)
+    await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+    await page.getByText('$139.98').first().waitFor()
+    await page.getByRole('link', { name: 'Cart, 0 items' }).waitFor()
+    await page.getByRole('link', { name: 'See your orders' }).click()
+    await page.getByRole('heading', { name: /^Order PL-/ }).first().waitFor()
+    // Back button from confirmation must not land on a checkout for an order already placed.
+    await page.goBack()
+    expect(page.url().includes('/confirmation'), `back from orders went to ${page.url()}, not the confirmation`)
+    // Next checkout is pre-filled from this order.
+    await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+    await page.getByText('Filled in from your last order.').waitFor()
+    expect((await page.getByLabel('Full name').inputValue()) === 'Ada Lovelace', 'address not pre-filled')
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+    await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+    const headings = await page.getByRole('heading', { level: 2, name: /^Order PL-/ }).count()
+    expect(headings === 2, `expected 2 orders, got ${headings}`)
+    const firstTotal = await page.locator('main article').first().locator('header').textContent()
+    expect(!firstTotal.includes('$139.98'), 'orders not newest first')
+  },
 }
+
+// Full path, home → search → product → cart → checkout → orders, in both themes.
+// Screenshots of every step land in <out>/path-<variant>-<n>-<step>.png.
+function pathFlow(theme, width) {
+  const flow = async (page) => {
+    let step = 0
+    const shot = (name) => page.screenshot({ path: path.join(shotDir, `path-${theme}-${width}-${++step}-${name}.png`) })
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('link', { name: 'Plainly, home' }).waitFor()
+    await shot('home')
+    await page.getByRole('searchbox').fill('lipstick')
+    await page.getByRole('searchbox').press('Enter')
+    await page.locator('main li h2 a').first().waitFor()
+    await shot('search')
+    await page.locator('main li h2 a').first().click()
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByText(/Added 1 to your cart/).waitFor()
+    await shot('product')
+    await page.getByRole('link', { name: /^Cart, 1 item/ }).click()
+    await page.getByRole('link', { name: 'Go to checkout' }).waitFor()
+    await shot('cart')
+    await page.getByRole('link', { name: 'Go to checkout' }).click()
+    await page.getByRole('heading', { name: 'Checkout' }).waitFor()
+    await page.getByLabel('Full name').fill('Grace Hopper')
+    await page.getByLabel('Street address').fill('200 Navy Way')
+    await page.getByLabel('City').fill('Arlington')
+    await page.getByLabel('State or region').fill('VA')
+    await page.getByLabel('ZIP or postal code').fill('22201')
+    await shot('checkout')
+    await page.getByRole('button', { name: 'Place order' }).click()
+    await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+    await shot('confirmation')
+    await page.getByRole('link', { name: 'Orders', exact: true }).click()
+    await page.getByRole('heading', { name: 'Your orders' }).waitFor()
+    await shot('orders')
+    await page.getByRole('link', { name: 'Plainly, home' }).click()
+    await page.waitForURL(base + '/')
+  }
+  return Object.assign(flow, { theme, width })
+}
+FLOWS['full path light 1440'] = pathFlow('light', 1440)
+FLOWS['full path dark 1440'] = pathFlow('dark', 1440)
+FLOWS['full path dark 390'] = pathFlow('dark', 390)
 
 log(`\nFlows: ${Object.keys(FLOWS).length}`)
 await pool(Object.entries(FLOWS), async ([name, fn]) => {
   const t0 = Date.now()
   // The error-boundary flow blocks the API on purpose, so its console errors are expected.
-  const { ctx, page } = await newPage('light', 1440, undefined, { allowErrors: name.startsWith('error boundary') })
+  const { ctx, page } = await newPage(fn.theme ?? 'light', fn.width ?? 1440, { allowErrors: name.startsWith('error boundary') })
   try {
     await withTimeout(fn(page), SCENE_TIMEOUT, name)
     report.flows.push(`PASS ${name}`)

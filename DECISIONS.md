@@ -49,6 +49,27 @@ DummyJSON's data has quirks, and each one is handled so the page stays honest:
 | Two titles are cut off in the source data ("Dolce Shine Eau de", "Gucci Bloom Eau de"). | Shown exactly as in the data. | Completing them would mean inventing data. |
 | `price` together with `discountPercentage` | Only `price` is shown for now. Discounts wait for the facts work (#4). | It isn't clear yet whether `price` is before or after the discount, so any discount claim could be wrong. |
 | `stock` and `availabilityStatus` | Cards show only exceptions ("Only N left" when stock is 5 or fewer, "Out of stock"). The product page also shows "In stock". Quantities are capped at stock, and at 10 per line. | "In stock" on every card is noise. Scarcity is only claimed when it's true. |
+| `shippingInformation` says when an item *ships* ("Ships in 1-2 business days", six phrasings in all), not when it arrives. | Checkout shows a **delivery estimate** per item: the ship window from the data plus 2–5 business days in transit. The page says the transit time is Plainly's assumption and calls every date an estimate. An unknown phrasing gets no estimate, and the text is shown as-is. | Transit time isn't in the data. A range with a stated assumption is honest; a single "Arrives Tuesday" would be a promise nobody can keep. |
+| There's no payment, shipping cost or tax data, and the API is read-only. | Payment is simulated and the page says so. The summary says "Shipping and tax: none in this demo". Placing an order doesn't reduce stock. | Showing "Free shipping" would be a claim; showing nothing would look like a missing fee. |
+
+## Brand
+
+The logo concept was generated with Gemini, outside this agent session, so it isn't in `.agent-logs/`. The source image is kept at `design/gemini-logo-concept.jpeg`. It was then rebuilt here as SVG rather than traced: `LogoMark` in `src/components/Logo.tsx` uses `currentColor`, so the header mark is the action green in light mode and the mint in dark mode. `public/favicon.svg` uses the same geometry with a `prefers-color-scheme` switch. The 32 px PNG and the 180 px apple-touch-icon are rendered from that SVG by `scripts/icons.mjs`.
+
+**The idea:** three columns stand for facts laid out side by side, which is what compare does.
+
+The Gemini prompt, verbatim:
+
+> Design a logo for "Plainly", an online store whose whole idea is shopping without noise: no ads, no fake badges, just honest facts about products. The brand should feel calm, trustworthy, and quietly confident, the opposite of a loud marketplace.
+> Requirements:
+> - Two parts: a simple icon mark, and the wordmark "Plainly" next to it.
+> - The icon must stay recognizable at 16x16 px (favicon) and 32 px in a website header. One simple shape, no fine details, no gradients, no shadows, no 3D.
+> - Flat design, solid colors only. Primary color: deep green #1F6B4A. The mark should also work as a single color, including a light mint #6FCB9D on a dark background.
+> - Wordmark in a clean, neutral sans-serif similar to Public Sans, medium or semibold weight, normal letter spacing.
+> - Possible directions for the icon: a rounded letter "P" with a subtle detail, a shopping bag reduced to one clean line, or a simple checkmark combined with a bag or a "P". Pick whatever reads most clearly at small sizes.
+> - Avoid: arrows or smiles (too close to Amazon), stars, badges, sparkles, price tags, anything that looks like a sale sticker.
+> - Plain white background, logo centered, with plenty of empty space around it.
+> Show 4 different directions side by side so I can pick one.
 
 ## Accepted
 
@@ -115,3 +136,8 @@ Every block ends with a deploy, so there is always a working live URL.
 | Hours 2–6 | A cart quantity saved in localStorage could be higher than current stock. | Saved quantities weren't checked against stock. | The cart clamps each line to what's in stock and skips out-of-stock lines. |
 | Hours 2–6 | Latent: the gallery position, quantity and "Added" message would carry over when moving from one product page directly to another. | React Router reuses the same component when only the `:id` changes. | The product details are keyed by id. Nothing links product to product yet, so this couldn't happen yet. |
 | Hours 2–6 | The error-boundary test reported its own console error as a failure. | The test blocks DummyJSON on purpose. | That test is exempt from the console-error check. |
+| Hours 6–9 | Adding the Orders link pushed the theme toggle onto a row of its own on phones (390 px). | Logo, Orders, Cart and the toggle need about 370 px, and a phone has 358. | On phones, search and the theme toggle now share the second row. From `sm` up, everything is on one row. Checked at 320, 360, 390, 640 and 1024 px. |
+| Hours 6–9 | Item thumbnails in checkout and orders stretched into tall strips on phones. | The image tile is a flex child, and flex's default `stretch` overrode its square aspect ratio when the text beside it wrapped. | `self-start` on the tile. |
+| Hours 6–9 | On phones the line total sat next to the title for short titles and under it for long ones. Date ranges also broke in the middle of a date ("Thu," then "Oct 8" on the next line). | `flex-wrap` on the title row, and the range was one string. | The total always sits on the quantity row. Each date is `whitespace-nowrap`, so a range only breaks between its two dates. |
+| Hours 6–9 | The missing-postcode error read "Enter your zip or postal code." | The message lowercased the whole field label. | Only a leading capital is lowercased, so acronyms keep their case. |
+| Hours 6–9 | A DECISIONS.md edit script dropped everything after the inserted rows. | The insert kept only the text before the anchor. | Caught by checking section headings after the edit. Restored from git (no uncommitted changes were lost) and redone. |

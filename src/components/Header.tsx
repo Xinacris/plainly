@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router'
 import { useCartCount } from '../cart/cart'
 import { pluralize } from '../lib/format'
+import { LogoMark } from './Logo'
 import { SearchForm } from './SearchForm'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -27,22 +28,27 @@ export function Header() {
   return (
     <header className="border-b border-border bg-surface">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
-        <Link to="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          Plainly
+        <Link to="/" aria-label="Plainly, home" className="flex items-center gap-2 rounded-md text-action hover:text-action-hover">
+          <LogoMark className="h-6 w-auto" />
+          <span className="text-xl leading-none font-semibold">Plainly</span>
         </Link>
 
-        {/* Full-width second row on small screens, inline on larger ones. */}
-        <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1">
+        {/* On phones, search and the theme toggle share a second row, so the first
+            row fits logo, Orders and Cart down to 320 px. Inline from sm up. */}
+        <div className="order-last min-w-0 flex-1 basis-40 sm:order-none sm:basis-0">
           <SearchForm />
         </div>
 
         <nav aria-label="Main" className="ml-auto flex items-center gap-1 sm:ml-0">
-          {/* Orders is added when checkout ships: no links to pages that don't exist yet. */}
+          <NavLink to="/orders" className={navClass}>
+            Orders
+          </NavLink>
           <CartLink />
         </nav>
 
-        <ThemeToggle />
+        <div className="order-last sm:order-none">
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )
