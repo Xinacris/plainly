@@ -76,7 +76,9 @@ const SCENES = [
   { name: 'search-phone', page: 'search', url: '/search?q=phone', ready: 'main li h2 a' },
   { name: 'search-none', page: 'search', url: '/search?q=xyzzy', ready: 'main h2:has-text("No products match")' },
   { name: 'search-department', page: 'search', url: '/search?department=electronics', ready: 'main li h2 a' },
-  { name: 'search-sale', page: 'search', url: '/search?sale=1&sort=discount', ready: 'main li h2 a' },
+  { name: 'search-sale-view', page: 'search', url: '/search?view=sale&sort=discount', ready: 'main li h2 a' },
+  { name: 'search-sale-filter', page: 'search', url: '/search?department=beauty&sale=1', ready: 'main li h2 a' },
+  { name: 'search-corrected', page: 'search', url: '/search?q=lptop', ready: 'main li h2 a' },
   { name: 'search-intent', page: 'search', url: '/search?q=t-shirt', ready: 'main li h2 a' },
   { name: 'search-department-filtered', page: 'search', url: '/search?department=electronics&brand=Apple&sale=1', ready: 'main li h2 a' },
   { name: 'search-filtered', page: 'search', url: '/search?category=beauty&category=fragrances&rating=4&stock=in&min=5&max=80', ready: 'main li h2 a' },
@@ -662,7 +664,7 @@ const FLOWS = {
     const box = await link.boundingBox()
     expect(box.x >= 0 && box.x + box.width <= 390, `active department at x=${Math.round(box.x)} is outside the bar`)
   }, { width: 390, theme: 'dark' }),
-  'sale: 10%+ off filter, chip, department bar link, home See all': async (page) => {
+  'sale view is context: heading, breadcrumb, current in bar, Clear all keeps it': async (page) => {
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
     const bar = page.getByRole('navigation', { name: 'Departments' })
     const barLinks = await bar.getByRole('link').allTextContents()
@@ -670,17 +672,87 @@ const FLOWS = {
     const colors = await bar.getByRole('link', { name: '10%+ off' }).evaluate((a) => [getComputedStyle(a).color, getComputedStyle(document.documentElement).getPropertyValue('--sale').trim()])
     const hex = '#' + colors[0].match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
     expect(hex === colors[1], `sale link color ${hex}, token ${colors[1]}`)
+    // The home row's "See all" opens the same view, as context.
     await page.getByRole('region', { name: 'Departments' }).waitFor()
     await page.getByRole('link', { name: 'See all biggest discounts right now' }).click()
-    await page.waitForURL(/sale=1/)
-    expect(page.url().includes('sort=discount'), 'sale view not sorted by discount')
-    await page.getByRole('button', { name: 'Remove filter: 10%+ off' }).waitFor()
+    await page.waitForURL(/view=sale/)
+    expect(page.url().includes('sort=discount') && !page.url().includes('sale=1'), `home See all opened ${page.url()}`)
+    await page.getByRole('heading', { level: 1, name: '10%+ off' }).waitFor()
+    const crumbs = await page.getByRole('navigation', { name: 'Breadcrumb' }).locator('li:not([aria-hidden])').allTextContents()
+    expect(crumbs.join(' › ') === 'All products › 10%+ off', `crumbs: ${crumbs}`)
+    expect((await bar.getByRole('link', { name: '10%+ off' }).getAttribute('aria-current')) === 'page', 'bar does not mark the sale view')
+    expect((await bar.getByRole('link', { name: 'All products' }).getAttribute('aria-current')) === null, '"All products" also marked current')
     await page.locator('main p[role=status]').getByText('104 results').waitFor()
+    expect((await page.getByRole('button', { name: /^Remove filter: 10%\+ off/ }).count()) === 0, 'sale view shown as a chip')
+    const sidebar = page.getByRole('complementary', { name: 'Filters' })
+    expect((await sidebar.getByRole('checkbox', { name: /^10%\+ off/ }).count()) === 0, 'sale checkbox shown inside the sale view')
     while (await page.getByRole('button', { name: /Show \d+ more/ }).count()) await page.getByRole('button', { name: /Show \d+ more/ }).click()
     const pcts = (await page.locator('main li').getByText(/^\d+% off$/).allTextContents()).map((t) => parseInt(t))
-    expect(pcts.length === 104 && pcts.every((p) => p >= 10), `sale results: ${pcts.length}, min ${Math.min(...pcts)}%`)
+    expect(pcts.length === 104 && pcts.every((p) => p >= 10), `sale view: ${pcts.length} products, min ${Math.min(...pcts)}%`)
+    // Filters inside the view are normal filters, and Clear all keeps the view.
+    await sidebar.getByRole('checkbox', { name: /^Beauty/ }).check()
+    await sidebar.getByRole('checkbox', { name: /^In stock only/ }).check()
+    await page.getByRole('button', { name: 'Remove filter: Beauty' }).waitFor()
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click()
+    await page.waitForURL((u) => !u.search.includes('category') && !u.search.includes('stock'))
+    expect(page.url().includes('view=sale'), `Clear all left the sale view: ${page.url()}`)
+    await page.getByRole('heading', { level: 1, name: '10%+ off' }).waitFor()
+    // A department (or All products) in the bar leaves the sale view.
+    await bar.getByRole('link', { name: 'Beauty' }).click()
+    await page.waitForURL((u) => u.search === '?department=beauty')
+    await page.getByRole('heading', { level: 1, name: 'Beauty' }).waitFor()
+    expect((await bar.getByRole('link', { name: '10%+ off' }).getAttribute('aria-current')) === null, 'sale still marked after leaving')
+    await page.goto(base + '/search?view=sale', { waitUntil: 'domcontentloaded' })
+    await bar.getByRole('link', { name: 'All products' }).click()
+    await page.waitForURL((u) => u.pathname === '/search' && u.search === '')
+    await page.getByRole('heading', { level: 1, name: 'All products' }).waitFor()
+  },
+  'sale checked on the page is a filter: chip, Clear all removes it': async (page) => {
+    await page.goto(base + '/search?department=beauty', { waitUntil: 'domcontentloaded' })
+    const sidebar = page.getByRole('complementary', { name: 'Filters' })
+    await sidebar.getByRole('checkbox', { name: /^10%\+ off/ }).check()
+    await page.waitForURL(/sale=1/)
+    await page.getByRole('button', { name: 'Remove filter: 10%+ off' }).waitFor()
+    await page.getByRole('heading', { level: 1, name: 'Beauty' }).waitFor()
+    await sidebar.getByRole('checkbox', { name: /^In stock only/ }).check()
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click()
+    await page.waitForURL((u) => u.search === '?department=beauty')
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    await sidebar.getByRole('checkbox', { name: /^10%\+ off/ }).check()
     await page.getByRole('button', { name: 'Remove filter: 10%+ off' }).click()
-    await page.waitForURL((u) => !u.search.includes('sale='))
+    await page.waitForURL((u) => u.search === '')
+  },
+  'typos: corrected query says so, undo searches the typed words': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('searchbox').fill('lptop')
+    await page.getByRole('searchbox').press('Enter')
+    await page.waitForURL(/q=lptop/)
+    await page.getByText('Showing results for laptop', { exact: false }).waitFor()
+    await page.getByRole('heading', { level: 1, name: 'Results for “laptop”' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Laptops (from “laptop”)' }).waitFor()
+    await page.locator('main p[role=status]').getByText('5 results').waitFor()
+    await page.getByRole('link', { name: 'Search instead for lptop' }).click()
+    await page.waitForURL(/literal=1/)
+    await page.getByRole('heading', { name: 'No products match “lptop”' }).waitFor()
+    // A corrected word that names a category still gets the category chip.
+    await page.goto(base + '/search?q=smartphnes', { waitUntil: 'domcontentloaded' })
+    const chip = page.getByRole('button', { name: 'Remove filter: Smartphones (from “smartphones”)' })
+    await chip.waitFor()
+    await page.locator('main p[role=status]').getByText('16 results').waitFor()
+    await chip.click()
+    await page.waitForURL((u) => u.searchParams.get('q') === 'smartphones' && u.searchParams.get('literal') === '1')
+    await page.locator('main li h2 a').first().waitFor()
+    expect((await page.getByText('Showing results for', { exact: false }).count()) === 0, 'correction note after undoing the chip')
+    await page.goto(base + '/search?q=iphnoe', { waitUntil: 'domcontentloaded' })
+    await page.getByText('Showing results for iphone', { exact: false }).waitFor()
+    await page.goto(base + '/search?q=aple%20watch', { waitUntil: 'domcontentloaded' })
+    await page.getByText('Showing results for apple watch', { exact: false }).waitFor()
+    // Exact queries are never touched.
+    for (const q of ['laptop', 'mascara', 'watc', 'red']) {
+      await page.goto(base + `/search?q=${q}`, { waitUntil: 'domcontentloaded' })
+      await page.locator('main li h2 a').first().waitFor()
+      expect((await page.getByText('Showing results for', { exact: false }).count()) === 0, `"${q}" was corrected`)
+    }
   },
   'department is context: no chip, Clear all keeps it, breadcrumb leaves it': async (page) => {
     await page.goto(base + '/search?department=electronics&brand=Apple&sale=1', { waitUntil: 'domcontentloaded' })

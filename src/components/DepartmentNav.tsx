@@ -12,9 +12,11 @@ export function DepartmentNav() {
   const { pathname } = useLocation()
   const [params] = useSearchParams()
   const onSearch = pathname === '/search'
-  const current = onSearch ? params.get('department') : null
-  const saleActive = onSearch && !current && params.get('sale') === '1'
-  const allActive = onSearch && !current && [...params.keys()].length === 0
+  const saleView = onSearch && params.get('view') === 'sale'
+  const current = onSearch && !saleView ? params.get('department') : null
+  // The bar marks the current context: a department, the sale view, or all products.
+  const saleActive = saleView
+  const allActive = onSearch && !current && !saleActive
   const list = useRef<HTMLUListElement>(null)
 
   // On narrow screens, bring the current department into view within the bar

@@ -131,19 +131,22 @@ export function FilterPanel({ products, filters, onChange }: Props) {
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend className={legend}>Discount</legend>
-        <label className={optionRow}>
-          <input
-            type="checkbox"
-            checked={filters.sale}
-            onChange={() => onChange({ ...filters, sale: !filters.sale })}
-            className="size-4 accent-action"
-          />
-          {SALE_LABEL}
-          <span className={count}>{saleCount}</span>
-        </label>
-      </fieldset>
+      {/* In the sale view the rule is the context itself, so the checkbox would only contradict it. */}
+      {!filters.saleView && (
+        <fieldset>
+          <legend className={legend}>Discount</legend>
+          <label className={optionRow}>
+            <input
+              type="checkbox"
+              checked={filters.sale}
+              onChange={() => onChange({ ...filters, sale: !filters.sale })}
+              className="size-4 accent-action"
+            />
+            {SALE_LABEL}
+            <span className={count}>{saleCount}</span>
+          </label>
+        </fieldset>
+      )}
 
       <fieldset>
         <legend className={legend}>Price you pay</legend>

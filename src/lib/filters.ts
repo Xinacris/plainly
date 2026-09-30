@@ -4,24 +4,30 @@ import { formatCategory, formatPrice, reviewRating } from './format'
 import { onSale, SALE_LABEL, salePrice } from './pricing'
 
 // Filters live in the URL, so a filtered view can be shared, bookmarked and
-// navigated with Back. Param names: department, category (repeatable), brand
-// (repeatable), min, max, rating, stock=in, sale=1.
+// navigated with Back.
+//
+// The rule: what's picked in the top bar is *context* (where you are: heading and
+// breadcrumb, kept by "Clear all"); what's picked on the page is a *filter* (a
+// removable chip). Context params: department, view=sale. Filter params: category
+// (repeatable), brand (repeatable), min, max, rating, stock=in, sale=1.
 export interface Filters {
-  /** A department slug from lib/departments.ts; unknown slugs are ignored. */
+  /** Context: a department slug from lib/departments.ts; unknown slugs are ignored. */
   department?: string
+  /** Context: the "10%+ off" view opened from the bar. */
+  saleView: boolean
   categories: string[]
   brands: string[]
   minPrice?: number
   maxPrice?: number
   minRating?: number
   inStock: boolean
-  /** Only products at SALE_THRESHOLD% off or more. */
+  /** Filter: only products at SALE_THRESHOLD% off or more, checked on the page. */
   sale: boolean
 }
 
 export const RATING_OPTIONS = [4, 3, 2, 1] as const
 
-type Facet = 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock' | 'sale'
+type Facet = 'context' | 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock' | 'sale'
 
 function parsePrice(value: string | null): number | undefined {
   if (value === null || value.trim() === '') return undefined
@@ -31,22 +37,27 @@ function parsePrice(value: string | null): number | undefined {
 
 export function parseFilters(params: URLSearchParams): Filters {
   const rating = Number(params.get('rating'))
+  // One context at a time: the sale view wins over a department, and makes the
+  // sale filter redundant.
+  const saleView = params.get('view') === 'sale'
   return {
-    department: findDepartment(params.get('department'))?.slug,
+    saleView,
+    department: saleView ? undefined : findDepartment(params.get('department'))?.slug,
     categories: params.getAll('category'),
     brands: params.getAll('brand'),
     minPrice: parsePrice(params.get('min')),
     maxPrice: parsePrice(params.get('max')),
     minRating: (RATING_OPTIONS as readonly number[]).includes(rating) ? rating : undefined,
     inStock: params.get('stock') === 'in',
-    sale: params.get('sale') === '1',
+    sale: !saleView && params.get('sale') === '1',
   }
 }
 
 /** Returns a copy of `params` with the filter params replaced; q and sort are kept. */
 export function writeFilters(params: URLSearchParams, filters: Filters): URLSearchParams {
   const next = new URLSearchParams(params)
-  for (const key of ['department', 'category', 'brand', 'min', 'max', 'rating', 'stock', 'sale']) next.delete(key)
+  for (const key of ['view', 'department', 'category', 'brand', 'min', 'max', 'rating', 'stock', 'sale']) next.delete(key)
+  if (filters.saleView) next.set('view', 'sale')
   if (filters.department) next.set('department', filters.department)
   filters.categories.forEach((c) => next.append('category', c))
   filters.brands.forEach((b) => next.append('brand', b))
@@ -58,16 +69,17 @@ export function writeFilters(params: URLSearchParams, filters: Filters): URLSear
   return next
 }
 
-export const NO_FILTERS: Filters = { categories: [], brands: [], inStock: false, sale: false }
+export const NO_FILTERS: Filters = { saleView: false, categories: [], brands: [], inStock: false, sale: false }
 
-/** "Clear all": drops every filter chosen on the page but stays in the department. */
+/** "Clear all": drops every filter chosen on the page but keeps the context. */
 export function clearedFilters(filters: Filters): Filters {
-  return { ...NO_FILTERS, department: filters.department }
+  return { ...NO_FILTERS, department: filters.department, saleView: filters.saleView }
 }
 
 /** `skip` leaves one facet out, so that facet's own counts show what choosing another option would give. */
 export function matchesFilters(product: Product, filters: Filters, skip?: Facet): boolean {
   const price = salePrice(product)
+  if (skip !== 'context' && filters.saleView && !onSale(product)) return false
   const department = findDepartment(filters.department)
   if (skip !== 'department' && department && !department.categories.includes(product.category)) return false
   if (skip !== 'category' && filters.categories.length && !filters.categories.includes(product.category)) return false

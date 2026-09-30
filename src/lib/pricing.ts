@@ -26,5 +26,5 @@ export function onSale(product: Product): boolean {
   return discountPercent(product) >= SALE_THRESHOLD
 }
 
-/** Where "10%+ off" links: the sale filter, biggest discounts first. */
-export const SALE_URL = '/search?sale=1&sort=discount'
+/** The "10%+ off" view as context (from the top bar or the home page), biggest discounts first. */
+export const SALE_URL = '/search?view=sale&sort=discount'

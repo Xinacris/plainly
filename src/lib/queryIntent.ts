@@ -71,6 +71,12 @@ function buildTerms(): Map<string, QueryIntent> {
 
 const TERMS = buildTerms()
 
+/** Every synonym and name above, for the spelling correction's vocabulary. */
+export const INTENT_WORDS: string[] = [
+  ...SYNONYMS.flatMap(([words]) => words),
+  ...DEPARTMENTS.flatMap((d) => [d.name, ...d.categories]),
+]
+
 export function interpretQuery(query: string): QueryIntent | undefined {
   return TERMS.get(normalizeTerm(query))
 }

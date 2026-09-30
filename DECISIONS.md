@@ -25,6 +25,7 @@ These apply to every step:
 - **Errors:** each route has an error boundary whose "Try again" actually refetches.
 - **No dead links.** If something isn't built yet, it isn't shown.
 - **Overlays:** drawers, sheets and dialogs trap focus, close on Escape, and return focus to the element that opened them.
+- **Context vs. filter.** Whatever is picked in the top bar (a department, "All products", "10%+ off") is *navigation context*: it's the page heading and the breadcrumb, the bar marks it as current, "Clear all" keeps it, and you leave it through the bar or the breadcrumb. Whatever is picked on the page is a *filter*: a removable chip, cleared by "Clear all". One context at a time; picking another in the bar replaces it.
 - **Code:** small, typed components, and no nested ternaries in JSX.
 
 ### Verification after each step
@@ -129,7 +130,7 @@ The Gemini prompt, verbatim:
    - **The numbers:** the displayed discounts spread almost evenly from 0% to 19% (median 10%). 14%+ would have been closest to a third of the catalog (61 products). **10%+ was chosen: 104 of 194 products (54%).** It's the most familiar sale threshold for shoppers, and it still removes the 90 products with small or no discounts.
    - **The trade-off:** the sale view covers more than half the catalog, so it narrows less than a stricter rule would.
    - **The rule:** it uses the same truncated whole-number % the cards show, so every product in the view shows at least "10% off". The chip is labeled with the rule itself.
-   - **Where it appears:** a real filter (`sale=1`) in the filter panel, and a link right after "All products" in the department bar. The home page's "Biggest discounts" "See all" opens it sorted by discount, so products with small or no discounts never appear there.
+   - **Where it appears:** first built as a filter everywhere (a chip even when opened from the bar). It was then split by the context-vs-filter rule (see "Sale view as context" below). The bar link and the home page's "Biggest discounts" "See all" open the sale view as context (`view=sale`, sorted by discount). The checkbox in the filter panel stays a filter (`sale=1`).
    - **Colour:** it has its own `sale` token, a calm berry (#a3285b light, #f39abf dark; 7.0 and 8.2:1 on surface). It's clearly a different hue from action green and from the warning color, which means low stock and no returns. The "N% off" text on cards and the decision card uses it too, so the token means "discount" everywhere.
 3. **Two-row phone header.** Below `sm`, the header took three rows and pushed products down. Row 1 is now the logo, a cart icon with its count (the cart stays one tap away), and a menu button; row 2 is full-width search. The menu is the same modal sheet as the filters: focus stays in it, Escape closes it, and focus returns to the button. It holds Orders and the light / dark / system choice. It closes itself if the screen grows past `sm` while open (a phone turned sideways), so the page is never left inert behind a hidden modal. The department bar and the desktop header are unchanged.
 4. **No "Best sellers" sort.** See "Considered, not now".
@@ -145,6 +146,23 @@ The Gemini prompt, verbatim:
    - **Live and stable:** all three icons sit in one grid cell and CSS shows one, so the swap is live on resize and rotation and never shifts layout.
    - **Accessibility:** the accessible name is "System" in every case; the options are now named Light, Dark and System, inside the "Theme" group.
    - **Where:** the same component serves the header and the phone menu, where it shows the labels.
+
+### Sale view as context, and typo tolerance
+
+- **Sale view as context.** "10%+ off" follows the same rule as departments.
+  - **From the bar or the home page:** it opens `/search?view=sale`, which is context. The heading is "10%+ off", the breadcrumb is "All products › 10%+ off", and the bar marks it as current. It has no chip, and "Clear all" keeps it.
+  - **Inside it:** category, brand, price, rating and stock are normal filters. The panel hides the "10%+ off" checkbox there, because it could only contradict the view.
+  - **Leaving it:** clicking a department or "All products" in the bar leaves the view.
+  - **On the page elsewhere:** checked in the panel on a department or on "All products", "10%+ off" is a filter (`sale=1`): a chip, removed by "Clear all".
+  - **One context at a time:** if a URL carries both, the sale view wins over a department.
+  - **Why:** the same click in the same bar must mean the same thing. Otherwise a sale "chip" that "Clear all" wipes would drop you out of the page you navigated to.
+- **Typo tolerance.** "lptop", "iphnoe", "aple watch" and "smartphnes" find the right products, entirely in the browser.
+  - **When it runs:** only when the query as typed finds nothing, so exact queries are never mixed with loose matches.
+  - **Which words it fixes:** each word of 4+ letters that doesn't start any real word in the catalog (descriptions included).
+  - **Candidates:** the catalog's title, brand and category words plus the category synonyms. The fix is the closest one by edit distance, counting a swap of two neighbouring letters as one edit: at most 1 edit up to 5 letters, 2 edits from 6 letters, and a 2-edit fix must keep the first letter. Ties go to the word more products use.
+  - **Checked:** none of the 600+ words in product titles gets "corrected" when searched on its own.
+  - **Honest and undoable:** the page says "Showing results for laptop · Search instead for lptop". The heading shows the corrected query, and the link searches the typed words exactly (`literal=1`: no correction, no category matching).
+  - **With category matching:** a corrected query that names a category still gets that chip ("smartphnes" → Smartphones). Removing the chip searches the corrected words as text.
 
 ## Changed from the proposal
 
@@ -172,7 +190,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule) and typo-tolerant search |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**
@@ -227,3 +245,4 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | Testing the live site | Latent, fixed before shipping: opening the phone menu and then turning the phone sideways past `sm` would hide the menu's container while the modal stayed open, leaving the whole page inert. | The menu lives in the phones-only part of the header. | The menu closes itself when the viewport reaches `sm`. Tested by rotating with the menu open. |
 | Testing the live site | The applied-filter chips weren't reachable as a list. | The `<ul>` used `display: contents`, which can drop its list role. | The list is a real flex container. |
 | Testing the live site | The filter-sheet focus test failed after the sheet gained a control. | The test pressed Tab 40 times and checked the final spot. Past the last control a native modal hands focus to the browser's UI and back, and that's where the 40th press landed. | The test checks every press: focus must stay in the modal or on the browser UI, never on the page behind. The menu uses the same check. |
+| Sale view, typos | Latent, found while probing the correction before shipping: "aple watch" found nothing and wasn't corrected. | A word counted as "real" if the text search matched it anywhere, and "aple" happens to appear inside some product description. | A word counts as real only if it starts a word in the catalog; corrections come only from titles, brands, categories and synonyms. A probe confirmed no title word is ever "corrected". |
