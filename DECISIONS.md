@@ -266,7 +266,7 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
   - **Phones:** an "Account" section with the same two links in the phone menu.
   - **No sign-in yet.** The confirmation page's "See your orders" and the header's Orders link lead to the orders page.
 
-### Accounts, reversed from Cut (planned; being built)
+### Accounts, reversed from Cut
 
 - **The decision:** accounts move from Cut to Add, built on Supabase (email and password, plus Google).
   - **Why:** after testing, addresses and orders are only really useful if they follow you across devices, and that needs an account.
@@ -279,6 +279,35 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
   - **Content:** it says what's stored for signed-in users and where (Supabase, EU region), that guest data stays in the browser, what Google shares (name and email), that nothing is sold or shared, that payments are simulated, the hosting logs, and how to get an account deleted.
   - **Truthful before launch:** it says accounts aren't live yet. That line changes when they are.
   - **Contact:** a placeholder address (`PRIVACY_CONTACT` in `src/pages/PrivacyPage.tsx`), shown as plain text rather than a mail link until a real one exists.
+
+- **How accounts are built** (details in the Step 2 checklist at the top):
+  - **Schema and RLS** are SQL migrations in `supabase/migrations/`, applied to both projects with the Supabase CLI. Every table has RLS, every policy checks ownership, and `anon` gets nothing.
+    - **Orders** are updatable only in `cancelled_at`, and only during the 2-minute Preparing window.
+    - **Returns** need a delivered, uncancelled order.
+    - **The default address** must be your own.
+    - `scripts/rls-test.mjs` checks that one user can't read, change, delete or impersonate another's rows.
+  - **Statuses** are still computed on the client from timestamps, with the same simulated timings, so there are no scheduled jobs.
+  - **supabase-js loads on demand,** so guests don't download it. The session is read locally, so a slow or unreachable account service never holds up browsing, the cart or guest checkout. Account pages show an error with Try again instead.
+  - **Signed in,** addresses, orders and returns are read from and written to Supabase through one set of hooks. The pages don't care where the data lives. Signed out, everything behaves exactly as before, and the cart stays in the browser either way.
+  - **Moving this browser's data in:** offered once per account per browser after sign-in ("Not now" is remembered), and always available from Addresses and Orders.
+    - Orders and returns keep their ids, so duplicates are ignored. Addresses already in the account (same id or same details) are skipped.
+    - The browser's copy is cleared only after everything is in, and running it twice changes nothing.
+  - **Profile:** name and phone, plus a password change. Email change is explained, not offered (see the email rule above).
+  - **Demo account** (`demo@example.com`, password `plainly-demo-2026`, also in the README):
+    - **Locked:** a trigger on `auth.users` refuses email and password changes for it, even through the Auth API directly.
+    - **Reset:** `scripts/demo-reset.mjs` restores its data every 3 days, from the keep-alive workflow.
+    - **Topped up:** Preparing and Shipped only last minutes, so on sign-in the app adds a fresh one when nothing is on its way, capped at 20 orders.
+  - **Keep-alive:** a GitHub Actions workflow runs the demo reset every 3 days, which writes to the database and keeps the free project from pausing. The secret key reaches only that step, as an environment variable, and the script prints counts only.
+  - **Guarding secrets:** `scripts/check-secrets.mjs` runs before every commit. The session log in `.agent-logs/` is committed, so this guard matters.
+- **Testing:** the full verification runs on a `vite build --mode test` preview pointed at the separate plainly-test project; its account flows create and delete their own users. The live URL still gets one light smoke check.
+- **Google sign-in, checked by hand** (it can't be automated). While the Google app is in "Testing", only listed test users can use it.
+  1. On the live site, open Sign in: "Continue with Google" shows only when Google is enabled in the project.
+  2. With a Google account listed as a test user: Continue with Google, pick the account, and you land back on the page you started from, signed in (Account menu shows your email).
+  3. Profile: the name from Google is filled in, and the email is shown read-only.
+  4. Sign out, then sign in with Google again: the same account (same orders), not a new one.
+  5. With a Google account *not* listed as a test user: Google refuses, and the sign-in page is reachable again via "Back to sign in".
+  6. Cancel on Google's consent screen: you come back to "Sign-in didn't finish", with a way back.
+  7. After the privacy URL is accepted and the app is published: repeat step 2 with any Google account.
 
 ## Changed from the proposal
 
