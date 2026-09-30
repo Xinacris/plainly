@@ -1145,6 +1145,69 @@ FLOWS['phone gallery: swipe, dots, one photo at a time, no sideways page scroll'
   }
 }
 
+// Every photo centered in the frame after each swipe, at real phone sizes. Heights
+// include short ones (browser bars showing), where the 45dvh cap kicks in: that's
+// where the tile used to shrink narrower than the slide and leave a gap on the right.
+for (const [width, heights] of [[360, [640, 780]], [390, [664, 844]], [414, [715, 896]]]) {
+  FLOWS[`phone gallery at ${width}px: every photo centered, snap aligned, no focus ring after a tap`] = async () => {
+    for (const height of heights) {
+      const context = await browser.newContext({ isMobile: true, hasTouch: true, viewport: { width, height } })
+      const page = await context.newPage()
+      page.setDefaultTimeout(SCENE_TIMEOUT)
+      try {
+        await page.goto(base + '/product/167', { waitUntil: 'domcontentloaded' })
+        const gallery = page.getByRole('region', { name: /photos, \d of 6$/ })
+        await gallery.waitFor()
+        await gallery.scrollIntoViewIfNeeded()
+        const box = await gallery.boundingBox()
+        const cdp = await context.newCDPSession(page)
+        const y = Math.round(box.y + box.height / 2)
+        const swipeLeft = async () => {
+          const [from, to] = [Math.round(box.x + box.width * 0.85), Math.round(box.x + box.width * 0.2)]
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] })
+          for (let i = 1; i <= 10; i++) {
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(from + ((to - from) * i) / 10), y }] })
+            await page.waitForTimeout(16)
+          }
+          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+        }
+        for (let i = 0; i < 6; i++) {
+          if (i > 0) await swipeLeft()
+          const m = await gallery.evaluate((g, i) => new Promise((ok) => {
+            const t0 = Date.now()
+            const measure = () => {
+              const frame = g.getBoundingClientRect()
+              const inner = { left: frame.left + g.clientLeft, width: g.clientWidth }
+              const slide = g.children[i].getBoundingClientRect()
+              const tile = g.children[i].firstElementChild.getBoundingClientRect()
+              const img = g.children[i].querySelector('img').getBoundingClientRect()
+              return { scroll: g.scrollLeft, want: i * g.clientWidth, frameCenter: inner.left + inner.width / 2, innerWidth: inner.width, slideLeft: slide.left - inner.left, slideWidth: slide.width, tileWidth: tile.width, photoCenter: img.left + img.width / 2 }
+            }
+            const check = () => { const r = measure(); if (Math.abs(r.scroll - r.want) < 1 || Date.now() - t0 > 3000) ok(r); else setTimeout(check, 50) }
+            check()
+          }), i)
+          const at = `${width}×${height}, photo ${i + 1}`
+          expect(Math.abs(m.scroll - m.want) < 1, `${at}: snapped to ${m.scroll}, want ${m.want}`)
+          expect(Math.abs(m.slideLeft) < 1 && Math.abs(m.slideWidth - m.innerWidth) < 1, `${at}: slide at ${m.slideLeft.toFixed(1)}, ${m.slideWidth.toFixed(1)}px wide in a ${m.innerWidth}px frame`)
+          expect(Math.abs(m.tileWidth - m.innerWidth) < 1, `${at}: photo tile ${m.tileWidth.toFixed(1)}px wide in a ${m.innerWidth}px frame`)
+          expect(Math.abs(m.photoCenter - m.frameCenter) <= 1, `${at}: photo center ${m.photoCenter.toFixed(1)}, frame center ${m.frameCenter.toFixed(1)}`)
+        }
+        // A tap (on the photo or a dot) must not leave a focus ring.
+        const ringed = () => page.evaluate(() => [document.querySelector('[aria-label$=" of 6"][role=region]'), ...document.querySelectorAll('[aria-label="Choose a photo"] button')]
+          .filter((el) => getComputedStyle(el).outlineStyle !== 'none' || el.matches(':focus-visible')).map((el) => el.getAttribute('aria-label')))
+        await gallery.tap()
+        const afterPhoto = await ringed()
+        expect(afterPhoto.length === 0, `${width}×${height}: focus ring after tapping the photo: ${afterPhoto}`)
+        await page.getByRole('button', { name: 'Show image 2 of 6' }).tap()
+        const afterDot = await ringed()
+        expect(afterDot.length === 0, `${width}×${height}: focus ring after tapping a dot: ${afterDot}`)
+      } finally {
+        await context.close()
+      }
+    }
+  }
+}
+
 FLOWS['desktop gallery: thumbnails and arrow keys'] = async (page) => {
   await page.goto(base + '/product/167', { waitUntil: 'domcontentloaded' })
   const gallery = page.getByRole('region', { name: /photos, \d of 6$/ })

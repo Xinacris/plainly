@@ -65,16 +65,22 @@ export function Gallery({ product }: { product: Product }) {
         role={many ? 'region' : undefined}
         aria-label={many ? `${product.title} photos, ${index + 1} of ${images.length}` : undefined}
         tabIndex={many ? 0 : undefined}
+        // Keyboard users Tab here for ←/→ (and see the focus ring). A tap or click
+        // shouldn't focus it: some browsers then draw the ring on touch.
+        onMouseDown={(e) => e.preventDefault()}
         className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain rounded-lg [scrollbar-width:none] md:overflow-hidden [&::-webkit-scrollbar]:hidden"
       >
         {images.map((src, i) => (
           <div key={src} className="w-full shrink-0 snap-center">
-            {/* About 40–45% of a phone's height, so the price still makes the first screen. */}
+            {/* About 40–45% of a phone's height, so the price still makes the first screen.
+                w-full matters: with an auto width, CSS carries the max-height across the
+                aspect ratio into a max-width, and the tile shrank narrower than the slide,
+                left-aligned. Now only the height is capped; the photo centers in the tile. */}
             <ProductImage
               src={src}
               alt={many ? `${product.title}, image ${i + 1} of ${images.length}` : product.title}
               eager={i === 0}
-              className="max-h-[45dvh] p-6 md:max-h-none"
+              className="w-full max-h-[45dvh] p-6 md:max-h-none"
             />
           </div>
         ))}
