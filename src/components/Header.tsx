@@ -3,6 +3,7 @@ import { useCartCount } from '../cart/cart'
 import { pluralize } from '../lib/format'
 import { DepartmentNav } from './DepartmentNav'
 import { LogoMark } from './Logo'
+import { MiniCart } from './MiniCart'
 import { MobileMenu } from './MobileMenu'
 import { SearchForm } from './SearchForm'
 import { ThemeToggle } from './ThemeToggle'
@@ -33,19 +34,30 @@ function CartIconLink() {
   )
 }
 
+// Desktop: the cart link, with a preview of the cart on hover or keyboard focus.
 function CartLink() {
   const count = useCartCount()
   return (
-    <NavLink to="/cart" className={navClass} aria-label={`Cart, ${pluralize(count, 'item')}`}>
-      <span className="flex items-center gap-1.5">
-        Cart
-        {count > 0 && (
-          <span aria-hidden="true" className="min-w-5 rounded-full bg-action px-1.5 text-center text-xs leading-5 font-bold text-on-action tabular-nums">
-            {count}
+    <MiniCart>
+      {({ expanded, controls }) => (
+        <NavLink
+          to="/cart"
+          className={navClass}
+          aria-label={`Cart, ${pluralize(count, 'item')}`}
+          aria-expanded={expanded}
+          aria-controls={expanded ? controls : undefined}
+        >
+          <span className="flex items-center gap-1.5">
+            Cart
+            {count > 0 && (
+              <span aria-hidden="true" className="min-w-5 rounded-full bg-action px-1.5 text-center text-xs leading-5 font-bold text-on-action tabular-nums">
+                {count}
+              </span>
+            )}
           </span>
-        )}
-      </span>
-    </NavLink>
+        </NavLink>
+      )}
+    </MiniCart>
   )
 }
 

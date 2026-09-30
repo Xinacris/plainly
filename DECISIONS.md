@@ -207,6 +207,25 @@ The Gemini prompt, verbatim:
   - **Single photo:** no dots, no thumbnails and nothing to swipe.
   - **Screen readers:** the gallery's accessible name says where you are ("300 Touring photos, 3 of 6"), and each photo's alt text says which one it is.
 
+### Cart feedback: toast, in-cart line, mini-cart
+
+- **Add-to-cart toast** replaces the inline "Added N to your cart". The old text didn't say whether N was what was just added or the total.
+  - **Content:** the toast shows the thumbnail and name, what was just added ("3 added to your cart"), and the running total only when it's more than that ("You now have 7 of these in your cart"). Actions: View cart and Checkout.
+  - **Position:** on desktop it's at the top right, just below the header, aligned with the page's right edge, so the cart link sits right above it. On phones it's full width near the top, below the header (or at the top of the screen once the header has scrolled away), never near the compare tray at the bottom.
+  - **Behaviour:** it dismisses itself after 5 seconds, pauses while hovered or focused (resuming gives it a fresh 5 seconds), and has a close button.
+  - **One at a time:** adding again while it's open updates it and restarts the timer; there's never a second toast.
+  - **Screen readers:** an always-mounted, visually hidden polite live region announces each add, so the card's buttons aren't read out as part of the announcement.
+  - **Motion:** the slide-in runs only under `prefers-reduced-motion: no-preference`.
+- **What's already in the cart.** Next to Add to cart, a persistent, live line reads "7 in your cart · View cart".
+  - **Quantity:** the selector offers only what can still be added.
+  - **The limit, in words:** "You can add up to 3 more (only 4 in stock)" or "(limit 10 per item)". At the limit, the selector and button go and it says "You can't add more: that's the most you can buy (…)".
+- **Mini-cart preview** on the desktop header's cart link. It shows items (thumbnail, name, quantity, line price), the subtotal, View cart and Checkout, and an empty state.
+  - **Mouse:** it opens 150 ms after the pointer arrives and closes 300 ms after it leaves, so a quick pass doesn't flicker and moving into the panel keeps it open.
+  - **Keyboard:** it opens on keyboard focus only (`:focus-visible`); the link is marked `aria-expanded`. Escape closes it and returns focus to the cart link, and tabbing out closes it.
+  - **Touch:** touch pointers never open it, and a tap's focus isn't keyboard focus, so tapping the cart link goes straight to the cart.
+  - **The toast:** the preview and the toast never overlap. Opening the preview dismisses the toast, since the preview shows the same news.
+  - **Phones:** the icon-only cart link has no preview.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -233,7 +252,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, and on phones a photo-first product page with a swipeable gallery |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, on phones a photo-first product page with a swipeable gallery, and cart feedback (toast, in-cart line, mini-cart) |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**

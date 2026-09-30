@@ -347,7 +347,7 @@ const FLOWS = {
     await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
     await page.getByLabel('Quantity').selectOption('2')
     await page.getByRole('button', { name: 'Add to cart' }).click()
-    await page.getByText('Added 2 to your cart.').waitFor()
+    await page.getByRole('region', { name: 'Cart update' }).getByText('2 added to your cart').waitFor()
     await page.getByRole('link', { name: 'Cart, 2 items' }).waitFor()
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.getByRole('link', { name: 'Cart, 2 items' }).waitFor()
@@ -366,7 +366,8 @@ const FLOWS = {
     expect(options === 4, `expected 4 quantity options, got ${options}`)
     await page.getByLabel('Quantity').selectOption('4')
     await page.getByRole('button', { name: 'Add to cart' }).click()
-    await page.getByText('You have the most you can buy (4) in your cart.').waitFor()
+    await page.getByText('You can’t add more: that’s the most you can buy (only 4 in stock).').waitFor()
+    await page.getByText('4 in your cart').waitFor()
     expect((await page.getByRole('button', { name: 'Add to cart' }).count()) === 0, 'add button still shown at cap')
   },
   'out of stock has no add button': async (page) => {
@@ -1001,6 +1002,167 @@ const FLOWS = {
     await tray.getByText('2 of 3').waitFor()
     expect((await tray.getByText('mixed departments', { exact: false }).count()) === 0, 'notice shown again after the fix')
   },
+  'cart toast: what was added, running total, updates in place, actions, position': async (page) => {
+    await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
+    await page.getByLabel('Quantity').selectOption('3')
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.getByText('3 added to your cart').waitFor()
+    await toast.getByText('Knoll Saarinen Executive Conference Chair').waitFor()
+    expect((await toast.getByText(/You now have/).count()) === 0, 'running total shown when it equals what was added')
+    await page.locator('p[aria-live="polite"].sr-only').getByText('3 added to your cart', { exact: false }).waitFor({ state: 'attached' })
+    const box = await toast.boundingBox()
+    const header = await page.getByRole('banner').boundingBox()
+    const cart = await page.getByRole('banner').getByRole('link', { name: /^Cart, 3 items/ }).boundingBox()
+    expect(box.y >= header.y + header.height, `toast top ${box.y} overlaps the header (ends ${header.y + header.height})`)
+    // Top right, aligned with the page's right edge, so the cart link sits right above it.
+    const cartCenter = cart.x + cart.width / 2
+    expect(cartCenter > box.x && cartCenter < box.x + box.width, `cart link (x=${cartCenter}) isn't above the toast (${box.x}–${box.x + box.width})`)
+    await page.getByLabel('Quantity').selectOption('2')
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await toast.getByText('2 added to your cart').waitFor()
+    await toast.getByText('You now have 5 of these in your cart.').waitFor()
+    expect((await page.getByRole('region', { name: 'Cart update' }).count()) === 1, 'a second toast stacked')
+    await toast.getByRole('link', { name: 'View cart' }).waitFor()
+    await toast.getByRole('link', { name: 'Checkout' }).waitFor()
+    await page.getByText('5 in your cart').waitFor()
+    await page.getByText('You can add up to 5 more (limit 10 per item).').waitFor()
+    await toast.getByRole('button', { name: 'Close' }).click()
+    await toast.waitFor({ state: 'detached' })
+  },
+  'cart toast: dismisses itself after about 5 seconds': async (page) => {
+    await page.goto(base + '/product/3', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.waitFor()
+    const t0 = Date.now()
+    await toast.waitFor({ state: 'detached', timeout: 7000 })
+    const took = Date.now() - t0
+    expect(took > 4000 && took < 6500, `dismissed after ${took}ms`)
+  },
+  'cart toast: stays while hovered': async (page) => {
+    await page.goto(base + '/product/3', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.hover()
+    await page.waitForTimeout(5800)
+    expect(await toast.isVisible(), 'toast left while hovered')
+  },
+  'cart toast: stays while focused': async (page) => {
+    await page.goto(base + '/product/3', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.getByRole('link', { name: 'View cart' }).focus()
+    await page.waitForTimeout(5800)
+    expect(await toast.isVisible(), 'toast left while focused')
+  },
+  'cart toast on phones: near the top, clear of the compare tray': Object.assign(async (page) => {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to compare' }).click()
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.waitFor()
+    const box = await toast.boundingBox()
+    const header = await page.getByRole('banner').boundingBox()
+    const tray = await page.getByRole('region', { name: 'Compare' }).boundingBox()
+    expect(box.y >= header.y + header.height && box.y < 300, `toast at y=${box.y}`)
+    expect(box.y + box.height <= tray.y, 'toast overlaps the compare tray')
+    expect(box.width >= 350, `toast is ${box.width}px wide on a phone`)
+  }, { width: 390, theme: 'dark' }),
+  'in-cart line and limits on the product page': async (page) => {
+    await page.goto(base + '/product/9', { waitUntil: 'domcontentloaded' }) // 4 in stock
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByText('1 in your cart').waitFor()
+    await page.getByText('You can add up to 3 more (only 4 in stock).').waitFor()
+    const options = await page.getByLabel('Quantity').locator('option').count()
+    expect(options === 3, `offers ${options} more, 3 left`)
+    await page.locator('main').getByRole('link', { name: 'View cart' }).waitFor()
+    await page.getByLabel('Quantity').selectOption('3')
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByText('4 in your cart').waitFor()
+    await page.getByText('You can’t add more: that’s the most you can buy (only 4 in stock).').waitFor()
+    expect((await page.getByLabel('Quantity').count()) === 0, 'quantity offered at the limit')
+    await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' }) // 26 in stock: the per-item limit applies
+    await page.getByLabel('Quantity').selectOption('10')
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    await page.getByText('You can’t add more: that’s the most you can buy (limit 10 per item).').waitFor()
+  },
+  'mini-cart: hover delays, contents, no overlap with the toast, keyboard, Escape': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const cart = page.getByRole('banner').getByRole('link', { name: /^Cart, / })
+    const preview = page.getByRole('region', { name: 'Cart preview' })
+    // Passing over quickly doesn't open it.
+    const c = await cart.boundingBox()
+    await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2)
+    await page.waitForTimeout(60)
+    await page.mouse.move(c.x + c.width / 2, c.y + 400)
+    await page.waitForTimeout(400)
+    expect((await preview.count()) === 0, 'preview opened on a quick pass')
+    await cart.hover()
+    await preview.getByText('Your cart is empty').waitFor()
+    await page.mouse.move(10, 600)
+    await preview.waitFor({ state: 'detached' })
+    // With items, and the toast gives way when the preview opens.
+    await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
+    await page.getByLabel('Quantity').selectOption('2')
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const toast = page.getByRole('region', { name: 'Cart update' })
+    await toast.waitFor()
+    await cart.hover()
+    await preview.getByText('Knoll Saarinen Executive Conference Chair').waitFor()
+    await toast.waitFor({ state: 'detached' })
+    await preview.getByText('Qty 2').waitFor()
+    await preview.getByText('$979.88').first().waitFor() // 2 × $489.94
+    await preview.getByText('Subtotal (2 items)').waitFor()
+    await preview.getByRole('link', { name: 'Checkout' }).waitFor()
+    // Moving into the panel keeps it open.
+    await preview.getByRole('link', { name: 'View cart' }).hover()
+    await page.waitForTimeout(500)
+    expect(await preview.isVisible(), 'preview closed while the pointer was in it')
+    await page.mouse.move(10, 700)
+    await preview.waitFor({ state: 'detached' })
+    // Keyboard: opens on focus, Escape closes and returns focus.
+    await page.getByRole('banner').getByRole('link', { name: 'Orders' }).focus()
+    await page.keyboard.press('Tab')
+    await preview.waitFor()
+    expect((await cart.getAttribute('aria-expanded')) === 'true', 'cart link not marked expanded')
+    await page.keyboard.press('Escape')
+    await preview.waitFor({ state: 'detached' })
+    expect(await cart.evaluate((a) => a === document.activeElement), 'focus not returned to the cart link')
+  },
+}
+
+// Touch has no hover: tapping the cart link goes straight to the cart, no preview first.
+FLOWS['mini-cart on touch: a tap goes straight to the cart'] = async () => {
+  const context = await browser.newContext({ isMobile: true, hasTouch: true, viewport: { width: 1024, height: 768 } })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  try {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const cart = page.getByRole('banner').getByRole('link', { name: /^Cart, / })
+    await cart.waitFor()
+    await page.evaluate(() => {
+      window.__previewSeen = false
+      new MutationObserver(() => document.querySelector('[data-mini-cart]') && (window.__previewSeen = true)).observe(document.body, { subtree: true, childList: true })
+    })
+    await cart.tap()
+    await page.waitForURL(/\/cart$/)
+    await page.getByRole('heading', { name: 'Your cart is empty' }).waitFor()
+    await page.waitForTimeout(400)
+    expect(!(await page.evaluate(() => window.__previewSeen)), 'the preview opened on a tap')
+  } finally {
+    await context.close()
+  }
+}
+
+for (const motion of ['reduce', 'no-preference']) {
+  FLOWS[`cart toast motion: ${motion}`] = async (page) => {
+    await page.emulateMedia({ reducedMotion: motion })
+    await page.goto(base + '/product/3', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to cart' }).click()
+    const duration = await page.getByRole('region', { name: 'Cart update' }).evaluate((t) => getComputedStyle(t).transitionDuration)
+    expect(motion === 'reduce' ? duration === '0s' : duration === '0.2s', `toast transition ${duration} with reduced motion ${motion}`)
+  }
 }
 
 // "System" shows the device's icon: phone, tablet or monitor, by media query.
@@ -1327,8 +1489,9 @@ function pathFlow(theme, width) {
     await shot('search')
     await page.locator('main li h2 a').first().click()
     await page.getByRole('button', { name: 'Add to cart' }).click()
-    await page.getByText(/Added 1 to your cart/).waitFor()
+    await page.getByRole('region', { name: 'Cart update' }).getByText('1 added to your cart').waitFor()
     await shot('product')
+    await page.getByRole('region', { name: 'Cart update' }).getByRole('button', { name: 'Close' }).click()
     await page.getByRole('link', { name: /^Cart, 1 item/ }).click()
     await page.getByRole('link', { name: 'Go to checkout' }).waitFor()
     await shot('cart')

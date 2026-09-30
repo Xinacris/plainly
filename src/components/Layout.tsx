@@ -1,5 +1,6 @@
 import { Outlet, ScrollRestoration, useLocation } from 'react-router'
 import { useTrayVisible } from '../compare/compare'
+import { CartToast } from './CartToast'
 import { CompareTray } from './CompareTray'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Footer } from './Footer'
@@ -29,6 +30,9 @@ export function Layout() {
           route shows the error and the tray just stays hidden. */}
       <ErrorBoundary key={pathname} onReset={() => {}} fallback={() => null}>
         <CompareTray />
+      </ErrorBoundary>
+      <ErrorBoundary key={`toast-${pathname}`} onReset={() => {}} fallback={() => null}>
+        <CartToast />
       </ErrorBoundary>
       {/* New pages start at the top; Back and Forward restore where you were. */}
       <ScrollRestoration />
