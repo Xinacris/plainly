@@ -43,7 +43,7 @@ function Section({ title, open = false, children }: { title: string; open?: bool
     <details open={open} className="group border-b border-border">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-lg font-bold tracking-tight [&::-webkit-details-marker]:hidden">
         <h2>{title}</h2>
-        <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-muted transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" className="size-5 shrink-0 text-muted group-open:rotate-180 motion-safe:transition-transform" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>
       </summary>

@@ -38,6 +38,8 @@ const CART = JSON.stringify({
   version: 1,
 })
 
+const compareIds = (...ids) => JSON.stringify({ state: { ids }, version: 1 })
+
 const ADDRESS = { fullName: 'Ada Lovelace', line1: '12 St James’s Square', line2: 'Flat 4', city: 'Springfield', region: 'IL', postalCode: '62701' }
 const line = (productId, title, thumb, price, quantity, shippingInformation, estimate) => ({
   productId, title, price, quantity, shippingInformation, returnPolicy: '30 days return policy',
@@ -80,6 +82,12 @@ const SCENES = [
   { name: 'confirmation-missing', page: 'orders', url: '/orders/PL-NOPE/confirmation', ready: 'main h1:has-text("Order not found")' },
   { name: 'orders', page: 'orders', url: '/orders', orders: ORDERS, ready: 'main h1:has-text("Your orders")' },
   { name: 'orders-empty', page: 'orders', url: '/orders', ready: 'main h1:has-text("No orders yet")' },
+  { name: 'compare-3', page: 'compare', url: '/compare', compare: compareIds(1, 3, 5), ready: 'main table' },
+  { name: 'compare-2-oos', page: 'compare', url: '/compare', compare: compareIds(14, 117), ready: 'main table' },
+  { name: 'compare-1', page: 'compare', url: '/compare', compare: compareIds(1), ready: 'main h1:has-text("Add one more product")' },
+  { name: 'compare-empty', page: 'compare', url: '/compare', ready: 'main h1:has-text("Nothing to compare yet")' },
+  { name: 'search-tray', page: 'compare', url: '/search?q=mascara', compare: compareIds(1, 9), ready: 'section[aria-label="Compare"] a:has-text("Compare")' },
+  { name: 'product-tray', page: 'compare', url: '/product/1', compare: compareIds(1), ready: 'section[aria-label="Compare"] li img' },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
 ]
 
@@ -110,6 +118,10 @@ function audit() {
     }
     return r
   }
+  const inFixed = (el) => {
+    for (let e = el; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return true
+    return false
+  }
   // With a modal open, the page behind it is inert and covered, so only the modal is audited.
   const root = document.querySelector('dialog[open]') ?? document.body
   const hasOwnText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
@@ -133,13 +145,18 @@ function audit() {
 
   const boxes = [...root.querySelectorAll('img, button, input, select, a, h1, h2, h3, p, output, label')]
     .filter(visible)
-    .map((el) => ({ el, r: clipToScroller(el) }))
+    .map((el) => ({ el, r: clipToScroller(el), fixed: inFixed(el) }))
     .filter(({ r }) => r.right > r.left && r.bottom > r.top)
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
       const { el: a, r: ra } = boxes[i], { el: b, r: rb } = boxes[j]
       if (ra.bottom <= rb.top || rb.bottom <= ra.top || ra.right <= rb.left || rb.right <= ra.left) continue
       if (a.contains(b) || b.contains(a)) continue
+      // Page content scrolls under a fixed bar (the compare tray) by design.
+      if (boxes[i].fixed !== boxes[j].fixed) continue
+      // An absolutely positioned control on its sibling (a corner × on a thumbnail) is placed on purpose.
+      const placed = (x, y) => getComputedStyle(x).position === 'absolute' && x.parentElement?.contains(y)
+      if (placed(a, b) || placed(b, a)) continue
       const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left)
       const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top)
       if (w > 2 && h > 2) issues.push(`overlap: ${describe(a)} × ${describe(b)}`)
@@ -194,10 +211,11 @@ const budgetTimer = setTimeout(() => {
 
 const browser = await chromium.launch({ executablePath: chromiumPath() })
 
-async function newPage(theme, width, { cart, orders, allowErrors = false } = {}) {
+async function newPage(theme, width, { cart, orders, compare, allowErrors = false } = {}) {
   const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 } })
   if (cart) await ctx.addInitScript((s) => localStorage.setItem('plainly-cart', s), cart)
   if (orders) await ctx.addInitScript((s) => localStorage.setItem('plainly-orders', s), orders)
+  if (compare) await ctx.addInitScript((s) => localStorage.setItem('plainly-compare', s), compare)
   const page = await ctx.newPage()
   page.setDefaultTimeout(SCENE_TIMEOUT)
   page.setDefaultNavigationTimeout(SCENE_TIMEOUT)
@@ -448,6 +466,74 @@ const FLOWS = {
     await page.getByText('Shipping, returns and warranty').click()
     await page.getByText('These are the seller’s own words', { exact: false }).waitFor()
   },
+  'compare: add from cards, cap at 3, differences, only-differences, remove, persist': async (page) => {
+    await page.goto(base + '/search?category=beauty', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    const toggles = page.getByRole('button', { name: /^Compare / })
+    for (let i = 0; i < 3; i++) await toggles.nth(i).click()
+    expect((await toggles.nth(0).getAttribute('aria-pressed')) === 'true', 'card toggle not pressed')
+    const tray = page.getByRole('region', { name: 'Compare' })
+    await tray.getByText('Compare 3 of 3').waitFor()
+    await toggles.nth(3).click()
+    await tray.getByText('You can compare up to 3').waitFor()
+    await tray.getByText('Compare 3 of 3').waitFor()
+    expect((await toggles.nth(3).getAttribute('aria-pressed')) === 'false', 'a 4th product was added')
+    await tray.getByRole('link', { name: 'Compare' }).click()
+    await page.waitForURL(/\/compare$/)
+    expect((await page.locator('thead th[scope=col]').count()) === 3, 'expected 3 product columns')
+    const differing = await page.locator('tbody[data-differs]').count()
+    const total = await page.locator('main tbody').count()
+    expect(differing > 0 && differing < total, `differing rows ${differing} of ${total}`)
+    await page.getByText(`${differing} of ${total} facts differ`, { exact: false }).waitFor()
+    expect((await page.locator('tbody[data-differs] tr:not(.sm\\:hidden)').first().evaluate((r) => getComputedStyle(r).backgroundColor)) !== 'rgba(0, 0, 0, 0)', 'differing row not highlighted')
+    await page.getByLabel('Show only what differs').check()
+    expect((await page.locator('main tbody').count()) === differing, 'same rows still shown')
+    await page.getByRole('button', { name: /^Remove / }).first().click()
+    expect((await page.locator('thead th[scope=col]').count()) === 2, 'remove did not drop a column')
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.locator('main table').waitFor()
+    expect((await page.locator('thead th[scope=col]').count()) === 2, 'compare not persisted')
+    // The tray stays out of the compare page and checkout.
+    expect((await page.getByRole('region', { name: 'Compare' }).count()) === 0, 'tray shown on /compare')
+    await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+    await page.locator('main h1').waitFor()
+    expect((await page.getByRole('region', { name: 'Compare' }).count()) === 0, 'tray shown on /checkout')
+  },
+  'compare: product page button': async (page) => {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to compare' }).click()
+    await page.getByRole('button', { name: 'Added to compare' }).waitFor()
+    const tray = page.getByRole('region', { name: 'Compare' })
+    await tray.getByText('Add 1 more product to compare').waitFor()
+    await tray.getByRole('button', { name: 'Remove Essence Mascara Lash Princess from compare' }).click()
+    await page.getByRole('button', { name: 'Add to compare' }).waitFor()
+    await tray.waitFor({ state: 'detached' })
+  },
+  'compare: phone, tray never hides the end of the page': Object.assign(async (page) => {
+    await page.goto(base + '/search?q=mascara', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    await page.getByRole('button', { name: /^Compare / }).first().click()
+    const tray = page.getByRole('region', { name: 'Compare' })
+    await tray.waitFor()
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    await page.waitForTimeout(350) // let the slide-up finish before measuring
+    const trayTop = await tray.evaluate((t) => t.getBoundingClientRect().top)
+    const lastBottom = await page.locator('main li').last().evaluate((el) => el.getBoundingClientRect().bottom)
+    expect(lastBottom <= trayTop, `last card ends at ${Math.round(lastBottom)}, tray starts at ${Math.round(trayTop)}`)
+    await page.goto(base + '/compare', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Add one more product to compare' }).waitFor()
+  }, { width: 390, theme: 'dark' }),
+}
+
+// The tray slides up only when motion is welcome.
+for (const motion of ['reduce', 'no-preference']) {
+  FLOWS[`compare tray motion: ${motion}`] = async (page) => {
+    await page.emulateMedia({ reducedMotion: motion })
+    await page.goto(base + '/product/3', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Add to compare' }).click()
+    const duration = await page.getByRole('region', { name: 'Compare' }).evaluate((t) => getComputedStyle(t).transitionDuration)
+    expect(motion === 'reduce' ? duration === '0s' : duration === '0.3s', `transition-duration ${duration} with reduced motion ${motion}`)
+  }
 }
 
 // The decision card's facts must be on the first screen, with no scrolling.

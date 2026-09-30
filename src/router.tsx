@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router'
 import { Layout } from './components/Layout'
 import { CartPage } from './pages/CartPage'
 import { CheckoutPage } from './pages/CheckoutPage'
+import { ComparePage } from './pages/ComparePage'
 import { HomePage } from './pages/HomePage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage'
@@ -17,6 +18,7 @@ export const router = createBrowserRouter([
       { path: '/search', element: <SearchPage /> },
       { path: '/product/:id', element: <ProductPage /> },
       { path: '/cart', element: <CartPage /> },
+      { path: '/compare', element: <ComparePage /> },
       { path: '/checkout', element: <CheckoutPage /> },
       { path: '/orders', element: <OrdersPage /> },
       { path: '/orders/:id/confirmation', element: <OrderConfirmationPage /> },

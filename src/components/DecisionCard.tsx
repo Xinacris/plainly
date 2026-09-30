@@ -3,6 +3,7 @@ import type { Product } from '../lib/catalog'
 import { estimateDelivery, TRANSIT } from '../lib/delivery'
 import { returnFact, warrantyFact, type Fact } from '../lib/facts'
 import { AddToCart } from './AddToCart'
+import { CompareButton } from './CompareToggle'
 import { DateRange } from './DateRange'
 import { Price } from './Price'
 import { StockNote } from './StockNote'
@@ -64,6 +65,9 @@ export function DecisionCard({ product }: { product: Product }) {
         </Row>
       </dl>
       <AddToCart product={product} />
+      <div className="mt-3">
+        <CompareButton product={product} />
+      </div>
     </section>
   )
 }

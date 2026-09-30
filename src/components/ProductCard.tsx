@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import type { Product } from '../lib/catalog'
+import { CompareToggle } from './CompareToggle'
 import { Price } from './Price'
 import { ProductImage } from './ProductImage'
 import { Rating } from './Rating'
@@ -21,6 +22,9 @@ export function ProductCard({ product }: { product: Product }) {
         <div className="mt-auto flex flex-col gap-0.5 pt-2">
           <Price product={product} />
           <StockNote product={product} exceptionsOnly />
+        </div>
+        <div className="mt-1">
+          <CompareToggle product={product} />
         </div>
       </div>
     </li>

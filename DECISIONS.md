@@ -96,6 +96,15 @@ The Gemini prompt, verbatim:
 - **Decision card on phones:** title, then the card, then the photos, so the facts that decide a purchase are on the first screen at 390×844. From `md` up the photos are on the left. A test checks that the facts sit above the fold at 1440×900, 1024×768 and 390×844.
 - **Collapsible sections:** native `<details>`. Description and Reviews start open; "Shipping, returns and warranty" and "Product details" start closed.
 
+### How #6 was built (hours 13–16)
+
+- **Built with all 3 slots**, so the "Compare limited to 2" cut wasn't needed.
+- **Adding:** a "Compare" toggle on every card (`aria-pressed`, above the card's stretched link) and an "Add to compare" button in the decision card. A 4th add is refused, and the tray says "You can compare up to 3. Remove one to add another." for 5 seconds. The selection is saved in localStorage.
+- **Tray:** fixed to the bottom on home, search and product pages only. It stays off `/compare`, the cart and checkout, so checkout keeps no distractions. The page gets bottom padding while the tray is visible, so it never covers the last row. It slides up with `@starting-style`, only under `prefers-reduced-motion: no-preference`; a test checks the transition is 0s under `reduce`. On phones it takes two rows, with a full-width Compare button.
+- **Differences:** a row is marked when its value isn't the same for every product. It gets a tint *and* a visible "Differs" label, so color isn't the only signal, plus a "Show only what differs" option. There's no "best" marker: whether a longer warranty beats a lower price is the shopper's call, not ours.
+- **Rows:** price you pay (with the discount and list price), rating, review count, delivery estimate, returns, warranty and stock, in the same words as the decision card. Review count is always 3 in this data, so that row never differs; it stays because hiding it would hide how thin the ratings are.
+- **Phones:** the table keeps its columns, and each fact's label gets its own full-width row above the values, so three products fit in 390 px without sideways scrolling.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -157,3 +166,6 @@ Every block ends with a deploy, so there is always a working live URL.
 | Hours 9–13 | Latent, fixed before shipping: the "showing 24" note would have stayed at 24 after "Show more". | The note was computed outside the component that knows how many are visible. | Moved into the result grid. |
 | Hours 9–13 | The audit reported 70+ overlaps and clippings on the bottom-sheet screenshot, and the screenshot itself was misplaced. | It measured the page behind the modal, treated rows scrolled inside the sheet as clipped, and took a full-page screenshot of a fixed element. | With a modal open, only the modal is audited. Scroll containers don't count as clipping, boxes are cut to their scroll container before overlap checks, and modal scenes take a viewport screenshot. |
 | Hours 9–13 | The chip test failed even though removing the chip did clear the Max input. | The URL changes before React re-renders, and the test read the input in between. | The test waits for the input to clear. |
+| Hours 13–16 | On phones the tray squeezed "Compare 2 of 3" into three lines. | Thumbnails, label, Clear and the Compare button were in one row that doesn't fit in 358 px. | Two rows on phones: thumbnails with the count and Clear, then a full-width Compare button. One row from `sm` up. |
+| Hours 13–16 | The lint flagged `setState` inside an effect in the tray's "compare is full" notice. It would also have shown an old notice again whenever the tray remounted. | The notice's timing lived in the component. | The store sets the flag and clears it after 5 seconds itself. The component only reads it. |
+| Hours 13–16 | The audit flagged the tray thumbnails' corner "×" buttons and the content scrolling under the fixed tray as overlaps. | Both are deliberate layering. | The audit skips pairs where only one element is inside a fixed bar, and an absolutely positioned control sitting on its sibling. |
