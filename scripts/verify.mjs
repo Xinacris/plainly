@@ -105,10 +105,13 @@ const SCENES = [
   { name: 'orders', page: 'orders', url: '/orders', orders: ORDERS, ready: 'main h1:has-text("Your orders")' },
   { name: 'orders-empty', page: 'orders', url: '/orders', ready: 'main h1:has-text("No orders yet")' },
   { name: 'compare-3', page: 'compare', url: '/compare', compare: compareIds(1, 3, 5), ready: 'main table' },
-  { name: 'compare-2-oos', page: 'compare', url: '/compare', compare: compareIds(14, 117), ready: 'main table' },
+  { name: 'compare-2-oos', page: 'compare', url: '/compare', compare: compareIds(113, 117), ready: 'main table' },
   { name: 'compare-1', page: 'compare', url: '/compare', compare: compareIds(1), ready: 'main h1:has-text("Add one more product")' },
   { name: 'compare-empty', page: 'compare', url: '/compare', ready: 'main h1:has-text("Nothing to compare yet")' },
   { name: 'search-tray', page: 'compare', url: '/search?q=mascara', compare: compareIds(1, 9), ready: 'section[aria-label="Compare"] a:has-text("Compare")' },
+  { name: 'compare-prompt', page: 'compare', url: '/product/14', compare: compareIds(1), ready: 'section[aria-label="Compare"] li img',
+    before: async (page) => { await page.getByRole('button', { name: 'Add to compare' }).click(); await page.getByRole('dialog').waitFor() } },
+  { name: 'compare-mixed', page: 'compare', url: '/search?q=chair', compare: compareIds(1, 14, 3), ready: 'section[aria-label="Compare"] li img' },
   { name: 'product-tray', page: 'compare', url: '/product/1', compare: compareIds(1), ready: 'section[aria-label="Compare"] li img' },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("Page not found")' },
 ]
@@ -526,13 +529,14 @@ const FLOWS = {
     for (let i = 0; i < 3; i++) await toggles.nth(i).click()
     expect((await toggles.nth(0).getAttribute('aria-pressed')) === 'true', 'card toggle not pressed')
     const tray = page.getByRole('region', { name: 'Compare' })
-    await tray.getByText('Compare 3 of 3').waitFor()
+    await tray.getByText('3 of 3').waitFor()
     await toggles.nth(3).click()
     await tray.getByText('You can compare up to 3').waitFor()
-    await tray.getByText('Compare 3 of 3').waitFor()
+    await tray.getByText('3 of 3').waitFor()
     expect((await toggles.nth(3).getAttribute('aria-pressed')) === 'false', 'a 4th product was added')
     await tray.getByRole('link', { name: 'Compare' }).click()
     await page.waitForURL(/\/compare$/)
+    await page.getByRole('heading', { level: 1, name: 'Comparing in Beauty' }).waitFor()
     expect((await page.locator('thead th[scope=col]').count()) === 3, 'expected 3 product columns')
     const differing = await page.locator('tbody[data-differs]').count()
     const total = await page.locator('main tbody').count()
@@ -937,6 +941,65 @@ const FLOWS = {
     await page.getByRole('button', { name: 'Remove filter: Furniture' }).waitFor()
     await page.getByRole('button', { name: 'Filters, 2 applied' }).waitFor()
   }, { width: 390, theme: 'dark' }),
+  'compare within one department: prompt, Cancel, Escape, Start new': async (page) => {
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' }) // Beauty
+    await page.getByRole('button', { name: 'Add to compare' }).click()
+    const tray = page.getByRole('region', { name: 'Compare' })
+    await tray.getByText('Comparing in Beauty').waitFor()
+    await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' }) // Home
+    const add = page.getByRole('button', { name: 'Add to compare' })
+    await add.click()
+    const dialog = page.getByRole('dialog', { name: 'Start a new comparison?' })
+    await dialog.getByText('Compare works within one department. Start a new comparison with this item?').waitFor()
+    await dialog.getByText('You’re comparing in Beauty; Knoll Saarinen Executive Conference Chair is in Home.', { exact: false }).waitFor()
+    expect(await dialog.getByRole('button', { name: 'Cancel' }).evaluate((b) => b === document.activeElement), 'Cancel should have focus')
+    expect((await page.getByRole('button', { name: 'Added to compare' }).count()) === 0, 'button claims it was added while asking')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await add.evaluate((b) => b === document.activeElement), 'focus not returned after Cancel')
+    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('1 of 3').waitFor()
+    await add.click()
+    await dialog.waitFor()
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await tray.getByText('Comparing in Beauty').waitFor()
+    await add.click()
+    await dialog.getByRole('button', { name: 'Start new' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await tray.getByText('Comparing in Home').waitFor()
+    await tray.getByText('1 of 3').waitFor()
+    const added = page.getByRole('button', { name: 'Added to compare' })
+    await added.waitFor()
+    expect(await added.evaluate((b) => b === document.activeElement), 'focus not returned after Start new')
+  },
+  'compare: cards from another department never look added': async (page) => {
+    await page.addInitScript((s) => localStorage.getItem('plainly-compare') || localStorage.setItem('plainly-compare', s), compareIds(1))
+    await page.goto(base + '/search?department=home', { waitUntil: 'domcontentloaded' })
+    const toggle = page.getByRole('button', { name: /^Compare / }).first()
+    await toggle.waitFor()
+    await toggle.click()
+    const dialog = page.getByRole('dialog', { name: 'Start a new comparison?' })
+    await dialog.waitFor()
+    expect((await toggle.getAttribute('aria-pressed')) === 'false', 'card looks added while the prompt is open')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    expect((await toggle.getAttribute('aria-pressed')) === 'false', 'card looks added after Cancel')
+    expect((await page.getByRole('button', { name: /^Compare / }).evaluateAll((bs) => bs.filter((b) => b.getAttribute('aria-pressed') === 'true').length)) === 0, 'a Home card is pressed')
+  },
+  'compare: a saved mixed selection keeps the first department, says so once': async (page) => {
+    await page.addInitScript((s) => localStorage.getItem('plainly-compare') || localStorage.setItem('plainly-compare', s), compareIds(1, 14, 3))
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    const tray = page.getByRole('region', { name: 'Compare' })
+    await tray.getByText('Comparing in Beauty').waitFor()
+    await tray.getByText('2 of 3').waitFor()
+    await tray.getByText('Your saved comparison mixed departments, so only the Beauty items were kept.').waitFor()
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('plainly-compare')).state)
+    expect(JSON.stringify(saved) === JSON.stringify({ ids: [1, 3], department: 'beauty' }), `saved: ${JSON.stringify(saved)}`)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await tray.getByText('2 of 3').waitFor()
+    expect((await tray.getByText('mixed departments', { exact: false }).count()) === 0, 'notice shown again after the fix')
+  },
 }
 
 // "System" shows the device's icon: phone, tablet or monitor, by media query.

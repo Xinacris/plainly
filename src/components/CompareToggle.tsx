@@ -19,7 +19,7 @@ export function CompareToggle({ product }: { product: Product }) {
     <button
       type="button"
       aria-pressed={checked}
-      onClick={() => toggle(product.id)}
+      onClick={() => toggle(product)}
       className={`relative z-10 inline-flex min-h-9 items-center gap-2 self-start rounded-md text-sm font-medium ${checked ? 'text-action' : 'text-muted hover:text-text'}`}
     >
       <Box checked={checked} />
@@ -33,7 +33,7 @@ export function CompareButton({ product }: { product: Product }) {
   const checked = useInCompare(product.id)
   const toggle = useCompare((s) => s.toggle)
   return (
-    <button type="button" onClick={() => toggle(product.id)} className={`${secondaryButton} w-full gap-2`}>
+    <button type="button" onClick={() => toggle(product)} className={`${secondaryButton} w-full gap-2`}>
       <Box checked={checked} />
       {checked ? 'Added to compare' : 'Add to compare'}
     </button>

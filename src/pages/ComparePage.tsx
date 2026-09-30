@@ -1,14 +1,16 @@
 import { Suspense, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { MAX_COMPARE, useCompare } from '../compare/compare'
+import { compareDepartmentName, MAX_COMPARE, useCompare, useCompareProducts } from '../compare/compare'
+import { MixedNotice } from '../components/CompareTray'
 import { DateRange } from '../components/DateRange'
 import { Price } from '../components/Price'
 import { ProductImage } from '../components/ProductImage'
 import { StatusMessage } from '../components/StatusMessage'
 import { StockNote } from '../components/StockNote'
 import { secondaryButton, textLink } from '../components/styles'
-import { useCatalog, type Product } from '../lib/catalog'
+import type { Product } from '../lib/catalog'
 import { estimateDelivery } from '../lib/delivery'
+import { departmentOf } from '../lib/departments'
 import { returnFact, warrantyFact } from '../lib/facts'
 import { formatRating, pluralize, reviewRating } from '../lib/format'
 import { salePrice } from '../lib/pricing'
@@ -134,23 +136,24 @@ function CompareTable({ products, onlyDifferences }: { products: Product[]; only
 }
 
 function CompareContents() {
-  const catalog = useCatalog()
-  const ids = useCompare((s) => s.ids)
   const clear = useCompare((s) => s.clear)
   const [onlyDifferences, setOnlyDifferences] = useState(false)
-  const products = ids.flatMap((id) => catalog.filter((p) => p.id === id))
+  const products = useCompareProducts()
+  const departmentName = compareDepartmentName(products)
+  // "Add one more" stays in the comparison's department.
+  const addMoreUrl = products[0] ? `/search?department=${departmentOf(products[0].category)?.slug ?? ''}` : '/search'
 
   if (products.length < 2) {
     return (
       <StatusMessage
         title={products.length === 0 ? 'Nothing to compare yet' : 'Add one more product to compare'}
         action={
-          <Link to="/search" className={secondaryButton}>
-            Browse products
+          <Link to={addMoreUrl} className={secondaryButton}>
+            {products.length === 0 ? 'Browse products' : `Browse ${departmentName}`}
           </Link>
         }
       >
-        Tick “Compare” on up to {MAX_COMPARE} products, then compare them side by side here.
+        Tick “Compare” on up to {MAX_COMPARE} products from one department, then compare them side by side here.
       </StatusMessage>
     )
   }
@@ -160,7 +163,8 @@ function CompareContents() {
     <section className="mx-auto max-w-6xl px-2 py-6 sm:px-4 sm:py-8">
       <div className="flex flex-wrap items-end justify-between gap-3 px-2 sm:px-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Compare</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Comparing in {departmentName}</h1>
+          <MixedNotice department={departmentName} />
           <p className="mt-1 text-sm text-muted">
             {differingCount === 0
               ? 'These products match on every fact below.'
@@ -169,7 +173,7 @@ function CompareContents() {
               <>
                 {' '}
                 You can{' '}
-                <Link to="/search" className={textLink}>
+                <Link to={addMoreUrl} className={textLink}>
                   add one more
                 </Link>
                 .

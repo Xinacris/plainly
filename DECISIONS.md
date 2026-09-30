@@ -99,7 +99,7 @@ The Gemini prompt, verbatim:
 
 ### How #6 was built
 
-- **Built with all 3 slots**, so the "Compare limited to 2" cut wasn't needed.
+- **Built with all 3 slots**, so the "Compare limited to 2" cut wasn't needed. Later limited to one department per comparison (see "Compare within one department").
 - **Adding:** a "Compare" toggle on every card (`aria-pressed`, above the card's stretched link) and an "Add to compare" button in the decision card. A 4th add is refused, and the tray says "You can compare up to 3. Remove one to add another." for 5 seconds. The selection is saved in localStorage.
 - **Tray:** fixed to the bottom on home, search and product pages only. It stays off `/compare`, the cart and checkout, so checkout keeps no distractions. The page gets bottom padding while the tray is visible, so it never covers the last row. It slides up with `@starting-style`, only under `prefers-reduced-motion: no-preference`; a test checks the transition is 0s under `reduce`. On phones it takes two rows, with a full-width Compare button.
 - **Differences:** a row is marked when its value isn't the same for every product. It gets a tint *and* a visible "Differs" label, so color isn't the only signal, plus a "Show only what differs" option. There's no "best" marker: whether a longer warranty beats a lower price is the shopper's call, not ours.
@@ -180,6 +180,18 @@ The Gemini prompt, verbatim:
 - **Loose categories:** a category picked without a department (e.g. from an old link) stays listed as a ticked checkbox above the departments, so it can be removed.
 - **Home tiles:** the home page's category tiles now open their department as context with the category filtered, like the product breadcrumb, instead of a bare category filter.
 
+### Compare within one department
+
+- **The rule:** products can only be compared within one department.
+  - **Why:** a blender, an ice cube tray and a car side by side give the shopper nothing to decide with.
+  - **Why department, not category:** the categories in this data are narrow. Laptop vs. tablet is a real buying decision, but they're separate categories (Laptops, Tablets), so a category rule would forbid it.
+- **How it works:**
+  - **Setting it:** the first product added sets the tray's department, and the tray and the compare page heading say so ("Comparing in Electronics"). "Add one more" links stay in that department.
+  - **Another department:** adding a product from another department doesn't fail silently. A small modal asks "Compare works within one department. Start a new comparison with this item?", names both departments, and offers **Start new** (clears the tray and adds this item) and **Cancel**.
+  - **The modal:** it follows the overlay rules (focus trapped, Escape cancels, focus returns to the toggle). Cancel has the initial focus, because Start new throws the current comparison away.
+  - **Toggles elsewhere:** Compare toggles on cards from other departments stay visible, since the prompt is the explanation. Their pressed state only ever reflects what's actually in the tray, so while asking, after Cancel or after Escape they never look added.
+  - **Old saved selections:** a selection saved before this rule (v1 of the stored state) that mixed departments keeps only the first department's items, in the order added. The tray says why, once: "Your saved comparison mixed departments, so only the Beauty items were kept." The repaired selection is saved, so the notice doesn't come back.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -206,7 +218,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, and compare limited to one department |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**

@@ -1,8 +1,10 @@
 import { Suspense } from 'react'
 import { Link } from 'react-router'
-import { MAX_COMPARE, useCompare, useTrayVisible } from '../compare/compare'
+import { compareDepartmentName, MAX_COMPARE, useCompare, useCompareProducts, useTrayVisible } from '../compare/compare'
 import { useCatalog } from '../lib/catalog'
+import { findDepartment } from '../lib/departments'
 import { pluralize } from '../lib/format'
+import { ConfirmDialog } from './ConfirmDialog'
 import { ProductImage } from './ProductImage'
 import { primaryButton } from './styles'
 
@@ -15,12 +17,55 @@ function FullNotice() {
   )
 }
 
-function TrayContents() {
+const departmentName = (slug: string | null | undefined) => findDepartment(slug)?.name ?? slug ?? ''
+
+// Adding a product from another department asks first, instead of failing silently.
+function StartNewDialog() {
   const catalog = useCatalog()
-  const ids = useCompare((s) => s.ids)
+  const pending = useCompare((s) => s.pending)
+  const department = useCompare((s) => s.department)
+  const startNew = useCompare((s) => s.startNew)
+  const cancelPending = useCompare((s) => s.cancelPending)
+  const product = catalog.find((p) => p.id === pending?.id)
+  return (
+    <ConfirmDialog
+      open={Boolean(pending)}
+      title="Start a new comparison?"
+      confirmLabel="Start new"
+      onConfirm={startNew}
+      onCancel={cancelPending}
+    >
+      <p>Compare works within one department. Start a new comparison with this item?</p>
+      {product && (
+        <p className="mt-2 text-muted">
+          You’re comparing in {departmentName(department)}; {product.title} is in {departmentName(pending?.department)}.
+          Starting new clears the tray.
+        </p>
+      )}
+    </ConfirmDialog>
+  )
+}
+
+// Once, after a saved selection that mixed departments was cut down to the first one's.
+export function MixedNotice({ department }: { department: string }) {
+  const mixed = useCompare((s) => s.mixedNotice)
+  const dismiss = useCompare((s) => s.dismissMixedNotice)
+  if (!mixed) return null
+  return (
+    <p role="status" className="text-sm">
+      Your saved comparison mixed departments, so only the {department} items were kept.{' '}
+      <button type="button" onClick={dismiss} className="font-medium text-muted underline underline-offset-2 hover:text-text">
+        OK
+      </button>
+    </p>
+  )
+}
+
+function TrayContents() {
+  const products = useCompareProducts()
+  const department = compareDepartmentName(products)
   const remove = useCompare((s) => s.remove)
   const clear = useCompare((s) => s.clear)
-  const products = ids.flatMap((id) => catalog.filter((p) => p.id === id))
   const needed = 2 - products.length
 
   return (
@@ -47,14 +92,16 @@ function TrayContents() {
       </ul>
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-baseline gap-x-3 text-sm">
-          <span className="font-semibold whitespace-nowrap">
-            Compare {products.length} of {MAX_COMPARE}
+          <span className="font-semibold">Comparing in {department}</span>
+          <span className="whitespace-nowrap text-muted">
+            {products.length} of {MAX_COMPARE}
           </span>
           <button type="button" onClick={clear} className="font-medium text-muted underline underline-offset-2 hover:text-text">
             Clear
           </button>
         </p>
         <FullNotice />
+        <MixedNotice department={department} />
       </div>
       {/* Phones: a second row with a full-width action. From sm: inline at the end. */}
       <div className="w-full sm:w-auto">
@@ -65,6 +112,7 @@ function TrayContents() {
           </Link>
         )}
       </div>
+      <StartNewDialog />
     </div>
   )
 }
