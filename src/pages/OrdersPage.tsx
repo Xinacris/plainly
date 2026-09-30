@@ -20,7 +20,10 @@ import {
 } from '../lib/orderStatus'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useNow } from '../lib/useNow'
-import { orderItemCount, RETURN_REASONS, useOrders, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
+import { useOrdersData } from '../account/hooks'
+import { LocalDataNotice } from '../components/MoveDataPrompt'
+import { primaryButton } from '../components/styles'
+import { orderItemCount, RETURN_REASONS, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
 
 const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 const shortDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -107,9 +110,15 @@ function ReturnAction({ order, line, now, onStart }: { order: Order; line: Order
   )
 }
 
-function OrderCard({ order, now }: { order: Order; now: number }) {
-  const cancel = useOrders((s) => s.cancel)
-  const requestReturn = useOrders((s) => s.requestReturn)
+interface CardProps {
+  order: Order
+  now: number
+  /** Account writes can fail; the page shows the error. */
+  onCancel: (orderId: string) => void
+  onReturn: (orderId: string, productId: number, reason: ReturnReason) => void
+}
+
+function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [returning, setReturning] = useState<OrderLine | null>(null)
   const [reason, setReason] = useState<ReturnReason>(RETURN_REASONS[0])
@@ -158,7 +167,7 @@ function OrderCard({ order, now }: { order: Order; now: number }) {
         confirmLabel="Cancel order"
         onConfirm={() => {
           // Checked again on confirming: it may have shipped while the dialog was open.
-          if (orderStatus(order, Date.now()) === 'preparing') cancel(order.id)
+          if (orderStatus(order, Date.now()) === 'preparing') onCancel(order.id)
           setConfirmCancel(false)
         }}
         onCancel={() => setConfirmCancel(false)}
@@ -174,7 +183,7 @@ function OrderCard({ order, now }: { order: Order; now: number }) {
         title="Return this item?"
         confirmLabel="Request return"
         onConfirm={() => {
-          if (returning && canReturn(order, returning, Date.now()).ok) requestReturn(order.id, returning.productId, reason)
+          if (returning && canReturn(order, returning, Date.now()).ok) onReturn(order.id, returning.productId, reason)
           setReturning(null)
         }}
         onCancel={() => setReturning(null)}
@@ -245,12 +254,31 @@ function isTab(value: string | null): value is Tab {
 
 export function OrdersPage() {
   useDocumentTitle('Your orders')
-  const orders = useOrders((s) => s.orders)
+  const data = useOrdersData()
+  const { orders } = data
+  const [actionError, setActionError] = useState('')
+  const run = async (write: Promise<string | null>) => setActionError((await write) ?? '')
   const now = useNow()
   const [params] = useSearchParams()
   const raw = params.get('tab')
   const tab: Tab = isTab(raw) ? raw : 'active'
 
+  if (data.status === 'loading') return <StatusMessage role="status" title="Loading your orders…" />
+  if (data.status === 'error') {
+    return (
+      <StatusMessage
+        role="alert"
+        title="Your orders couldn’t load"
+        action={
+          <button type="button" onClick={data.retry} className={primaryButton}>
+            Try again
+          </button>
+        }
+      >
+        {data.error}
+      </StatusMessage>
+    )
+  }
   if (orders.length === 0) {
     return (
       <StatusMessage
@@ -261,7 +289,8 @@ export function OrdersPage() {
           </Link>
         }
       >
-        Orders you place in this browser show up here.
+        {data.mode === 'account' ? 'Orders you place while signed in show up here, on any device.' : 'Orders you place in this browser show up here.'}
+        <LocalDataNotice />
       </StatusMessage>
     )
   }
@@ -274,7 +303,13 @@ export function OrdersPage() {
   return (
     <section className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
       <h1 className="text-2xl font-bold tracking-tight">Your orders</h1>
-      <p className="mt-1 text-sm text-muted">Newest first. Prices are what you paid at the time. Orders are saved in this browser only.</p>
+      <p className="mt-1 text-sm text-muted">Newest first. Prices are what you paid at the time. {data.mode === 'account' ? 'Saved to your account, so they follow you across devices.' : 'Orders are saved in this browser only.'}</p>
+      <LocalDataNotice />
+      {actionError && (
+        <p role="alert" className="mt-3 rounded-lg bg-warning-surface px-3 py-2 text-sm text-warning">
+          {actionError}
+        </p>
+      )}
       <p className="mt-2 rounded-lg bg-warning-surface px-3 py-2 text-sm">
         <span className="font-semibold">Status is simulated.</span> There’s no real shipping: an order ships {minutes(SHIP_AFTER_MS)}{' '}
         minutes after it’s placed and is delivered {minutes(DELIVER_AFTER_MS - SHIP_AFTER_MS)} minutes after that. A refund follows{' '}
@@ -306,7 +341,13 @@ export function OrdersPage() {
       {shown.length > 0 && (
         <ul className="mt-4 flex flex-col gap-4">
           {shown.map((order) => (
-            <OrderCard key={order.id} order={order} now={now} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              now={now}
+              onCancel={(id) => void run(data.cancel(id))}
+              onReturn={(id, productId, reason) => void run(data.requestReturn(id, productId, reason))}
+            />
           ))}
         </ul>
       )}

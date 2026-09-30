@@ -5,6 +5,7 @@ import { CompareTray } from './CompareTray'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Footer } from './Footer'
 import { Header } from './Header'
+import { AccountNotice, MoveDataPrompt } from './MoveDataPrompt'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 
 export function Layout() {
@@ -20,6 +21,7 @@ export function Layout() {
         Skip to main content
       </a>
       <Header />
+      <AccountNotice />
       <main id="main" tabIndex={-1} className="flex-1 outline-none">
         <RouteErrorBoundary>
           <Outlet />
@@ -34,6 +36,7 @@ export function Layout() {
       <ErrorBoundary key={`toast-${pathname}`} onReset={() => {}} fallback={() => null}>
         <CartToast />
       </ErrorBoundary>
+      <MoveDataPrompt />
       {/* New pages start at the top; Back and Forward restore where you were. */}
       <ScrollRestoration />
     </div>

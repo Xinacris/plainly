@@ -5,14 +5,17 @@ import { AddressBlock } from '../components/OrderLines'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { validateAddress, type AddressErrors } from '../orders/address'
-import { useAddressBook, useSortedAddresses, type SavedAddress } from '../orders/addresses'
+import { useAddressBookData } from '../account/hooks'
+import { LocalDataNotice } from '../components/MoveDataPrompt'
+import { StatusMessage } from '../components/StatusMessage'
+import type { SavedAddress } from '../orders/addresses'
 import { EMPTY_ADDRESS, type Address } from '../orders/orders'
 
 const linkButton = 'text-sm font-medium text-action underline underline-offset-2 hover:text-action-hover'
 
 // Add or edit, with the same validation as checkout: errors after the first
 // attempt, and focus on the first field that needs fixing.
-function AddressForm({ initial, submitLabel, onSubmit, onCancel }: { initial: Address; submitLabel: string; onSubmit: (a: Address) => void; onCancel: () => void }) {
+function AddressForm({ initial, submitLabel, onSubmit, onCancel }: { initial: Address; submitLabel: string; onSubmit: (a: Address) => void | Promise<void>; onCancel: () => void }) {
   const [value, setValue] = useState(initial)
   const [submitted, setSubmitted] = useState(false)
   const form = useRef<HTMLFormElement>(null)
@@ -44,10 +47,17 @@ function AddressForm({ initial, submitLabel, onSubmit, onCancel }: { initial: Ad
   )
 }
 
-function AddressCard({ address, isDefault, onDelete }: { address: SavedAddress; isDefault: boolean; onDelete: () => void }) {
+interface CardProps {
+  address: SavedAddress
+  isDefault: boolean
+  onDelete: () => void
+  /** Each returns true when it worked; the page shows any error. */
+  onUpdate: (id: string, address: Address) => Promise<boolean>
+  onMakeDefault: (id: string) => void
+}
+
+function AddressCard({ address, isDefault, onDelete, onUpdate, onMakeDefault }: CardProps) {
   const [editing, setEditing] = useState(false)
-  const update = useAddressBook((s) => s.update)
-  const setDefault = useAddressBook((s) => s.setDefault)
   const { id: _id, ...fields } = address
 
   if (editing) {
@@ -57,9 +67,8 @@ function AddressCard({ address, isDefault, onDelete }: { address: SavedAddress; 
         <AddressForm
           initial={fields}
           submitLabel="Save changes"
-          onSubmit={(next) => {
-            update(address.id, next)
-            setEditing(false)
+          onSubmit={async (next) => {
+            if (await onUpdate(address.id, next)) setEditing(false)
           }}
           onCancel={() => setEditing(false)}
         />
@@ -79,7 +88,7 @@ function AddressCard({ address, isDefault, onDelete }: { address: SavedAddress; 
           Delete<span className="sr-only"> address for {address.fullName}</span>
         </button>
         {!isDefault && (
-          <button type="button" onClick={() => setDefault(address.id)} className={linkButton}>
+          <button type="button" onClick={() => onMakeDefault(address.id)} className={linkButton}>
             Make default<span className="sr-only"> ({address.fullName})</span>
           </button>
         )}
@@ -90,11 +99,34 @@ function AddressCard({ address, isDefault, onDelete }: { address: SavedAddress; 
 
 export function AddressesPage() {
   useDocumentTitle('Addresses')
-  const { addresses, defaultId } = useSortedAddresses()
-  const add = useAddressBook((s) => s.add)
-  const remove = useAddressBook((s) => s.remove)
+  const book = useAddressBookData()
+  const { addresses, defaultId } = book
+  const [actionError, setActionError] = useState('')
+  // Runs an address change; in an account it can fail (e.g. the service is unreachable).
+  const run = async (change: Promise<string | null>) => {
+    const error = await change
+    setActionError(error ?? '')
+    return !error
+  }
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<SavedAddress | null>(null)
+
+  if (book.status === 'loading') return <StatusMessage role="status" title="Loading your addresses…" />
+  if (book.status === 'error') {
+    return (
+      <StatusMessage
+        role="alert"
+        title="Your addresses couldn’t load"
+        action={
+          <button type="button" onClick={book.retry} className={primaryButton}>
+            Try again
+          </button>
+        }
+      >
+        {book.error}
+      </StatusMessage>
+    )
+  }
 
   return (
     <section className="mx-auto max-w-4xl px-4 py-6 sm:py-8">
@@ -102,8 +134,8 @@ export function AddressesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Addresses</h1>
           <p className="mt-1 text-sm text-muted">
-            Saved in this browser only. Checkout preselects the default. Past orders keep their own copy, so changes here
-            never alter them.
+            {book.mode === 'account' ? 'Saved to your account, so they follow you across devices.' : 'Saved in this browser only.'}{' '}
+            Checkout preselects the default. Past orders keep their own copy, so changes here never alter them.
           </p>
         </div>
         {!adding && (
@@ -113,15 +145,21 @@ export function AddressesPage() {
         )}
       </div>
 
+      <LocalDataNotice />
+      {actionError && (
+        <p role="alert" className="mt-4 rounded-lg bg-warning-surface px-3 py-2 text-sm text-warning">
+          {actionError}
+        </p>
+      )}
+
       {adding && (
         <div className="mt-4 rounded-xl border border-action bg-surface p-4">
           <h2 className="font-bold">New address</h2>
           <AddressForm
             initial={EMPTY_ADDRESS}
             submitLabel="Save address"
-            onSubmit={(address) => {
-              add(address)
-              setAdding(false)
+            onSubmit={async (address) => {
+              if (await run(book.add(address))) setAdding(false)
             }}
             onCancel={() => setAdding(false)}
           />
@@ -137,7 +175,14 @@ export function AddressesPage() {
       {addresses.length > 0 && (
         <ul className="mt-4 grid gap-4 sm:grid-cols-2">
           {addresses.map((a) => (
-            <AddressCard key={a.id} address={a} isDefault={a.id === defaultId} onDelete={() => setDeleting(a)} />
+            <AddressCard
+              key={a.id}
+              address={a}
+              isDefault={a.id === defaultId}
+              onDelete={() => setDeleting(a)}
+              onUpdate={(id, next) => run(book.update(id, next))}
+              onMakeDefault={(id) => void run(book.setDefault(id))}
+            />
           ))}
         </ul>
       )}
@@ -147,7 +192,7 @@ export function AddressesPage() {
         title="Delete this address?"
         confirmLabel="Delete"
         onConfirm={() => {
-          if (deleting) remove(deleting.id)
+          if (deleting) void run(book.remove(deleting.id))
           setDeleting(null)
         }}
         onCancel={() => setDeleting(null)}

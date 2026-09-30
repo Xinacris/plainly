@@ -4,12 +4,15 @@ import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { formatIsoDate, latestArrival } from '../lib/delivery'
 import { formatPrice } from '../lib/format'
-import { useOrder } from '../orders/orders'
+import { useOrdersData } from '../account/hooks'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export function OrderConfirmationPage() {
-  const order = useOrder(useParams().id)
+  const id = useParams().id
+  const data = useOrdersData()
+  const order = data.orders.find((o) => o.id === id)
   useDocumentTitle(order ? 'Order placed' : 'Order not found')
+  if (!order && data.status === 'loading') return <StatusMessage role="status" title="Loading your order…" />
   if (!order) {
     return (
       <StatusMessage

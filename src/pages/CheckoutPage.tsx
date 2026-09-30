@@ -10,8 +10,9 @@ import { estimateDelivery, formatIsoDate, latestArrival, TRANSIT } from '../lib/
 import { formatPrice, pluralize } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { validateAddress, type AddressErrors } from '../orders/address'
-import { trimAddress, useAddressBook, useSortedAddresses, type SavedAddress } from '../orders/addresses'
-import { EMPTY_ADDRESS, useOrders, type Address, type OrderLine } from '../orders/orders'
+import { useAddressBookData, useOrdersData } from '../account/hooks'
+import { trimAddress, type SavedAddress } from '../orders/addresses'
+import { EMPTY_ADDRESS, type Address, type OrderLine } from '../orders/orders'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const section = 'rounded-xl border border-border bg-surface p-4 sm:p-6'
@@ -36,12 +37,15 @@ function toOrderLine({ product, quantity }: ResolvedLine): OrderLine {
 
 function CheckoutForm({ lines }: { lines: OrderLine[] }) {
   const navigate = useNavigate()
-  const place = useOrders((s) => s.place)
+  const ordersData = useOrdersData()
   const removeMany = useCart((s) => s.removeMany)
-  const { addresses: saved, defaultId } = useSortedAddresses()
-  const addToBook = useAddressBook((s) => s.add)
-  // The default saved address is preselected; with none saved, a new one is typed in.
-  const [choice, setChoice] = useState<AddressChoice>(() => (defaultId ? { kind: 'saved', id: defaultId } : { kind: 'new' }))
+  const book = useAddressBookData()
+  const { addresses: saved, defaultId } = book
+  // The default saved address is preselected (once they've loaded); with none saved,
+  // a new one is typed in. An explicit pick wins.
+  const [picked, setPicked] = useState<AddressChoice | null>(null)
+  const choice: AddressChoice = picked ?? (defaultId ? { kind: 'saved', id: defaultId } : { kind: 'new' })
+  const [placeError, setPlaceError] = useState('')
   const [draft, setDraft] = useState<Address>(EMPTY_ADDRESS)
   const [saveDraft, setSaveDraft] = useState(true)
   const [submitted, setSubmitted] = useState(false)
@@ -67,10 +71,17 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
     }
     if (placing.current) return
     placing.current = true
+    setPlaceError('')
     // The order keeps its own copy, so later edits in the address book never change it.
     const address = chosen ? addressOf(chosen) : trimAddress(draft)
-    if (typing && saveDraft) addToBook(address)
-    const order = place({ address, lines, total })
+    // Saving the address is part of what was asked for, so a failure stops here and says so.
+    const saveError = typing && saveDraft ? await book.add(address) : null
+    const { order, error } = saveError ? { order: undefined, error: saveError } : await ordersData.place({ address, lines, total })
+    if (!order) {
+      placing.current = false
+      setPlaceError(`Your order wasn’t placed. ${error ?? ''}`.trim())
+      return
+    }
     // Leave checkout before emptying the cart, so it never flashes "Your cart is empty".
     await navigate(`/orders/${order.id}/confirmation`, { replace: true })
     removeMany(lines.map((l) => l.productId))
@@ -83,17 +94,28 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
           <h2 id="address-heading" className={sectionHeading}>
             Shipping address
           </h2>
-          <AddressPicker
-            saved={saved}
-            defaultId={defaultId}
-            choice={chosen ? choice : { kind: 'new' }}
-            onChoose={setChoice}
-            draft={draft}
-            onDraftChange={setDraft}
-            errors={errors}
-            save={saveDraft}
-            onSaveChange={setSaveDraft}
-          />
+          {book.status === 'loading' && <p className="mt-3 text-muted">Loading your addresses…</p>}
+          {book.status === 'error' && (
+            <p role="alert" className="mt-3 text-sm text-warning">
+              Your saved addresses couldn’t load. {book.error}{' '}
+              <button type="button" onClick={book.retry} className="font-medium underline underline-offset-2">
+                Try again
+              </button>
+            </p>
+          )}
+          {book.status === 'ready' && (
+            <AddressPicker
+              saved={saved}
+              defaultId={defaultId}
+              choice={chosen ? choice : { kind: 'new' }}
+              onChoose={setPicked}
+              draft={draft}
+              onDraftChange={setDraft}
+              errors={errors}
+              save={saveDraft}
+              onSaveChange={setSaveDraft}
+            />
+          )}
         </section>
 
         <section aria-labelledby="delivery-heading" className={section}>
@@ -138,7 +160,12 @@ function CheckoutForm({ lines }: { lines: OrderLine[] }) {
             {lines.length > 1 && ' (all items)'}
           </p>
         )}
-        <button type="submit" className={`${primaryButton} mt-4 w-full`}>
+        {placeError && (
+          <p role="alert" className="mt-3 text-sm text-warning">
+            {placeError}
+          </p>
+        )}
+        <button type="submit" disabled={book.status !== 'ready'} className={`${primaryButton} mt-4 w-full`}>
           Place order
         </button>
       </aside>

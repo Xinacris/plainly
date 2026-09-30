@@ -55,7 +55,7 @@ interface OrdersState {
   requestReturn: (orderId: string, productId: number, reason: ReturnReason) => void
 }
 
-function newOrderId(): string {
+export function newOrderId(): string {
   return `PL-${crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`
 }
 

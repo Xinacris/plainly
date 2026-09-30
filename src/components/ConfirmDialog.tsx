@@ -5,6 +5,8 @@ interface Props {
   title: string
   children: ReactNode
   confirmLabel: string
+  /** Defaults to "Cancel". */
+  cancelLabel?: string
   onConfirm: () => void
   onCancel: () => void
 }
@@ -12,7 +14,7 @@ interface Props {
 // A small modal <dialog>, by the same overlay rules as the sheets: focus stays
 // inside, Escape cancels, and focus returns to whatever opened it. Cancel gets the
 // initial focus, because confirming here is the step that throws something away.
-export function ConfirmDialog({ open, title, children, confirmLabel, onConfirm, onCancel }: Props) {
+export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = 'Cancel', onConfirm, onCancel }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
   const confirmed = useRef(false)
@@ -51,7 +53,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, onConfirm, 
           onClick={() => ref.current?.close()}
           className="inline-flex h-11 items-center rounded-lg border border-border-strong px-4 font-semibold hover:border-action hover:text-action"
         >
-          Cancel
+          {cancelLabel}
         </button>
         <button
           type="button"
