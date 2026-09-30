@@ -17,7 +17,8 @@ interface Props {
 export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = 'Cancel', onConfirm, onCancel }: Props) {
   const ref = useRef<HTMLDialogElement>(null)
   const opener = useRef<HTMLElement | null>(null)
-  const confirmed = useRef(false)
+  // Set when a button already ran its action, so the close event doesn't run one again.
+  const handled = useRef(false)
   const titleId = useId()
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
     if (!dialog) return
     if (open && !dialog.open) {
       opener.current = document.activeElement as HTMLElement | null
-      confirmed.current = false
+      handled.current = false
       dialog.showModal()
     }
     if (!open && dialog.open) dialog.close()
@@ -35,9 +36,11 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      // Escape (or any close without a button) counts as Cancel. The buttons run their
+      // action right away, not on the close event, which fires a moment later.
       onClose={() => {
-        if (confirmed.current) onConfirm()
-        else onCancel()
+        if (!handled.current) onCancel()
+        handled.current = false
         opener.current?.focus()
       }}
       className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-xl bg-surface p-5 text-text backdrop:bg-black/50"
@@ -50,7 +53,11 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
         <button
           type="button"
           autoFocus
-          onClick={() => ref.current?.close()}
+          onClick={() => {
+            handled.current = true
+            onCancel()
+            ref.current?.close()
+          }}
           className="inline-flex h-11 items-center rounded-lg border border-border-strong px-4 font-semibold hover:border-action hover:text-action"
         >
           {cancelLabel}
@@ -58,7 +65,8 @@ export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel
         <button
           type="button"
           onClick={() => {
-            confirmed.current = true
+            handled.current = true
+            onConfirm()
             ref.current?.close()
           }}
           className="inline-flex h-11 items-center rounded-lg bg-action px-4 font-semibold text-on-action hover:bg-action-hover"

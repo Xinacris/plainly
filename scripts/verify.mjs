@@ -240,6 +240,8 @@ async function axeIssues(page) {
 }
 
 const report = { layout: {}, failures: [], flows: [], errors: [] }
+// Run after the flows (e.g. deleting throwaway test users).
+const CLEANUP = []
 const log = (line) => process.stdout.write(`${line}\n`)
 const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`
 
@@ -1356,6 +1358,223 @@ FLOWS['orders: return per item with a reason, "No returns" disabled, Requested t
   await page.locator('main li').getByText('$13.51 back (simulated)', { exact: false }).waitFor()
 }
 
+// Accounts, against plainly-test. Only when the served build points at plainly-test
+// (`npx vite build --mode test`) and .env.test.local is present; otherwise skipped,
+// so these can never touch production. Each test makes its own throwaway users
+// through the admin API and deletes them afterwards. RLS isolation is tested
+// separately by scripts/rls-test.mjs.
+const TEST_REF = 'mukpydnfpifbqhhakdda'
+async function accountTestsAvailable() {
+  if (!base.startsWith('http://localhost') || !fs.existsSync('.env.test.local')) return false
+  try {
+    const html = await (await fetch(base + '/')).text()
+    const scripts = [...html.matchAll(/src="(\/assets\/[^"]+\.js)"/g)].map((m) => m[1])
+    for (const src of scripts) if ((await (await fetch(base + src)).text()).includes(TEST_REF)) return true
+  } catch {
+    return false
+  }
+  return false
+}
+
+if (await accountTestsAvailable()) {
+  const { createClient } = await import('@supabase/supabase-js')
+  const { DEMO_EMAIL, DEMO_PASSWORD } = await import('../src/lib/demo.js')
+  const env = Object.fromEntries(
+    fs.readFileSync('.env.test.local', 'utf8').split('\n').map((l) => l.match(/^([A-Z0-9_]+)=(.*)$/)).filter(Boolean)
+      .map(([, k, v]) => [k, v.trim().replace(/^"(.*)"$/, '$1')]),
+  )
+  const admin = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_TEST_SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  const PASSWORD = 'flow-test-Pw1!'
+  const created = []
+  const newEmail = (tag) => `flow-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`
+  async function makeUser(tag) {
+    const email = newEmail(tag)
+    const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true })
+    if (error) throw new Error(`createUser: ${error.message}`)
+    created.push(data.user.id)
+    return { email, id: data.user.id }
+  }
+  async function signInUi(page, email, password = PASSWORD, next = '/') {
+    await page.goto(base + `/signin?next=${encodeURIComponent(next)}`, { waitUntil: 'domcontentloaded' })
+    await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Password').fill(password)
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    await page.waitForURL((u) => u.pathname === next.split('?')[0])
+  }
+  async function openAccountMenu(page) {
+    const account = page.getByRole('banner').getByRole('button', { name: 'Account' })
+    if ((await account.getAttribute('aria-expanded')) !== 'true') await account.click()
+  }
+  const accountFlow = (fn) => Object.assign(fn, { timeout: 45_000 })
+
+  Object.assign(FLOWS, {
+    // The wrong-password attempt gets a 400 from Supabase, which the browser logs as a failed request.
+    'account: sign up, sign out, sign in (wrong password first), forgot password explained': Object.assign(accountFlow(async (page) => {
+      const email = newEmail('signup')
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).click()
+      await page.getByRole('link', { name: 'Create an account' }).click()
+      await page.getByRole('heading', { name: 'Create an account' }).waitFor()
+      await page.getByText('there’s no confirmation email', { exact: false }).waitFor()
+      await page.getByRole('button', { name: 'Create account' }).click()
+      await page.getByText('Enter your email address.').waitFor()
+      await page.getByLabel('Name (optional)').fill('Flow Tester')
+      await page.getByLabel('Email').fill(email)
+      await page.getByLabel('Password').fill('short')
+      await page.getByRole('button', { name: 'Create account' }).click()
+      await page.getByText('Choose a password of at least 8 characters.').waitFor()
+      await page.getByLabel('Password').fill(PASSWORD)
+      await page.getByRole('button', { name: 'Create account' }).click()
+      await page.waitForURL((u) => u.pathname === '/')
+      const { data } = await admin.auth.admin.listUsers({ perPage: 1000 })
+      const user = data.users.find((u) => u.email === email)
+      expect(user, 'sign-up did not create the user')
+      created.push(user.id)
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByText(email).waitFor()
+      await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).click()
+      await page.getByLabel('Email').fill(email)
+      await page.getByLabel('Password').fill('wrong-password-1')
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.getByText('That email and password don’t match an account.').waitFor()
+      // Forgot password: explained, never a form that silently sends nothing.
+      const inputsBefore = await page.locator('main input').count()
+      await page.getByRole('button', { name: 'Forgot your password?' }).click()
+      await page.getByText('reset isn’t available here', { exact: false }).waitFor()
+      expect((await page.locator('main input').count()) === inputsBefore, 'forgot password opened a form')
+      await page.getByLabel('Password').fill(PASSWORD)
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.waitForURL((u) => u.pathname === '/')
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByText(email).waitFor()
+    }), { errorsExpected: true }),
+    'account: profile edits persist, password change, email change explained': accountFlow(async (page) => {
+      const { email } = await makeUser('profile')
+      await signInUi(page, email, PASSWORD, '/profile')
+      await page.getByRole('heading', { name: 'Profile' }).waitFor()
+      await page.getByText('Changing your email isn’t available in this demo', { exact: false }).waitFor()
+      await page.getByLabel('Phone (optional)').fill('call me')
+      await page.getByRole('button', { name: 'Save details' }).click()
+      await page.getByText('Enter a phone number using digits', { exact: false }).waitFor()
+      await page.getByLabel('Name').fill('Katherine Johnson')
+      await page.getByLabel('Phone (optional)').fill('+1 (555) 010-0200')
+      await page.getByRole('button', { name: 'Save details' }).click()
+      await page.getByText('Saved.').waitFor()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.getByLabel('Name').waitFor()
+      expect((await page.getByLabel('Name').inputValue()) === 'Katherine Johnson', 'name not saved')
+      expect((await page.getByLabel('Phone (optional)').inputValue()) === '+1 (555) 010-0200', 'phone not saved')
+      await page.getByLabel('New password', { exact: true }).fill('new-password-2')
+      await page.getByLabel('Repeat new password').fill('different-2')
+      await page.getByRole('button', { name: 'Change password' }).click()
+      await page.getByText('The two passwords don’t match.').waitFor()
+      await page.getByLabel('Repeat new password').fill('new-password-2')
+      await page.getByRole('button', { name: 'Change password' }).click()
+      await page.getByText('Password changed.').waitFor()
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+      await signInUi(page, email, 'new-password-2', '/profile')
+      await page.getByRole('heading', { name: 'Profile' }).waitFor()
+    }),
+    'account: moving this browser’s data in, offered once, no duplicates': accountFlow(async (page) => {
+      const { email, id } = await makeUser('move')
+      const now = Date.now()
+      const addr = { fullName: 'Ada Lovelace', line1: '1 Main St', line2: '', city: 'Springfield', region: 'IL', postalCode: '62701' }
+      const powder = line(3, 'Powder Canister', 'beauty/powder-canister', 13.51, 1, 'Ships in 1-2 business days', undefined, '30 days return policy')
+      const orders = JSON.stringify({ state: { orders: [
+        { id: 'PL-FLOW0001', placedAt: new Date(now - 20 * 60_000).toISOString(), address: addr, total: 13.51, lines: [powder], returns: [{ productId: 3, reason: 'Other', requestedAt: new Date(now - 10 * 60_000).toISOString() }] },
+        { id: 'PL-FLOW0002', placedAt: new Date(now - 30 * 60_000).toISOString(), address: addr, total: 13.51, lines: [powder], cancelledAt: new Date(now - 29 * 60_000).toISOString() },
+      ] }, version: 1 })
+      const book = JSON.stringify({ state: { addresses: [{ id: '0f6c9a55-3a7e-4c7e-9a52-6c3f3f0b1a01', ...addr }], defaultId: '0f6c9a55-3a7e-4c7e-9a52-6c3f3f0b1a01' }, version: 1 })
+      const seed = () => page.evaluate(([o, a]) => { localStorage.setItem('plainly-orders', o); localStorage.setItem('plainly-addresses', a) }, [orders, book])
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      await seed()
+      await signInUi(page, email, PASSWORD, '/orders')
+      const dialog = page.getByRole('dialog', { name: 'Move this browser’s data into your account?' })
+      await dialog.getByText('1 saved address and 2 orders', { exact: false }).waitFor()
+      await dialog.getByRole('button', { name: 'Not now' }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.getByText('This browser also has', { exact: false }).waitFor()
+      expect(!(await dialog.isVisible()), 'the offer came back after "Not now"')
+      await page.getByRole('button', { name: 'Move them into your account' }).click()
+      await page.getByText('Moved 1 address and 2 orders from this browser into your account.').waitFor()
+      const counts = async () => Promise.all(['orders', 'order_returns', 'addresses'].map(async (t) => (await admin.from(t).select('*', { count: 'exact', head: true }).eq('user_id', id)).count))
+      let [o, r, a] = await counts()
+      expect(o === 2 && r === 1 && a === 1, `after moving: ${o} orders, ${r} returns, ${a} addresses`)
+      await page.getByRole('link', { name: 'Cancelled (1)' }).waitFor()
+      // The same data again (e.g. another tab kept its copy): nothing is duplicated.
+      await seed()
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.getByRole('button', { name: 'Move them into your account' }).click()
+      await page.getByText('Moved 1 address and 2 orders', { exact: false }).waitFor()
+      ;[o, r, a] = await counts()
+      expect(o === 2 && r === 1 && a === 1, `after moving twice: ${o} orders, ${r} returns, ${a} addresses`)
+      // Signed out, this browser is empty again; signed in elsewhere, the data is there.
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+      await page.getByRole('heading', { name: 'No orders yet' }).waitFor()
+    }),
+    'account: demo account, credentials shown, sign in in one click, locked email and password': accountFlow(async (page) => {
+      await page.goto(base + '/signin', { waitUntil: 'domcontentloaded' })
+      const demo = page.getByRole('complementary', { name: 'Don’t want to register? Use the demo account' })
+      await demo.getByText(DEMO_EMAIL).waitFor()
+      await demo.getByText(DEMO_PASSWORD).waitFor()
+      await demo.getByText('The demo data is shared, so others may change it', { exact: false }).waitFor()
+      await page.getByRole('link', { name: 'How we handle your data' }).waitFor()
+      await demo.getByRole('button', { name: 'Sign in as demo' }).click()
+      await page.waitForURL((u) => u.pathname === '/')
+      await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+      await page.locator('[aria-current=step]').first().waitFor()
+      const steps = await page.locator('[aria-current=step]').allInnerTexts()
+      // Topped up only when nothing is on its way, so at least one Preparing or Shipped order.
+      expect(steps.some((t) => t.startsWith('Preparing') || t.startsWith('Shipped')), `demo has no order on its way: ${steps}`)
+      await page.goto(base + '/profile', { waitUntil: 'domcontentloaded' })
+      await page.getByRole('heading', { name: 'Profile' }).waitFor()
+      expect((await page.getByLabel('New password', { exact: true }).count()) === 0, 'demo can see the password form')
+      await page.getByText('The demo account’s password can’t be changed', { exact: false }).waitFor()
+      await page.getByText('The demo account’s email can’t be changed', { exact: false }).waitFor()
+    }),
+    'account: service unreachable, guest shopping still works, account pages say so': Object.assign(accountFlow(async (page) => {
+      const { email } = await makeUser('offline')
+      await signInUi(page, email, PASSWORD, '/orders')
+      await page.getByRole('heading', { name: /orders/i }).first().waitFor()
+      await page.route('**/*.supabase.co/**', (r) => r.abort())
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.getByRole('heading', { name: 'Your orders couldn’t load' }).waitFor()
+      await page.getByRole('button', { name: 'Try again' }).waitFor()
+      await openAccountMenu(page)
+      await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
+      // Guest shopping and checkout don't need the account service.
+      await page.goto(base + '/product/14', { waitUntil: 'domcontentloaded' })
+      await page.getByRole('button', { name: 'Add to cart' }).click()
+      await page.goto(base + '/checkout', { waitUntil: 'domcontentloaded' })
+      await page.getByLabel('Full name').fill('Guest Shopper')
+      await page.getByLabel('Street address').fill('1 Main St')
+      await page.getByLabel('City').fill('Springfield')
+      await page.getByLabel('State or region').fill('IL')
+      await page.getByLabel('ZIP or postal code').fill('62701')
+      await page.getByRole('button', { name: 'Place order' }).click()
+      await page.getByRole('heading', { name: 'Order placed' }).waitFor()
+      await page.goto(base + '/signin', { waitUntil: 'domcontentloaded' })
+      await page.getByLabel('Email').fill(email)
+      await page.getByLabel('Password').fill(PASSWORD)
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.getByText('We couldn’t reach the account service', { exact: false }).waitFor()
+    }), { errorsExpected: true }),
+  })
+
+  CLEANUP.push(async () => {
+    for (const id of created) await admin.auth.admin.deleteUser(id).catch(() => {})
+  })
+  log('Account flows: on (plainly-test)')
+} else {
+  log('Account flows: skipped (needs a `vite build --mode test` preview and .env.test.local)')
+}
+
 // "System" shows the device's icon: phone, tablet or monitor, by media query.
 FLOWS['theme toggle: System icon follows the device, live on rotation'] = async () => {
   const visibleIcon = (page) => page.getByRole('radio', { name: 'System' }).first().evaluate((b) =>
@@ -1717,9 +1936,9 @@ log(`\nFlows: ${Object.keys(FLOWS).length}`)
 await pool(Object.entries(FLOWS), async ([name, fn]) => {
   const t0 = Date.now()
   // The error-boundary flow blocks the API on purpose, so its console errors are expected.
-  const { ctx, page } = await newPage(fn.theme ?? 'light', fn.width ?? 1440, { allowErrors: name.startsWith('error') })
+  const { ctx, page } = await newPage(fn.theme ?? 'light', fn.width ?? 1440, { allowErrors: name.startsWith('error') || fn.errorsExpected })
   try {
-    await withTimeout(fn(page), SCENE_TIMEOUT, name)
+    await withTimeout(fn(page), fn.timeout ?? SCENE_TIMEOUT, name)
     report.flows.push(`PASS ${name}`)
     log(`✓ ${name}  ${Date.now() - t0}ms`)
   } catch (e) {
@@ -1732,5 +1951,6 @@ await pool(Object.entries(FLOWS), async ([name, fn]) => {
 })
 
 clearTimeout(budgetTimer)
+for (const task of CLEANUP) await task()
 await browser.close()
 finish('DONE')
