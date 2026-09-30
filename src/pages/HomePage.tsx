@@ -10,10 +10,11 @@ import { biggestDiscounts, departmentTiles, highestRated, type Tile } from '../l
 import { SALE_URL, salePrice } from '../lib/pricing'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-function TileLink({ tile }: { tile: Tile }) {
+function TileLink({ tile, department }: { tile: Tile; department: Department }) {
   if (tile.kind === 'category') {
+    // The card is the department, so its tiles open it as context with the category filtered.
     return (
-      <Link to={`/search?category=${tile.slug}`} className="group block">
+      <Link to={`/search?department=${department.slug}&category=${tile.slug}`} className="group block">
         <ProductImage src={tile.image} alt="" className="p-2" />
         <span className="mt-1 block text-sm font-medium group-hover:text-action">{formatCategory(tile.slug)}</span>
       </Link>
@@ -41,7 +42,7 @@ function DepartmentCard({ department, catalog }: { department: Department; catal
       <ul className="mt-3 grid grid-cols-2 gap-3">
         {tiles.map((tile) => (
           <li key={tile.kind === 'category' ? tile.slug : tile.product.id}>
-            <TileLink tile={tile} />
+            <TileLink tile={tile} department={department} />
           </li>
         ))}
       </ul>

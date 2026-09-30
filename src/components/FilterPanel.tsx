@@ -1,9 +1,12 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { Product } from '../lib/catalog'
+import { findDepartment } from '../lib/departments'
 import {
   brandOptions,
   categoryOptions,
   countWith,
+  departmentOptions,
+  withoutDepartmentFilter,
   RATING_OPTIONS,
   type FacetOption,
   type Filters,
@@ -66,6 +69,87 @@ function BrandFilter({ options, selected, onToggle }: { options: FacetOption[]; 
   )
 }
 
+// Without a department context the category filter takes two steps: pick a
+// department (a filter, with its own chip), then its categories. Inside a
+// department context it lists that department's categories directly.
+function CategoryFilter({ products, filters, onChange }: Props) {
+  const categories = categoryOptions(products, filters)
+  const picked = findDepartment(filters.departmentFilter)
+  const fieldset = useRef<HTMLFieldSetElement>(null)
+  // After switching steps, focus the control that replaced the one just used,
+  // so keyboard users aren't dropped at the top of the page.
+  const focusAfterStep = useRef<string | null>(null)
+  useEffect(() => {
+    if (!focusAfterStep.current) return
+    fieldset.current?.querySelector<HTMLElement>(focusAfterStep.current)?.focus()
+    focusAfterStep.current = null
+  }, [filters.departmentFilter])
+  const toggleCategory = (c: string) => onChange({ ...filters, categories: toggle(filters.categories, c) })
+
+  if (filters.department) {
+    if (categories.length === 0) return null
+    return (
+      <fieldset>
+        <legend className={legend}>Category</legend>
+        <CheckboxList options={categories} selected={filters.categories} onToggle={toggleCategory} />
+      </fieldset>
+    )
+  }
+
+  if (picked) {
+    return (
+      <fieldset ref={fieldset}>
+        <legend className={legend}>Category</legend>
+        <button
+          type="button"
+          data-step-back
+          onClick={() => {
+            focusAfterStep.current = `[data-department="${picked.slug}"]`
+            onChange(withoutDepartmentFilter(filters))
+          }}
+          className="mb-1 inline-flex min-h-9 items-center gap-1 text-sm font-medium text-action underline underline-offset-2 hover:text-action-hover"
+        >
+          <span aria-hidden="true">‹</span> All departments
+        </button>
+        <p className="py-1 text-sm font-semibold">{picked.name}</p>
+        <CheckboxList options={categories} selected={filters.categories} onToggle={toggleCategory} />
+      </fieldset>
+    )
+  }
+
+  const departments = departmentOptions(products, filters)
+  // Categories picked without a department (e.g. from an old link) stay visible, so they can be unticked.
+  const loose = categories.filter((o) => filters.categories.includes(o.value))
+  if (departments.length === 0 && loose.length === 0) return null
+  return (
+    <fieldset ref={fieldset}>
+      <legend className={legend}>Category</legend>
+      {loose.length > 0 && <CheckboxList options={loose} selected={filters.categories} onToggle={toggleCategory} />}
+      <ul>
+        {departments.map((d) => (
+          <li key={d.value}>
+            <button
+              type="button"
+              data-department={d.value}
+              onClick={() => {
+                focusAfterStep.current = '[data-step-back]'
+                onChange({ ...filters, departmentFilter: d.value })
+              }}
+              className={`${optionRow} w-full text-left hover:text-action`}
+            >
+              <span className="min-w-0">{d.label}</span>
+              <span className={count}>{d.count}</span>
+              <span aria-hidden="true" className="text-muted">
+                ›
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </fieldset>
+  )
+}
+
 function PriceInput({ label, value, onCommit }: { label: string; value?: number; onCommit: (v?: number) => void }) {
   const id = useId()
   const urlText = value === undefined ? '' : String(value)
@@ -108,7 +192,6 @@ function PriceInput({ label, value, onCommit }: { label: string; value?: number;
 export function FilterPanel({ products, filters, onChange }: Props) {
   // Unique per panel: the sidebar and the mobile sheet must not share one radio group.
   const ratingName = useId()
-  const categories = categoryOptions(products, filters)
   const brands = brandOptions(products, filters)
   const inStockCount = countWith(products, filters, { inStock: true })
   const saleCount = countWith(products, filters, { sale: true })
@@ -190,16 +273,7 @@ export function FilterPanel({ products, filters, onChange }: Props) {
         </ul>
       </fieldset>
 
-      {categories.length > 0 && (
-        <fieldset>
-          <legend className={legend}>Category</legend>
-          <CheckboxList
-            options={categories}
-            selected={filters.categories}
-            onToggle={(c) => onChange({ ...filters, categories: toggle(filters.categories, c) })}
-          />
-        </fieldset>
-      )}
+      <CategoryFilter products={products} filters={filters} onChange={onChange} />
 
       <BrandFilter
         options={brands}

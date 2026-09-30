@@ -1,5 +1,5 @@
 import type { Product } from './catalog'
-import { findDepartment } from './departments'
+import { DEPARTMENTS, findDepartment } from './departments'
 import { formatCategory, formatPrice, reviewRating } from './format'
 import { onSale, SALE_LABEL, salePrice } from './pricing'
 
@@ -8,13 +8,15 @@ import { onSale, SALE_LABEL, salePrice } from './pricing'
 //
 // The rule: what's picked in the top bar is *context* (where you are: heading and
 // breadcrumb, kept by "Clear all"); what's picked on the page is a *filter* (a
-// removable chip). Context params: department, view=sale. Filter params: category
-// (repeatable), brand (repeatable), min, max, rating, stock=in, sale=1.
+// removable chip). Context params: department, view=sale. Filter params: dept,
+// category (repeatable), brand (repeatable), min, max, rating, stock=in, sale=1.
 export interface Filters {
   /** Context: a department slug from lib/departments.ts; unknown slugs are ignored. */
   department?: string
   /** Context: the "10%+ off" view opened from the bar. */
   saleView: boolean
+  /** Filter: a department picked in the filter panel's first step (only without a department context). */
+  departmentFilter?: string
   categories: string[]
   brands: string[]
   minPrice?: number
@@ -27,7 +29,7 @@ export interface Filters {
 
 export const RATING_OPTIONS = [4, 3, 2, 1] as const
 
-type Facet = 'context' | 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock' | 'sale'
+type Facet = 'context' | 'department' | 'departmentFilter' | 'category' | 'brand' | 'price' | 'rating' | 'stock' | 'sale'
 
 function parsePrice(value: string | null): number | undefined {
   if (value === null || value.trim() === '') return undefined
@@ -40,9 +42,12 @@ export function parseFilters(params: URLSearchParams): Filters {
   // One context at a time: the sale view wins over a department, and makes the
   // sale filter redundant.
   const saleView = params.get('view') === 'sale'
+  const department = saleView ? undefined : findDepartment(params.get('department'))?.slug
   return {
     saleView,
-    department: saleView ? undefined : findDepartment(params.get('department'))?.slug,
+    department,
+    // Inside a department context the panel lists its categories directly, so no department filter.
+    departmentFilter: department ? undefined : findDepartment(params.get('dept'))?.slug,
     categories: params.getAll('category'),
     brands: params.getAll('brand'),
     minPrice: parsePrice(params.get('min')),
@@ -56,9 +61,10 @@ export function parseFilters(params: URLSearchParams): Filters {
 /** Returns a copy of `params` with the filter params replaced; q and sort are kept. */
 export function writeFilters(params: URLSearchParams, filters: Filters): URLSearchParams {
   const next = new URLSearchParams(params)
-  for (const key of ['view', 'department', 'category', 'brand', 'min', 'max', 'rating', 'stock', 'sale']) next.delete(key)
+  for (const key of ['view', 'department', 'dept', 'category', 'brand', 'min', 'max', 'rating', 'stock', 'sale']) next.delete(key)
   if (filters.saleView) next.set('view', 'sale')
   if (filters.department) next.set('department', filters.department)
+  if (filters.departmentFilter) next.set('dept', filters.departmentFilter)
   filters.categories.forEach((c) => next.append('category', c))
   filters.brands.forEach((b) => next.append('brand', b))
   if (filters.minPrice !== undefined) next.set('min', String(filters.minPrice))
@@ -82,6 +88,8 @@ export function matchesFilters(product: Product, filters: Filters, skip?: Facet)
   if (skip !== 'context' && filters.saleView && !onSale(product)) return false
   const department = findDepartment(filters.department)
   if (skip !== 'department' && department && !department.categories.includes(product.category)) return false
+  const picked = findDepartment(filters.departmentFilter)
+  if (skip !== 'departmentFilter' && picked && !picked.categories.includes(product.category)) return false
   if (skip !== 'category' && filters.categories.length && !filters.categories.includes(product.category)) return false
   if (skip !== 'brand' && filters.brands.length && !(product.brand && filters.brands.includes(product.brand))) return false
   if (skip !== 'price' && filters.minPrice !== undefined && price < filters.minPrice) return false
@@ -113,6 +121,25 @@ function options(
     if (value && matchesFilters(p, filters, facet)) counts.set(value, (counts.get(value) ?? 0) + 1)
   }
   return [...counts].map(([value, count]) => ({ value, label: labelOf(value), count }))
+}
+
+/** The filter panel's first step: departments with how many results each would give. */
+export function departmentOptions(products: Product[], filters: Filters): FacetOption[] {
+  return DEPARTMENTS.map((d) => ({
+    value: d.slug,
+    label: d.name,
+    count: products.filter((p) => d.categories.includes(p.category) && matchesFilters(p, filters, 'departmentFilter')).length,
+  })).filter((o) => o.count > 0)
+}
+
+/** Leaving a picked department also drops the categories that were picked inside it. */
+export function withoutDepartmentFilter(filters: Filters): Filters {
+  const picked = findDepartment(filters.departmentFilter)
+  return {
+    ...filters,
+    departmentFilter: undefined,
+    categories: filters.categories.filter((c) => !picked?.categories.includes(c)),
+  }
 }
 
 export function categoryOptions(products: Product[], filters: Filters): FacetOption[] {
@@ -148,7 +175,10 @@ function priceLabel({ minPrice, maxPrice }: Filters): string {
 /** One removable chip per filter chosen on the page, each carrying the filters without it.
  *  The department isn't one: it's where you are (heading and breadcrumb), not a filter. */
 export function filterChips(filters: Filters): Chip[] {
+  const picked = findDepartment(filters.departmentFilter)
   const chips: Chip[] = [
+    // "department" in the label: Beauty and Groceries each hold a category with the same name.
+    ...(picked ? [{ key: 'dept', label: `${picked.name} department`, without: withoutDepartmentFilter(filters) }] : []),
     ...filters.categories.map((c) => ({
       key: `category:${c}`,
       label: formatCategory(c),

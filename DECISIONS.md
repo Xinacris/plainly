@@ -164,6 +164,22 @@ The Gemini prompt, verbatim:
   - **Honest and undoable:** the page says "Showing results for laptop · Search instead for lptop". The heading shows the corrected query, and the link searches the typed words exactly (`literal=1`: no correction, no category matching).
   - **With category matching:** a corrected query that names a category still gets that chip ("smartphnes" → Smartphones). Removing the chip searches the corrected words as text.
 
+### Two-step category filter
+
+- **Two steps without a department context.** On All products and in the 10%+ off view, the Category filter first lists the departments with result counts. Picking one reveals its categories with their counts, under a "‹ All departments" button that goes back.
+  - **Why:** 24 flat categories is a long list to scan. Departments are the same grouping the top bar uses, so the panel speaks the same language.
+- **A department picked here is a filter, not context** (the context-vs-filter rule).
+  - **URL:** it's `dept=…` (context stays `department=…`).
+  - **Chip:** it shows as a chip labeled "Electronics department". The word "department" is there because Beauty and Groceries each contain a category with the same name, and two "Beauty" chips would be ambiguous.
+  - **Clearing:** "Clear all" removes it. Removing its chip, or going back, also drops the categories picked inside it, since they belonged to that step.
+  - **The page stays in its context:** the heading and breadcrumb don't change.
+- **Inside a department context**, the filter lists that department's categories directly, as before.
+- **Counts:** they respect every other active filter, the sale view and a query's category. A department's count is exactly the number of results you get by picking it; a test compares the two in the sale view, with rating and stock filters, and on a text search. Departments with nothing to show are hidden.
+- **Keyboard:** after picking a department, focus moves to "All departments"; after going back, it returns to that department. Nobody is dropped at the top of the page.
+- **Everywhere:** it's one component, so it works the same in the desktop sidebar and the phone filter sheet (tested in both).
+- **Loose categories:** a category picked without a department (e.g. from an old link) stays listed as a ticked checkbox above the departments, so it can be removed.
+- **Home tiles:** the home page's category tiles now open their department as context with the category filtered, like the product breadcrumb, instead of a bare category filter.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -190,7 +206,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule) and typo-tolerant search |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**

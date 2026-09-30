@@ -78,6 +78,7 @@ const SCENES = [
   { name: 'search-department', page: 'search', url: '/search?department=electronics', ready: 'main li h2 a' },
   { name: 'search-sale-view', page: 'search', url: '/search?view=sale&sort=discount', ready: 'main li h2 a' },
   { name: 'search-sale-filter', page: 'search', url: '/search?department=beauty&sale=1', ready: 'main li h2 a' },
+  { name: 'search-dept-filter', page: 'search', url: '/search?dept=electronics&category=laptops', ready: 'main li h2 a' },
   { name: 'search-corrected', page: 'search', url: '/search?q=lptop', ready: 'main li h2 a' },
   { name: 'search-intent', page: 'search', url: '/search?q=t-shirt', ready: 'main li h2 a' },
   { name: 'search-department-filtered', page: 'search', url: '/search?department=electronics&brand=Apple&sale=1', ready: 'main li h2 a' },
@@ -438,9 +439,12 @@ const FLOWS = {
   'filters: sidebar, URL sync, chips, reload, clear': async (page) => {
     await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
     const sidebar = page.getByRole('complementary', { name: 'Filters' })
-    await sidebar.getByRole('checkbox', { name: /^Beauty/ }).check()
+    await sidebar.getByRole('button', { name: /^Beauty/ }).click() // step 1: the department
+    await page.waitForURL(/dept=beauty/)
+    await sidebar.getByRole('checkbox', { name: /^Beauty/ }).check() // step 2: its category
     await page.waitForURL(/category=beauty/)
-    await page.getByRole('button', { name: 'Remove filter: Beauty' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Beauty department' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Beauty', exact: true }).waitFor()
     expect((await page.locator('main li h2 a').count()) === 5, 'beauty should have 5 products')
     await sidebar.getByRole('radio', { name: /^4 and up/ }).check()
     await page.waitForURL(/rating=4/)
@@ -591,7 +595,7 @@ const FLOWS = {
       expect((await card.locator('ul > li').count()) === 4, `a department card doesn't have 4 tiles`)
     }
     const groceries = departments.locator(':scope > ul > li', { has: page.getByRole('heading', { name: /^Groceries/ }) })
-    expect((await groceries.locator('a[href^="/search?category=groceries"]').count()) === 1, 'groceries category tile')
+    expect((await groceries.locator('a[href="/search?department=groceries&category=groceries"]').count()) === 1, 'groceries category tile')
     expect((await groceries.locator('ul a[href^="/product/"]').count()) === 3, 'groceries should fill 3 tiles with products')
     await page.getByRole('heading', { name: 'Biggest discounts right now' }).waitFor()
     await page.getByText('Sorted by real discount %', { exact: false }).waitFor()
@@ -630,12 +634,12 @@ const FLOWS = {
     await page.locator('main li h2 a').nth(20).waitFor()
     // Scroll a little, then use a checkbox that's still in view, so Playwright doesn't scroll to it.
     await page.evaluate(() => window.scrollTo(0, 100))
-    await page.getByRole('complementary', { name: 'Filters' }).getByRole('checkbox', { name: /^Beauty/ }).check()
-    await page.waitForURL(/category=beauty/)
+    await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: /^Beauty/ }).click()
+    await page.waitForURL(/dept=beauty/)
     await page.waitForTimeout(100)
     expect((await page.evaluate(() => window.scrollY)) === 100, 'a filter change moved the scroll position')
-    await page.getByRole('button', { name: 'Remove filter: Beauty' }).click()
-    await page.waitForURL((u) => !u.search.includes('category'))
+    await page.getByRole('button', { name: 'Remove filter: Beauty department' }).click()
+    await page.waitForURL((u) => !u.search.includes('dept'))
     await page.locator('main li h2 a').nth(20).scrollIntoViewIfNeeded()
     await page.locator('main li h2 a').nth(20).click()
     await page.locator('main article h1').waitFor()
@@ -690,11 +694,11 @@ const FLOWS = {
     const pcts = (await page.locator('main li').getByText(/^\d+% off$/).allTextContents()).map((t) => parseInt(t))
     expect(pcts.length === 104 && pcts.every((p) => p >= 10), `sale view: ${pcts.length} products, min ${Math.min(...pcts)}%`)
     // Filters inside the view are normal filters, and Clear all keeps the view.
-    await sidebar.getByRole('checkbox', { name: /^Beauty/ }).check()
+    await sidebar.getByRole('button', { name: /^Beauty/ }).click()
     await sidebar.getByRole('checkbox', { name: /^In stock only/ }).check()
-    await page.getByRole('button', { name: 'Remove filter: Beauty' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Beauty department' }).waitFor()
     await page.getByRole('button', { name: 'Clear all', exact: true }).click()
-    await page.waitForURL((u) => !u.search.includes('category') && !u.search.includes('stock'))
+    await page.waitForURL((u) => !u.search.includes('dept') && !u.search.includes('stock'))
     expect(page.url().includes('view=sale'), `Clear all left the sale view: ${page.url()}`)
     await page.getByRole('heading', { level: 1, name: '10%+ off' }).waitFor()
     // A department (or All products) in the bar leaves the sale view.
@@ -856,6 +860,83 @@ const FLOWS = {
     const search = (await header.getByRole('searchbox').boundingBox()).y
     expect(Math.abs(tops[0] - tops[1]) < 12 && Math.abs(search - tops[1]) < 12, 'desktop header is not one row')
   }, { width: 640, theme: 'light' }),
+  'two-step category filter: departments, then categories, back, chips, focus': async (page) => {
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    const sidebar = page.getByRole('complementary', { name: 'Filters' })
+    const category = sidebar.getByRole('group', { name: 'Category' })
+    await category.getByRole('button', { name: /^Electronics/ }).waitFor()
+    expect((await category.locator('[data-department]').count()) === 8, 'step 1 should list 8 departments')
+    expect((await category.getByRole('checkbox').count()) === 0, 'step 1 should not list categories')
+    const electronics = await category.getByRole('button', { name: /^Electronics/ }).textContent()
+    expect(/38/.test(electronics), `Electronics count: ${electronics}`)
+    await category.getByRole('button', { name: /^Electronics/ }).click()
+    await page.waitForURL(/dept=electronics/)
+    const back = category.getByRole('button', { name: 'All departments' })
+    await back.waitFor()
+    expect(await back.evaluate((b) => b === document.activeElement), 'focus not moved to "All departments"')
+    const counts = Object.fromEntries(
+      (await category.getByRole('checkbox').evaluateAll((boxes) => boxes.map((b) => b.closest('label').textContent))).map((t) => [t.replace(/\d+$/, ''), Number(t.match(/\d+$/)[0])]),
+    )
+    expect(JSON.stringify(counts) === JSON.stringify({ 'Laptops': 5, 'Mobile accessories': 14, 'Smartphones': 16, 'Tablets': 3 }), `step 2: ${JSON.stringify(counts)}`)
+    await page.getByRole('button', { name: 'Remove filter: Electronics department' }).waitFor()
+    await page.getByRole('heading', { level: 1, name: 'All products' }).waitFor() // a filter, not context
+    await page.locator('main p[role=status]').getByText('38 results').waitFor()
+    await category.getByRole('checkbox', { name: /^Laptops/ }).check()
+    await page.locator('main p[role=status]').getByText('5 results').waitFor()
+    await back.click()
+    await page.waitForURL((u) => !u.search.includes('dept') && !u.search.includes('category'))
+    const electronicsButton = category.getByRole('button', { name: /^Electronics/ })
+    await electronicsButton.waitFor()
+    expect(await electronicsButton.evaluate((b) => b === document.activeElement), 'focus not returned to the department')
+    // Removing the department chip also drops the categories picked inside it.
+    await electronicsButton.click()
+    await category.getByRole('checkbox', { name: /^Tablets/ }).check()
+    await page.getByRole('button', { name: 'Remove filter: Electronics department' }).click()
+    await page.waitForURL((u) => !u.search.includes('dept') && !u.search.includes('category'))
+    // And "Clear all" removes it like any filter.
+    await category.getByRole('button', { name: /^Home/ }).click()
+    await sidebar.getByRole('checkbox', { name: /^In stock only/ }).check()
+    await page.getByRole('button', { name: 'Clear all', exact: true }).click()
+    await page.waitForURL((u) => u.search === '')
+  },
+  'two-step counts match results, with other filters and in the sale view': async (page) => {
+    for (const url of ['/search?view=sale', '/search?rating=4&stock=in', '/search?q=phone&literal=1']) {
+      await page.goto(base + url, { waitUntil: 'domcontentloaded' })
+      const category = page.getByRole('complementary', { name: 'Filters' }).getByRole('group', { name: 'Category' })
+      await category.locator('[data-department]').first().waitFor()
+      const departments = await category.locator('[data-department]').evaluateAll((bs) => bs.map((b) => ({ slug: b.dataset.department, count: Number(b.textContent.match(/\d+/)[0]) })))
+      for (const { slug, count } of departments.slice(0, 3)) {
+        await category.locator(`[data-department="${slug}"]`).click()
+        await page.waitForURL(new RegExp(`dept=${slug}`))
+        const shown = Number((await page.locator('main p[role=status]').last().textContent()).match(/\d+/)[0])
+        expect(shown === count, `${url}: ${slug} listed ${count}, gave ${shown}`)
+        await category.getByRole('button', { name: 'All departments' }).click()
+        await category.locator(`[data-department="${slug}"]`).waitFor()
+      }
+    }
+    // Inside a department context the categories are listed directly.
+    await page.goto(base + '/search?department=electronics', { waitUntil: 'domcontentloaded' })
+    const category = page.getByRole('complementary', { name: 'Filters' }).getByRole('group', { name: 'Category' })
+    await category.getByRole('checkbox', { name: /^Laptops/ }).waitFor()
+    expect((await category.locator('[data-department]').count()) === 0, 'department step shown inside a department')
+    expect((await category.getByRole('button', { name: 'All departments' }).count()) === 0, '"All departments" shown inside a department')
+  },
+  'two-step category filter in the phone sheet': Object.assign(async (page) => {
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    await page.getByRole('button', { name: /^Filters/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Filters' })
+    const category = sheet.getByRole('group', { name: 'Category' })
+    await category.getByRole('button', { name: /^Home/ }).click()
+    await page.waitForURL(/dept=home/)
+    expect(await category.getByRole('button', { name: 'All departments' }).evaluate((b) => b === document.activeElement), 'focus not moved in the sheet')
+    await category.getByRole('checkbox', { name: /^Furniture/ }).check()
+    await sheet.getByRole('button', { name: /^Show \d+ results?$/ }).click()
+    await sheet.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'Remove filter: Home department' }).waitFor()
+    await page.getByRole('button', { name: 'Remove filter: Furniture' }).waitFor()
+    await page.getByRole('button', { name: 'Filters, 2 applied' }).waitFor()
+  }, { width: 390, theme: 'dark' }),
 }
 
 // "System" shows the device's icon: phone, tablet or monitor, by media query.
