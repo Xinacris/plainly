@@ -129,10 +129,12 @@ def render_header(session_id, project, body):
     models = [e[3] for e in entries if e[3] != "unknown"]
     first = prompts[0][2] if prompts else ""
     last = prompts[-1][2] if prompts else ""
+    # a session can open with a RESPONSE whose prompt predates the hook being installed
+    date = (first or (entries[0][2] if entries else ""))[:10]
     return (
         "---\n"
         f"session_id: {session_id}\n"
-        f"date: {first[:10]}\n"
+        f"date: {date}\n"
         f"author: {AUTHOR}\n"
         f"model: {models[-1] if models else 'unknown'}\n"
         f"tool: {TOOL}\n"
@@ -141,7 +143,7 @@ def render_header(session_id, project, body):
         f"first_prompt_time: {first}\n"
         f"last_prompt_time: {last}\n"
         "---\n\n"
-        f"# Session Log - {first[:10]}\n\n"
+        f"# Session Log - {date}\n\n"
         f"Session: `{session_id[:8]}` | Project: `{project}` | Author: `{AUTHOR}`\n\n"
         "---\n\n"
     )
