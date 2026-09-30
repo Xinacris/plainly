@@ -1606,6 +1606,13 @@ if (ACCOUNTS_AVAILABLE) {
   log('Account flows: skipped (needs a `vite build --mode test` preview and .env.test.local)')
 }
 
+// The privacy contact is a real, working mailto link.
+FLOWS['privacy: contact is a working mailto link'] = async (page) => {
+  await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })
+  const link = page.getByRole('link', { name: 'mustafalieren@proton.me' })
+  expect((await link.getAttribute('href')) === 'mailto:mustafalieren@proton.me', 'privacy contact is not a mailto link')
+}
+
 // Returns are per item: a returned item is listed only under Returns. A fully returned
 // order leaves Delivered; a partly returned one stays with only the kept items.
 FLOWS['orders: fully and partly returned orders, per item, never counted twice'] = async (page) => {

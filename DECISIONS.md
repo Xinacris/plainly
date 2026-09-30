@@ -4,7 +4,7 @@
 
 Resume from the first unticked item: first read this list and `git log`. Verify on a `vite build --mode test` preview (full matrix for changed pages), and give the live URL one light smoke check at the end. Run `node scripts/check-secrets.mjs` before every commit.
 
-- [ ] 1. Privacy contact: the real address, as a working mailto link
+- [x] 1. Privacy contact: the real address, as a working mailto link (`src/lib/contact.ts`, reused by `/accessibility`)
 - [ ] 2. Select boxes: one consistent, themed chevron with padding (native selects kept)
 - [ ] 3. Account menu email: one line when it fits, ellipsis plus full address otherwise
 - [ ] 4. Sign out at the bottom of the account menu, below a divider
@@ -295,7 +295,7 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
   - **Why now:** Google won't let the OAuth app leave "Testing" without a privacy policy URL.
   - **Content:** it says what's stored for signed-in users and where (Supabase, EU region), that guest data stays in the browser, what Google shares (name and email), that nothing is sold or shared, that payments are simulated, the hosting logs, and how to get an account deleted.
   - **Truthful before launch:** it says accounts aren't live yet. That line changes when they are.
-  - **Contact:** a placeholder address (`PRIVACY_CONTACT` in `src/pages/PrivacyPage.tsx`), shown as plain text rather than a mail link until a real one exists.
+  - **Contact:** first a placeholder shown as plain text; since the revision round, the real address (`CONTACT_EMAIL` in `src/lib/contact.ts`) as a working mailto link.
 
 - **How accounts are built** (details in the Step 2 checklist at the top):
   - **Schema and RLS** are SQL migrations in `supabase/migrations/`, applied to both projects with the Supabase CLI. Every table has RLS, every policy checks ownership, and `anon` gets nothing.

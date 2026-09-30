@@ -1,10 +1,8 @@
 import { Link } from 'react-router'
 import { textLink } from '../components/styles'
+import { CONTACT_EMAIL } from '../lib/contact'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-// Placeholder until a real address is set up. Shown as plain text, not a mailto
-// link, so it can't look like a working inbox.
-const PRIVACY_CONTACT = 'privacy@plainly.example'
 const UPDATED = 'October 1, 2026'
 
 const h2 = 'mt-8 text-lg font-bold tracking-tight'
@@ -62,7 +60,10 @@ export function PrivacyPage() {
       <h2 className={h2}>Deleting your account and data</h2>
       <p className="mt-2">
         To have an account and everything stored with it deleted, write to{' '}
-        <span className="font-medium">{PRIVACY_CONTACT}</span> from the email address on the account. Browser-only data
+        <a href={`mailto:${CONTACT_EMAIL}`} className={textLink}>
+          {CONTACT_EMAIL}
+        </a>{' '}
+        from the email address on the account. Browser-only data
         you can delete yourself by clearing this site’s data in your browser.
       </p>
 
