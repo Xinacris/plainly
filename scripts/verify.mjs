@@ -1,6 +1,11 @@
 // Layout + flow verification for Plainly.
 //
 //   node scripts/verify.mjs [baseUrl] [--changed=home,search,...] [--out=dir]
+//   node scripts/verify.mjs <liveUrl> --smoke
+//
+// Run the full verification against a local preview build (`vite preview`). The live
+// URL only ever gets --smoke: one page, light, 1440, no flows. Heavy automated
+// traffic triggered Vercel's Security Checkpoint (see DECISIONS.md, Deployment notes).
 //
 // Pages listed in --changed (or all pages with --changed=all) get the full matrix:
 // 1440 / 1024 / 390 px in light and dark. Every other page gets a quick check at
@@ -10,6 +15,7 @@
 //
 // Needs a Chromium binary: CHROMIUM_PATH, or the Playwright cache in ~/.cache/ms-playwright.
 import { chromium } from 'playwright-core'
+import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -18,6 +24,9 @@ const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split('=')[
 const base = args.find((a) => !a.startsWith('--')) ?? 'http://localhost:4173'
 const shotDir = flag('out') ?? 'verify-shots'
 const changedArg = flag('changed') ?? ''
+const smoke = args.includes('--smoke')
+// axe-core checks WCAG A/AA rules on the 1440-light and 390-dark scenes.
+const AXE_SOURCE = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
 fs.mkdirSync(shotDir, { recursive: true })
 
 const SCENE_TIMEOUT = 15_000
@@ -41,18 +50,20 @@ const CART = JSON.stringify({
 const compareIds = (...ids) => JSON.stringify({ state: { ids }, version: 1 })
 
 const ADDRESS = { fullName: 'Ada Lovelace', line1: '12 St James’s Square', line2: 'Flat 4', city: 'Springfield', region: 'IL', postalCode: '62701' }
-const line = (productId, title, thumb, price, quantity, shippingInformation, estimate) => ({
-  productId, title, price, quantity, shippingInformation, returnPolicy: '30 days return policy',
+const daysAgo = (n) => new Date(Date.now() - n * 86_400_000).toISOString()
+const line = (productId, title, thumb, price, quantity, shippingInformation, estimate, returnPolicy = '30 days return policy') => ({
+  productId, title, price, quantity, shippingInformation, returnPolicy,
   thumbnail: `https://cdn.dummyjson.com/product-images/${thumb}/thumbnail.webp`, estimate,
 })
 const ORDERS = JSON.stringify({
   state: {
     orders: [
-      { id: 'PL-TEST0002', placedAt: '2026-09-30T15:10:00.000Z', address: ADDRESS, total: 639.97,
+      { id: 'PL-TEST0002', placedAt: daysAgo(0), address: ADDRESS, total: 639.97,
         lines: [line(14, 'Knoll Saarinen Executive Conference Chair', 'furniture/knoll-saarinen-executive-conference-chair', 499.99, 1, 'Ships overnight', { earliest: '2026-10-05', latest: '2026-10-08' }),
                 line(9, 'Dolce Shine Eau de', 'fragrances/dolce-shine-eau-de', 69.99, 2, 'Ships in 1 month', { earliest: '2026-11-02', latest: '2026-11-05' })] },
-      { id: 'PL-TEST0001', placedAt: '2026-09-28T09:00:00.000Z', address: ADDRESS, total: 9.99,
-        lines: [line(1, 'Essence Mascara Lash Princess', 'beauty/essence-mascara-lash-princess', 9.99, 1, 'Ships in some odd way', undefined)] },
+      { id: 'PL-TEST0001', placedAt: daysAgo(40), address: ADDRESS, total: 17.93,
+        lines: [line(1, 'Essence Mascara Lash Princess', 'beauty/essence-mascara-lash-princess', 8.94, 1, 'Ships in some odd way', undefined, 'No return policy'),
+                line(9, 'Dolce Shine Eau de', 'fragrances/dolce-shine-eau-de', 8.99, 1, 'Ships in 1 month', undefined, '7 days return policy')] },
     ],
   },
   version: 1,
@@ -60,10 +71,11 @@ const ORDERS = JSON.stringify({
 
 // `page` groups scenes for --changed; `ready` is the selector that proves main content rendered.
 const SCENES = [
-  { name: 'home', page: 'home', url: '/', ready: 'main a:has-text("Browse all")' },
+  { name: 'home', page: 'home', url: '/', ready: 'main a:has-text("See all")' },
   { name: 'search-all', page: 'search', url: '/search', ready: 'main li h2 a' },
   { name: 'search-phone', page: 'search', url: '/search?q=phone', ready: 'main li h2 a' },
   { name: 'search-none', page: 'search', url: '/search?q=xyzzy', ready: 'main h2:has-text("No products match")' },
+  { name: 'search-department', page: 'search', url: '/search?department=electronics', ready: 'main li h2 a' },
   { name: 'search-filtered', page: 'search', url: '/search?category=beauty&category=fragrances&rating=4&stock=in&min=5&max=80', ready: 'main li h2 a' },
   { name: 'search-filter-empty', page: 'search', url: '/search?min=100&max=1', ready: 'main h2:has-text("No products match these filters")' },
   { name: 'search-sheet', page: 'search', url: '/search?q=watch&brand=Rolex', ready: 'main li h2 a', widths: [390],
@@ -102,7 +114,9 @@ function audit() {
   const visible = (el) => {
     const s = getComputedStyle(el)
     const r = el.getBoundingClientRect()
-    return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 1 && r.height > 1 && !el.closest('.sr-only')
+    // Content of a closed <details> isn't rendered, though it still has a box.
+    const inClosedDetails = el.closest('details:not([open])') && !el.closest('summary')
+    return s.visibility !== 'hidden' && s.display !== 'none' && r.width > 1 && r.height > 1 && !el.closest('.sr-only') && !inClosedDetails
   }
   if (document.documentElement.scrollWidth > innerWidth) issues.push(`horizontal scroll: ${document.documentElement.scrollWidth} > ${innerWidth}`)
 
@@ -129,7 +143,9 @@ function audit() {
 
   for (const el of textEls) {
     const r = el.getBoundingClientRect()
-    if (r.right > innerWidth + 1 || r.left < -1) issues.push(`off-screen: ${describe(el)}`)
+    // Items in a sideways-scrolling row (product rows, the department bar) are meant to be off-screen.
+    const inScroller = (e) => { for (let x = e.parentElement; x && x !== document.body; x = x.parentElement) { const o = getComputedStyle(x).overflowX; if (o === 'auto' || o === 'scroll') return true } return false }
+    if ((r.right > innerWidth + 1 || r.left < -1) && !inScroller(el)) issues.push(`off-screen: ${describe(el)}`)
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
       const s = getComputedStyle(a)
       // Content that scrolls inside an overflow:auto box isn't clipped; hidden/clip is.
@@ -188,6 +204,15 @@ function audit() {
   return [...new Set(issues)]
 }
 
+async function axeIssues(page) {
+  await page.addScriptTag({ content: AXE_SOURCE })
+  const violations = await page.evaluate(async () => {
+    const result = await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] })
+    return result.violations.map((v) => `axe ${v.impact} ${v.id}: ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`)
+  })
+  return violations
+}
+
 const report = { layout: {}, failures: [], flows: [], errors: [] }
 const log = (line) => process.stdout.write(`${line}\n`)
 const elapsed = () => `${((Date.now() - startedAt) / 1000).toFixed(1)}s`
@@ -239,6 +264,7 @@ async function runScene({ scene, width, theme }) {
         // Give visible images a moment to paint for the screenshot, but never block on them.
         await withTimeout(page.evaluate(() => Promise.all([...document.images].filter((i) => i.getBoundingClientRect().top < innerHeight).map((i) => i.decode().catch(() => {})))), 3000, 'images').catch(() => {})
         const issues = await page.evaluate(audit)
+        if ((width === 1440 && theme === 'light') || (width === 390 && theme === 'dark')) issues.push(...(await axeIssues(page)))
         if (issues.length) report.layout[label] = issues
         await page.screenshot({ path: path.join(shotDir, `${scene.name}-${theme}-${width}.png`), fullPage: !scene.before })
         log(`${issues.length ? '!' : '✓'} ${label}  ${Date.now() - t0}ms${issues.length ? `  (${issues.length} layout issues)` : ''}`)
@@ -261,8 +287,10 @@ async function pool(items, worker) {
   }))
 }
 
-// 1. Layout audit.
-const jobs = SCENES.flatMap((scene) =>
+// 1. Layout audit. --smoke checks the home page once and skips everything else.
+const jobs = smoke
+  ? [{ scene: SCENES.find((s) => s.name === 'home'), width: 1440, theme: 'light' }]
+  : SCENES.flatMap((scene) =>
   (changed.has(scene.page) ? FULL : QUICK).filter((v) => !scene.widths || scene.widths.includes(v.width)).map((v) => ({ scene, ...v })),
 )
 log(`Layout: ${jobs.length} scenes (full matrix for: ${[...changed].join(', ') || 'none'})`)
@@ -360,7 +388,7 @@ const FLOWS = {
     await page.getByLabel('ZIP or postal code').fill('62701')
     expect((await page.getByText(/^Enter your/).count()) === 0, 'errors stay after fixing fields')
     await page.getByText(/Estimated delivery/).first().waitFor()
-    await page.getByText('Payment is simulated', { exact: false }).waitFor()
+    await page.locator('main').getByText('Payment is simulated', { exact: false }).waitFor()
     await page.getByRole('button', { name: 'Place order' }).click()
     await page.waitForURL(/\/orders\/PL-[A-Z0-9]{8}\/confirmation$/)
     await page.getByRole('heading', { name: 'Order placed' }).waitFor()
@@ -523,6 +551,97 @@ const FLOWS = {
     await page.goto(base + '/compare', { waitUntil: 'domcontentloaded' })
     await page.getByRole('heading', { name: 'Add one more product to compare' }).waitFor()
   }, { width: 390, theme: 'dark' }),
+  'orders: return window per item, from the order date': async (page) => {
+    await page.addInitScript((s) => localStorage.setItem('plainly-orders', s), ORDERS)
+    await page.goto(base + '/orders', { waitUntil: 'domcontentloaded' })
+    const recent = page.locator('main article').first()
+    await recent.getByText('Return window open').first().waitFor()
+    await recent.getByText(/until .+ \(30 days from the order date\)/).first().waitFor()
+    const old = page.locator('main article').last()
+    await old.getByText('No returns for this item').waitFor()
+    await old.getByText(/Return window closed on .+ \(7 days from the order date\)/).waitFor()
+  },
+  'home: departments, tiles, rows, footer, department search': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const departments = page.getByRole('region', { name: 'Departments' })
+    await departments.getByRole('heading', { level: 2 }).first().waitFor()
+    expect((await departments.getByRole('heading', { level: 2 }).count()) === 8, 'expected 8 department cards')
+    for (const card of await departments.locator(':scope > ul > li').all()) {
+      expect((await card.locator('ul > li').count()) === 4, `a department card doesn't have 4 tiles`)
+    }
+    const groceries = departments.locator(':scope > ul > li', { has: page.getByRole('heading', { name: /^Groceries/ }) })
+    expect((await groceries.locator('a[href^="/search?category=groceries"]').count()) === 1, 'groceries category tile')
+    expect((await groceries.locator('ul a[href^="/product/"]').count()) === 3, 'groceries should fill 3 tiles with products')
+    await page.getByRole('heading', { name: 'Biggest discounts right now' }).waitFor()
+    await page.getByText('Sorted by real discount %', { exact: false }).waitFor()
+    await page.getByText('Each rating is the average of just 3 reviews', { exact: false }).waitFor()
+    await page.getByRole('contentinfo').getByRole('link', { name: 'Source on GitHub' }).waitFor()
+    await departments.getByRole('link', { name: 'See all in Electronics' }).click()
+    await page.waitForURL(/department=electronics/)
+    await page.getByRole('heading', { level: 1, name: 'Electronics' }).waitFor()
+    await page.locator('main p[role=status]').getByText('38 results').waitFor() // 16 smartphones + 5 laptops + 3 tablets + 14 accessories
+    await page.getByRole('button', { name: 'Remove filter: Electronics' }).waitFor()
+    const nav = page.getByRole('navigation', { name: 'Departments' })
+    expect((await nav.getByRole('link', { name: 'Electronics' }).getAttribute('aria-current')) === 'page', 'category bar not marking the department')
+    expect((await page.title()) === 'Electronics · Plainly', `title was ${await page.title()}`)
+  },
+  'keyboard: skip link, theme radio group': async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('region', { name: 'Departments' }).waitFor()
+    await page.keyboard.press('Tab')
+    const skip = page.getByRole('link', { name: 'Skip to main content' })
+    expect(await skip.evaluate((a) => a === document.activeElement), 'first Tab is not the skip link')
+    await page.keyboard.press('Enter')
+    expect(await page.evaluate(() => document.activeElement?.id === 'main'), 'skip link did not move focus to main')
+    const radios = page.getByRole('radio')
+    expect((await page.locator('[role=radio][tabindex="0"]').count()) === 1, 'theme toggle should be one Tab stop')
+    await page.locator('[role=radio][tabindex="0"]').focus()
+    await page.keyboard.press('ArrowLeft') // system → dark
+    expect((await radios.nth(1).getAttribute('aria-checked')) === 'true', 'ArrowLeft did not select dark')
+    expect(await page.evaluate(() => document.documentElement.classList.contains('dark')), 'dark theme not applied')
+    expect(await radios.nth(1).evaluate((r) => r === document.activeElement), 'focus did not follow the selection')
+    await page.keyboard.press('ArrowLeft') // dark → light
+    expect(!(await page.evaluate(() => document.documentElement.classList.contains('dark'))), 'light theme not applied')
+  },
+  'scroll: new pages start at the top, filters keep position': async (page) => {
+    await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').nth(20).waitFor()
+    // Scroll a little, then use a checkbox that's still in view, so Playwright doesn't scroll to it.
+    await page.evaluate(() => window.scrollTo(0, 100))
+    await page.getByRole('complementary', { name: 'Filters' }).getByRole('checkbox', { name: /^Beauty/ }).check()
+    await page.waitForURL(/category=beauty/)
+    await page.waitForTimeout(100)
+    expect((await page.evaluate(() => window.scrollY)) === 100, 'a filter change moved the scroll position')
+    await page.getByRole('button', { name: 'Remove filter: Beauty' }).click()
+    await page.waitForURL((u) => !u.search.includes('category'))
+    await page.locator('main li h2 a').nth(20).scrollIntoViewIfNeeded()
+    await page.locator('main li h2 a').nth(20).click()
+    await page.locator('main article h1').waitFor()
+    expect((await page.evaluate(() => window.scrollY)) === 0, 'product page did not start at the top')
+    expect((await page.title()).endsWith(' · Plainly') && !(await page.title()).startsWith('Plainly'), `product title: ${await page.title()}`)
+  },
+  'error: catalog down with items in compare still shows the error page': async (page) => {
+    await page.addInitScript((s) => localStorage.setItem('plainly-compare', s), compareIds(1, 3))
+    await page.route('https://dummyjson.com/**', (r) => r.abort())
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Something went wrong' }).waitFor()
+    await page.getByRole('banner').getByRole('link', { name: 'Plainly, home' }).waitFor()
+  },
+  'phone: intro is one line, current department scrolled into the bar': Object.assign(async (page) => {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    const intro = page.getByRole('heading', { level: 1, name: 'Shop without the noise.' })
+    const lines = await intro.evaluate((h) => {
+      const strip = getComputedStyle(h.parentElement)
+      const content = h.parentElement.getBoundingClientRect().height - parseFloat(strip.paddingTop) - parseFloat(strip.paddingBottom)
+      return Math.round(content / parseFloat(getComputedStyle(h).lineHeight))
+    })
+    expect(lines === 1, `intro strip wraps to ${lines} lines`)
+    await page.goto(base + '/search?department=vehicles', { waitUntil: 'domcontentloaded' })
+    const link = page.getByRole('navigation', { name: 'Departments' }).getByRole('link', { name: 'Vehicles' })
+    await link.waitFor()
+    const box = await link.boundingBox()
+    expect(box.x >= 0 && box.x + box.width <= 390, `active department at x=${Math.round(box.x)} is outside the bar`)
+  }, { width: 390, theme: 'dark' }),
 }
 
 // The tray slides up only when motion is welcome.
@@ -593,11 +712,12 @@ FLOWS['full path light 1440'] = pathFlow('light', 1440)
 FLOWS['full path dark 1440'] = pathFlow('dark', 1440)
 FLOWS['full path dark 390'] = pathFlow('dark', 390)
 
+if (smoke) for (const name of Object.keys(FLOWS)) delete FLOWS[name]
 log(`\nFlows: ${Object.keys(FLOWS).length}`)
 await pool(Object.entries(FLOWS), async ([name, fn]) => {
   const t0 = Date.now()
   // The error-boundary flow blocks the API on purpose, so its console errors are expected.
-  const { ctx, page } = await newPage(fn.theme ?? 'light', fn.width ?? 1440, { allowErrors: name.startsWith('error boundary') })
+  const { ctx, page } = await newPage(fn.theme ?? 'light', fn.width ?? 1440, { allowErrors: name.startsWith('error') })
   try {
     await withTimeout(fn(page), SCENE_TIMEOUT, name)
     report.flows.push(`PASS ${name}`)

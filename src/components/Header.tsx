@@ -1,6 +1,7 @@
 import { Link, NavLink } from 'react-router'
 import { useCartCount } from '../cart/cart'
 import { pluralize } from '../lib/format'
+import { DepartmentNav } from './DepartmentNav'
 import { LogoMark } from './Logo'
 import { SearchForm } from './SearchForm'
 import { ThemeToggle } from './ThemeToggle'
@@ -50,6 +51,7 @@ export function Header() {
           <ThemeToggle />
         </div>
       </div>
+      <DepartmentNav />
     </header>
   )
 }

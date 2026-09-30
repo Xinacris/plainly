@@ -1,3 +1,4 @@
+import { useRef, type KeyboardEvent } from 'react'
 import { useTheme, type ThemeChoice } from '../theme/theme'
 
 const options: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = [
@@ -28,12 +29,25 @@ const options: { value: ThemeChoice; label: string; icon: React.ReactNode }[] = 
   },
 ]
 
+// A radio group by the ARIA pattern: one Tab stop (the checked option), and the
+// arrow keys move and select, wrapping around.
 export function ThemeToggle() {
   const choice = useTheme((s) => s.choice)
   const setChoice = useTheme((s) => s.setChoice)
+  const group = useRef<HTMLDivElement>(null)
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key]
+    if (!step) return
+    e.preventDefault()
+    const index = options.findIndex((o) => o.value === choice)
+    const next = (index + step + options.length) % options.length
+    setChoice(options[next].value)
+    group.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
+  }
 
   return (
-    <div role="radiogroup" aria-label="Theme" className="flex rounded-full border border-border bg-surface p-0.5">
+    <div ref={group} role="radiogroup" aria-label="Theme" onKeyDown={onKeyDown} className="flex rounded-full border border-border bg-surface p-0.5">
       {options.map((o) => {
         const checked = choice === o.value
         return (
@@ -42,6 +56,7 @@ export function ThemeToggle() {
             type="button"
             role="radio"
             aria-checked={checked}
+            tabIndex={checked ? 0 : -1}
             aria-label={o.label}
             title={o.label}
             onClick={() => setChoice(o.value)}

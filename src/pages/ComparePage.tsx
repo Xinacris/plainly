@@ -12,6 +12,7 @@ import { estimateDelivery } from '../lib/delivery'
 import { returnFact, warrantyFact } from '../lib/facts'
 import { formatRating, pluralize, reviewRating } from '../lib/format'
 import { salePrice } from '../lib/pricing'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 interface Attribute {
   label: string
@@ -199,6 +200,7 @@ function CompareContents() {
 }
 
 export function ComparePage() {
+  useDocumentTitle('Compare')
   return (
     <Suspense fallback={<StatusMessage role="status" title="Loading comparison…" />}>
       <CompareContents />

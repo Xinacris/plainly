@@ -5,9 +5,11 @@ import { primaryButton, secondaryButton } from '../components/styles'
 import { formatIsoDate, latestArrival } from '../lib/delivery'
 import { formatPrice } from '../lib/format'
 import { useOrder } from '../orders/orders'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export function OrderConfirmationPage() {
   const order = useOrder(useParams().id)
+  useDocumentTitle(order ? 'Order placed' : 'Order not found')
   if (!order) {
     return (
       <StatusMessage
@@ -38,7 +40,7 @@ export function OrderConfirmationPage() {
             Estimated to arrive by <span className="font-bold">{formatIsoDate(arrivesBy)}</span>
           </p>
         )}
-        <OrderLines lines={order.lines} />
+        <OrderLines lines={order.lines} placedAt={order.placedAt} />
         <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
           <div>
             <h2 className="text-sm font-medium text-muted">Shipping to</h2>

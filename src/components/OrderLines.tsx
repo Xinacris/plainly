@@ -3,6 +3,7 @@ import { formatPrice } from '../lib/format'
 import type { Address, OrderLine } from '../orders/orders'
 import { DateRange } from './DateRange'
 import { ProductImage } from './ProductImage'
+import { ReturnStatus } from './ReturnStatus'
 
 function EstimateText({ line }: { line: OrderLine }) {
   if (!line.estimate) return <p className="text-sm text-muted">No delivery estimate: {line.shippingInformation}</p>
@@ -15,7 +16,8 @@ function EstimateText({ line }: { line: OrderLine }) {
 }
 
 // One list for checkout, confirmation and past orders, all fed from order-line snapshots.
-export function OrderLines({ lines }: { lines: OrderLine[] }) {
+// Placed orders pass `placedAt`, which adds each item's return window.
+export function OrderLines({ lines, placedAt }: { lines: OrderLine[]; placedAt?: string }) {
   return (
     <ul className="divide-y divide-border">
       {lines.map((line) => (
@@ -32,6 +34,7 @@ export function OrderLines({ lines }: { lines: OrderLine[] }) {
               <span className="font-semibold tabular-nums">{formatPrice(line.price * line.quantity)}</span>
             </p>
             <EstimateText line={line} />
+            {placedAt && <ReturnStatus policy={line.returnPolicy} placedAt={placedAt} />}
           </div>
         </li>
       ))}

@@ -1,36 +1,139 @@
-import { Suspense } from 'react'
+import { Suspense, useId } from 'react'
 import { Link } from 'react-router'
-import { primaryButton } from '../components/styles'
-import { useCatalog } from '../lib/catalog'
+import { ProductCard, ProductCardSkeleton } from '../components/ProductCard'
+import { ProductImage } from '../components/ProductImage'
+import { textLink } from '../components/styles'
+import { useCatalog, type Product } from '../lib/catalog'
+import { DEPARTMENTS, type Department } from '../lib/departments'
+import { formatCategory, formatPrice, pluralize } from '../lib/format'
+import { biggestDiscounts, departmentTiles, highestRated, type Tile } from '../lib/home'
+import { salePrice } from '../lib/pricing'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-function BrowseAllLink() {
-  const count = useCatalog().length
+function TileLink({ tile }: { tile: Tile }) {
+  if (tile.kind === 'category') {
+    return (
+      <Link to={`/search?category=${tile.slug}`} className="group block">
+        <ProductImage src={tile.image} alt="" className="p-2" />
+        <span className="mt-1 block text-sm font-medium group-hover:text-action">{formatCategory(tile.slug)}</span>
+      </Link>
+    )
+  }
+  const { product } = tile
   return (
-    <Link to="/search" className={primaryButton}>
-      Browse all {count} products
+    <Link to={`/product/${product.id}`} className="group block">
+      <ProductImage src={product.thumbnail} alt="" className="p-2" />
+      <span className="mt-1 block text-sm font-medium group-hover:text-action">{product.title}</span>
+      <span className="block text-sm text-muted tabular-nums">{formatPrice(salePrice(product))}</span>
     </Link>
   )
 }
 
-export function HomePage() {
+function DepartmentCard({ department, catalog }: { department: Department; catalog: Product[] }) {
+  const { count, tiles } = departmentTiles(department, catalog)
+  const headingId = useId()
   return (
-    <section className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
-      <h1 className="max-w-2xl text-3xl font-bold tracking-tight text-balance sm:text-4xl">Shop without the noise</h1>
-      <p className="mt-3 max-w-2xl text-lg text-muted">
-        Decide with facts, not noise. No sponsored results and no badges. Just the product, its price and what other
-        buyers said.
-      </p>
-      <div className="mt-8">
-        <Suspense
-          fallback={
-            <Link to="/search" className={primaryButton}>
-              Browse all products
-            </Link>
-          }
-        >
-          <BrowseAllLink />
+    <li className="flex flex-col rounded-xl border border-border bg-surface p-4">
+      <h2 id={headingId} className="flex flex-wrap items-baseline gap-x-2 text-lg font-bold tracking-tight">
+        {department.name}
+        <span className="text-sm font-normal text-muted">{pluralize(count, 'product')}</span>
+      </h2>
+      <ul className="mt-3 grid grid-cols-2 gap-3">
+        {tiles.map((tile) => (
+          <li key={tile.kind === 'category' ? tile.slug : tile.product.id}>
+            <TileLink tile={tile} />
+          </li>
+        ))}
+      </ul>
+      <Link to={`/search?department=${department.slug}`} className={`${textLink} mt-auto self-start pt-4 text-sm`}>
+        See all<span className="sr-only"> in {department.name}</span>
+      </Link>
+    </li>
+  )
+}
+
+function ProductRow({ title, note, seeAll, products }: { title: string; note: string; seeAll: string; products: Product[] }) {
+  const headingId = useId()
+  return (
+    <section aria-labelledby={headingId} className="mt-10">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div>
+          <h2 id={headingId} className="text-xl font-bold tracking-tight">
+            {title}
+          </h2>
+          <p className="text-sm text-muted">{note}</p>
+        </div>
+        <Link to={seeAll} className={`${textLink} text-sm`}>
+          See all<span className="sr-only"> {title.toLowerCase()}</span>
+        </Link>
+      </div>
+      {/* Scrolls sideways; tabbing through the cards scrolls it too. */}
+      <ul className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-3">
+        {products.map((p) => (
+          <ProductCard key={p.id} product={p} className="w-44 shrink-0 snap-start sm:w-52" />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// The note is computed, so it stays true if the data ever has more reviews.
+function reviewNote(products: Product[]): string {
+  const counts = new Set(products.map((p) => p.reviews.length))
+  const [only] = counts
+  if (counts.size === 1) return `Each rating is the average of just ${pluralize(only, 'review')}. In stock only.`
+  return 'Each rating is the average of that product’s reviews, which are few. In stock only.'
+}
+
+function HomeContents() {
+  const catalog = useCatalog()
+  const rated = highestRated(catalog)
+  return (
+    <>
+      <section aria-label="Departments">
+        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {DEPARTMENTS.map((d) => (
+            <DepartmentCard key={d.slug} department={d} catalog={catalog} />
+          ))}
+        </ul>
+      </section>
+      <ProductRow
+        title="Biggest discounts right now"
+        note="Sorted by real discount %: the price you pay against the list price. In stock only."
+        seeAll="/search?sort=discount"
+        products={biggestDiscounts(catalog)}
+      />
+      <ProductRow title="Highest rated" note={reviewNote(rated)} seeAll="/search?sort=rating" products={rated} />
+    </>
+  )
+}
+
+function HomeSkeleton() {
+  return (
+    <ul aria-label="Loading departments" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 8 }, (_, i) => (
+        <ProductCardSkeleton key={i} />
+      ))}
+    </ul>
+  )
+}
+
+export function HomePage() {
+  useDocumentTitle()
+  return (
+    <>
+      <div className="border-b border-border bg-surface">
+        <div className="mx-auto max-w-6xl px-4 py-2 text-sm">
+          {/* One line at every width: phones get the heading alone. */}
+          <h1 className="inline font-semibold">Shop without the noise.</h1>{' '}
+          <span className="hidden text-muted sm:inline">No sponsored results, no badges, just the facts.</span>
+        </div>
+      </div>
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <Suspense fallback={<HomeSkeleton />}>
+          <HomeContents />
         </Suspense>
       </div>
-    </section>
+    </>
   )
 }

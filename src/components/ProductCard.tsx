@@ -6,9 +6,10 @@ import { ProductImage } from './ProductImage'
 import { Rating } from './Rating'
 import { StockNote } from './StockNote'
 
-export function ProductCard({ product }: { product: Product }) {
+/** `className` sets extra sizing, e.g. a fixed width inside a scrolling row. */
+export function ProductCard({ product, className = '' }: { product: Product; className?: string }) {
   return (
-    <li className="group relative flex flex-col rounded-xl border border-border bg-surface p-3">
+    <li className={`group relative flex flex-col rounded-xl border border-border bg-surface p-3 ${className}`}>
       <ProductImage src={product.thumbnail} alt="" />
       <div className="mt-3 flex flex-1 flex-col gap-1">
         {product.brand && <p className="text-xs font-medium tracking-wide text-muted uppercase">{product.brand}</p>}

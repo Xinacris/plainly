@@ -1,11 +1,14 @@
 import type { Product } from './catalog'
+import { findDepartment } from './departments'
 import { formatCategory, formatPrice, reviewRating } from './format'
 import { salePrice } from './pricing'
 
 // Filters live in the URL, so a filtered view can be shared, bookmarked and
-// navigated with Back. Param names: category (repeatable), brand (repeatable),
-// min, max, rating, stock=in.
+// navigated with Back. Param names: department, category (repeatable), brand
+// (repeatable), min, max, rating, stock=in.
 export interface Filters {
+  /** A department slug from lib/departments.ts; unknown slugs are ignored. */
+  department?: string
   categories: string[]
   brands: string[]
   minPrice?: number
@@ -16,7 +19,7 @@ export interface Filters {
 
 export const RATING_OPTIONS = [4, 3, 2, 1] as const
 
-type Facet = 'category' | 'brand' | 'price' | 'rating' | 'stock'
+type Facet = 'department' | 'category' | 'brand' | 'price' | 'rating' | 'stock'
 
 function parsePrice(value: string | null): number | undefined {
   if (value === null || value.trim() === '') return undefined
@@ -27,6 +30,7 @@ function parsePrice(value: string | null): number | undefined {
 export function parseFilters(params: URLSearchParams): Filters {
   const rating = Number(params.get('rating'))
   return {
+    department: findDepartment(params.get('department'))?.slug,
     categories: params.getAll('category'),
     brands: params.getAll('brand'),
     minPrice: parsePrice(params.get('min')),
@@ -39,7 +43,8 @@ export function parseFilters(params: URLSearchParams): Filters {
 /** Returns a copy of `params` with the filter params replaced; q and sort are kept. */
 export function writeFilters(params: URLSearchParams, filters: Filters): URLSearchParams {
   const next = new URLSearchParams(params)
-  for (const key of ['category', 'brand', 'min', 'max', 'rating', 'stock']) next.delete(key)
+  for (const key of ['department', 'category', 'brand', 'min', 'max', 'rating', 'stock']) next.delete(key)
+  if (filters.department) next.set('department', filters.department)
   filters.categories.forEach((c) => next.append('category', c))
   filters.brands.forEach((b) => next.append('brand', b))
   if (filters.minPrice !== undefined) next.set('min', String(filters.minPrice))
@@ -54,6 +59,8 @@ export const NO_FILTERS: Filters = { categories: [], brands: [], inStock: false 
 /** `skip` leaves one facet out, so that facet's own counts show what choosing another option would give. */
 export function matchesFilters(product: Product, filters: Filters, skip?: Facet): boolean {
   const price = salePrice(product)
+  const department = findDepartment(filters.department)
+  if (skip !== 'department' && department && !department.categories.includes(product.category)) return false
   if (skip !== 'category' && filters.categories.length && !filters.categories.includes(product.category)) return false
   if (skip !== 'brand' && filters.brands.length && !(product.brand && filters.brands.includes(product.brand))) return false
   if (skip !== 'price' && filters.minPrice !== undefined && price < filters.minPrice) return false
@@ -118,7 +125,9 @@ function priceLabel({ minPrice, maxPrice }: Filters): string {
 
 /** One removable chip per applied filter, each carrying the filters without it. */
 export function filterChips(filters: Filters): Chip[] {
+  const department = findDepartment(filters.department)
   const chips: Chip[] = [
+    ...(department ? [{ key: 'department', label: department.name, without: { ...filters, department: undefined } }] : []),
     ...filters.categories.map((c) => ({
       key: `category:${c}`,
       label: formatCategory(c),

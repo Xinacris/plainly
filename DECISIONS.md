@@ -16,7 +16,7 @@ Search results are ranked honestly, with no sponsored slots and no badges. The f
 
 ## Build rules
 
-These apply to every block:
+These apply to every step:
 
 - **Truthful copy.** Never show badges, delivery promises or discount claims the data doesn't support. Every number shown is computed from the data. Fields that would look broken are hidden.
 - **Prices** are formatted with `Intl.NumberFormat`. **Ratings** are truncated to one decimal and never rounded up, so 4.99 shows as 4.9.
@@ -27,7 +27,7 @@ These apply to every block:
 - **Overlays:** drawers, sheets and dialogs trap focus, close on Escape, and return focus to the element that opened them.
 - **Code:** small, typed components, and no nested ternaries in JSX.
 
-### Verification after each block
+### Verification after each step
 
 `node scripts/verify.mjs <url> --changed=<pages>` screenshots each page and audits it for horizontal scroll, clipping, overlap and low-contrast text. Then it runs the key user flows.
 
@@ -47,7 +47,7 @@ DummyJSON's data has quirks, and each one is handled so the page stays honest:
 | `minimumOrderQuantity` makes no sense (48 for a mascara). | Hidden, and never enforced. | It would look broken. |
 | 92 of the 194 products have no `brand`. | The brand line only appears when a brand exists. | No "Unknown brand" filler. |
 | Two titles are cut off in the source data ("Dolce Shine Eau de", "Gucci Bloom Eau de"). | Shown exactly as in the data. | Completing them would mean inventing data. |
-| `price` together with `discountPercentage` | **Resolved in hours 9–13:** `price` is the list price *before* the discount. DummyJSON's own carts API charges `total × (1 − discountPercentage / 100)`, which settles it. So the price you pay is the discounted price, rounded to the cent, and it's used everywhere: cards, product page, cart, checkout, sorting and the price filter. Where there's a discount, the page shows it as "12% off" next to the price, with "List price ~~$29.99~~" underneath. The % is truncated, never rounded up. Discounts under 1% (7 products, a few cents at most) aren't presented as discounts. | Showing a discount means charging it, or the page would claim a saving the checkout doesn't give. Orders placed before this change keep the prices they were placed at. |
+| `price` together with `discountPercentage` | **Resolved while building facts instead of badges (#4):** `price` is the list price *before* the discount. DummyJSON's own carts API charges `total × (1 − discountPercentage / 100)`, which settles it. So the price you pay is the discounted price, rounded to the cent, and it's used everywhere: cards, product page, cart, checkout, sorting and the price filter. Where there's a discount, the page shows it as "12% off" next to the price, with "List price ~~$29.99~~" underneath. The % is truncated, never rounded up. Discounts under 1% (7 products, a few cents at most) aren't presented as discounts. | Showing a discount means charging it, or the page would claim a saving the checkout doesn't give. Orders placed before this change keep the prices they were placed at. |
 | `stock` and `availabilityStatus` | Cards show only exceptions ("Only N left" when stock is 5 or fewer, "Out of stock"). The product page also shows "In stock". Quantities are capped at stock, and at 10 per line. | "In stock" on every card is noise. Scarcity is only claimed when it's true. |
 | `returnPolicy` is "N days return policy" or "No return policy" (44 products). `warrantyInformation` has ten phrasings, including "No warranty". | The decision card shortens them ("30-day returns", "1 year"). "No returns" is flagged in the warning color with an icon, because it counts against buying. "No warranty" shows as "None", unflagged. The seller's exact wording is kept in the "Shipping, returns and warranty" section. | The flag marks the one fact most likely to change a decision, without inventing a scale. |
 | `shippingInformation` says when an item *ships* ("Ships in 1-2 business days", six phrasings in all), not when it arrives. | Checkout shows a **delivery estimate** per item: the ship window from the data plus 2–5 business days in transit. The page says the transit time is Plainly's assumption and calls every date an estimate. An unknown phrasing gets no estimate, and the text is shown as-is. | Transit time isn't in the data. A range with a stated assumption is honest; a single "Arrives Tuesday" would be a promise nobody can keep. |
@@ -82,12 +82,12 @@ The Gemini prompt, verbatim:
 | 4 | **No badges.** Show facts that can be checked instead: the rating with its review count, the discount %, and stock. | "Best Seller" and "Amazon's Choice" labels are no longer trusted. A fact the user can check replaces each one. |
 | 5 | **A decision card at the top of the product page.** It shows price, delivery date, return policy, warranty and stock, and everything else collapses. | Returns and shipping details are buried in very long product pages. These are the facts that decide a purchase. |
 | 6 | **A compare tray.** Add up to 3 products and see them side by side, with the differences highlighted. | Comparing similar products on Amazon means juggling tabs. |
-| 7 | **Dark mode.** It follows the system setting, has a light / dark / system toggle, and is built on tokens from the first hour. | People shop late at night. Building it in from the start costs little; adding it later means touching every component. |
-| 10 | **Cut sign-in, Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Cart and the theme toggle. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
+| 7 | **Dark mode.** It follows the system setting, has a light / dark / system toggle, and is built on tokens from the first step. | People shop late at night. Building it in from the start costs little; adding it later means touching every component. |
+| 10 | **Cut sign-in, Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Cart and the theme toggle, plus one bar of department links. The footer is one line on what's mocked and a repo link. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
 
-**Home page:** kept lean, with about an hour of work at most. It has a short intro, the categories, and one row of the biggest real discounts, labeled with how that row was chosen.
+**Home page:** Amazon's structure, not its look. A slim one-line intro so products show above the fold, a category bar, department cards with four subcategory tiles each, two product rows (biggest real discounts, highest rated) that say how they were chosen, and a minimal footer. No carousel and no sign-in block.
 
-### How #3–#5 were built (hours 9–13)
+### How #3–#5 were built
 
 - **Filters in the URL.** Category and brand (both repeatable), min/max price, minimum rating and in stock are URL params, alongside `q` and `sort`, so a filtered view can be shared, bookmarked or reloaded. Changes replace the history entry, as sort already did, so Back leaves the search rather than undoing each click.
 - **Counts:** each option shows how many results you'd get with it. Each facet's counts ignore that facet's own selection, so choosing a second category shows its real count. Options with nothing to show are hidden unless they're selected.
@@ -96,7 +96,7 @@ The Gemini prompt, verbatim:
 - **Decision card on phones:** title, then the card, then the photos, so the facts that decide a purchase are on the first screen at 390×844. From `md` up the photos are on the left. A test checks that the facts sit above the fold at 1440×900, 1024×768 and 390×844.
 - **Collapsible sections:** native `<details>`. Description and Reviews start open; "Shipping, returns and warranty" and "Product details" start closed.
 
-### How #6 was built (hours 13–16)
+### How #6 was built
 
 - **Built with all 3 slots**, so the "Compare limited to 2" cut wasn't needed.
 - **Adding:** a "Compare" toggle on every card (`aria-pressed`, above the card's stretched link) and an "Add to compare" button in the decision card. A 4th add is refused, and the tray says "You can compare up to 3. Remove one to add another." for 5 seconds. The selection is saved in localStorage.
@@ -105,12 +105,28 @@ The Gemini prompt, verbatim:
 - **Rows:** price you pay (with the discount and list price), rating, review count, delivery estimate, returns, warranty and stock, in the same words as the decision card. Review count is always 3 in this data, so that row never differs; it stays because hiding it would hide how thin the ratings are.
 - **Phones:** the table keeps its columns, and each fact's label gets its own full-width row above the values, so three products fit in 390 px without sideways scrolling.
 
+### How the return window, home page and polish pass were built
+
+- **Return window (#9):** every item on the orders page and the confirmation shows its return policy and whether the window is still open. It's counted from the order date, as agreed, and the page says so: "Return window open until Oct 30, 2026 (30 days from the order date)". Once the window closes it says when it closed. "No return policy" items say "No returns for this item" in the warning color. A policy in an unknown wording is shown as written.
+- **Departments:** eight departments group all 24 DummyJSON categories, each category in exactly one department (checked against the catalog). `/search?department=…` filters to them, sets the page heading, and shows as a removable chip.
+- **Department bar:** a department bar under the header on every page. It scrolls sideways on phones and brings the current department into view.
+- **Home:**
+  - A one-line intro. On phones only the heading shows, so it stays one line.
+  - Eight department cards (1 / 2 / 4 per row). Each is titled with the department name and its real product count, and has four tiles and a "See all" link. Category tiles are pictured by that category's best-rated product. A department with fewer than four categories fills the rest with its best-rated in-stock products, shown with their price. Women's fashion has six categories, so its tiles show the first four and "See all" covers the rest.
+  - Two sideways rows, each saying how it was chosen. "Biggest discounts right now" is sorted by real discount %. "Highest rated" is built from the data, so its note says each rating averages just 3 reviews. Both rows are in stock only.
+  - The footer says what's mocked and links to the repo.
+- **Polish:**
+  - Keyboard and screen readers: a skip link, a title for every page, and the theme toggle follows the ARIA radio-group keyboard pattern (one Tab stop, arrow keys).
+  - Navigation: new pages start at the top, while filter changes keep your scroll position.
+  - Errors: the tray has its own error boundary.
+  - Checks: `verify.mjs` now runs axe-core (WCAG 2.1 A/AA and best practices) on the 1440-light and 390-dark scene of every page.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
 |---|---|---|---|
 | 8 | Star distribution and filtering reviews by star | **Cut.** Show the real reviews, with a clear note that the rating is based on only 3 reviews. | DummyJSON has exactly 3 reviews per product. A distribution chart built from 3 data points is the kind of noise this product rejects. |
-| 9 | A full return flow from the order page | **Simplified.** The orders page shows each item's return policy and whether its return window is still open. | This answers "can I still return this?" without building a flow the mock backend can't carry out. |
+| 9 | A full return flow from the order page | **Simplified.** The orders page shows each item's return policy and whether its return window is still open, counted from the order date. | This answers "can I still return this?" without building a flow the mock backend can't carry out. |
 
 ## Considered, not now
 
@@ -118,54 +134,64 @@ The Gemini prompt, verbatim:
 - **Star distribution for reviews:** not meaningful with 3 reviews per product (see #8).
 - **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
 
-## Build order (24 hours)
+## Build order
 
-Every block ends with a deploy, so there is always a working live URL.
+The work runs in this order. Each step ends with a deploy, so there is always a working live URL.
 
-| Hours | Ships |
+| Step | Ships |
 |---|---|
-| 0–2 | Project setup, theme tokens with dark mode, minimal header, Vercel deploy with the deep-link rewrite |
-| 2–6 | Catalog loading, search results, basic product page, cart |
-| 6–9 | Checkout, confirmation, order list. **The full purchase loop works. This is the MVP line.** |
-| 9–13 | Filters and chips, facts instead of badges, decision card |
-| 13–16 | Compare tray |
-| 16–19 | Return policy and return window on orders, honest review section |
-| 19–22 | Home page (about 1 hour), mobile pass, loading, empty and error states, accessibility |
-| 22–24 | No new features. Bug fixes, README, final deploy |
+| 1 | Project setup, theme tokens with dark mode, minimal header, Vercel deploy with the deep-link rewrite |
+| 2 | Catalog loading, search results, basic product page, cart |
+| 3 | Checkout, confirmation, order list, logo. **The full purchase loop works. This is the MVP line.** |
+| 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
+| 5 | Compare tray |
+| 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
+| 7 | No new features. Bug fixes, README, final deploy |
 
-**If time runs short, cut in this order:**
+**If something has to be cut, cut in this order:**
 1. Return window on orders
 2. Home discount row: the home page becomes intro and categories only
 3. Compare limited to 2 products instead of 3
 
 **Never cut:** the purchase loop, dark mode or the decision card.
 
-## Before the timed build
+## Before the build
 
 - **Amazon rather than Higgsfield AI.** I first compared an Amazon rebuild with a Higgsfield AI rebuild. I dropped Higgsfield because the Pexels API had paused new keys, which left me with no reliable video source.
 - **Starting clean.** An earlier Amazon prototype built with another tool copied Amazon's branding and had pricing and layout bugs. That's why this build starts from an empty project, under its own name.
 
+## Deployment notes
+
+- **Vercel Security Checkpoint.** After the compare tray was deployed, production started answering this machine's automated requests with a 403 "Vercel Security Checkpoint" page. That meant both `curl` and the headless Chromium in `verify.mjs`, so every live check timed out. Repeated full verification runs against production had most likely been flagged as bot traffic. Vercel reported the deployment as successful, and the site opened normally in a regular browser: the checkpoint blocked verification, not real visitors.
+- **Since then:** the full verification (every scene and flow) runs against a local preview build (`vite preview`) of the commit being deployed. The live URL gets a single light smoke check at the end (`verify.mjs --smoke`: the home page in light mode at 1440 px), so automated traffic to production stays minimal.
+
 ## Bug log
 
-| When | Bug | Cause | Fix |
+| During | Bug | Cause | Fix |
 |---|---|---|---|
-| Hours 2–6 | The first verification run hung for more than 8 minutes and printed nothing. | It waited for `networkidle` while DummyJSON images kept loading, used Playwright's default 30 s timeouts, ran scenes one at a time, and only printed at the end. | Rewrote `verify.mjs`: waits for DOMContentLoaded plus a selector for each page's content, 15 s per scene, a 2-minute budget, 6 scenes in parallel, timing reported per scene. The full run now takes about 17 s. |
-| Hours 2–6 | The overlap check called `getBoundingClientRect` once per pair of elements. | O(n²) layout reads. | Measure each element once and skip pairs that can't intersect. |
-| Hours 2–6 | A one-letter search ("a") returned all 194 products under "Results for 'a'". | Single-character search words were dropped, which left no filter at all. | Single-character words are kept as search terms. |
-| Hours 2–6 | A cart quantity saved in localStorage could be higher than current stock. | Saved quantities weren't checked against stock. | The cart clamps each line to what's in stock and skips out-of-stock lines. |
-| Hours 2–6 | Latent: the gallery position, quantity and "Added" message would carry over when moving from one product page directly to another. | React Router reuses the same component when only the `:id` changes. | The product details are keyed by id. Nothing links product to product yet, so this couldn't happen yet. |
-| Hours 2–6 | The error-boundary test reported its own console error as a failure. | The test blocks DummyJSON on purpose. | That test is exempt from the console-error check. |
-| Hours 6–9 | Adding the Orders link pushed the theme toggle onto a row of its own on phones (390 px). | Logo, Orders, Cart and the toggle need about 370 px, and a phone has 358. | On phones, search and the theme toggle now share the second row. From `sm` up, everything is on one row. Checked at 320, 360, 390, 640 and 1024 px. |
-| Hours 6–9 | Item thumbnails in checkout and orders stretched into tall strips on phones. | The image tile is a flex child, and flex's default `stretch` overrode its square aspect ratio when the text beside it wrapped. | `self-start` on the tile. |
-| Hours 6–9 | On phones the line total sat next to the title for short titles and under it for long ones. Date ranges also broke in the middle of a date ("Thu," then "Oct 8" on the next line). | `flex-wrap` on the title row, and the range was one string. | The total always sits on the quantity row. Each date is `whitespace-nowrap`, so a range only breaks between its two dates. |
-| Hours 6–9 | The missing-postcode error read "Enter your zip or postal code." | The message lowercased the whole field label. | Only a leading capital is lowercased, so acronyms keep their case. |
-| Hours 6–9 | A DECISIONS.md edit script dropped everything after the inserted rows. | The insert kept only the text before the anchor. | Caught by checking section headings after the edit. Restored from git (no uncommitted changes were lost) and redone. |
-| Hours 9–13 | A filter checkbox snapped back to unchecked for a moment after a click. Playwright caught it: "Clicking the checkbox did not change its state". | The controls read only from the URL, and React Router applies URL updates as a transition, so React re-rendered the old state first. Sort had the same lag. | The new params are kept locally and shown immediately, then dropped once the URL changes. |
-| Hours 9–13 | The phone Filters button's accessible name didn't match "Filters, 1 applied", even though its text content was exactly that. | The name was assembled from separate flex items and screen-reader-only text, and the browser's name computation didn't join them into that string. | An explicit `aria-label`, and the visible count is `aria-hidden`. |
-| Hours 9–13 | Latent, fixed before shipping: the sidebar and the bottom sheet each render the rating radios under the same `name`, so the browser would treat them as one group. | Two instances of one panel. | The group name comes from `useId()`, so it's unique per panel. |
-| Hours 9–13 | Latent, fixed before shipping: the "showing 24" note would have stayed at 24 after "Show more". | The note was computed outside the component that knows how many are visible. | Moved into the result grid. |
-| Hours 9–13 | The audit reported 70+ overlaps and clippings on the bottom-sheet screenshot, and the screenshot itself was misplaced. | It measured the page behind the modal, treated rows scrolled inside the sheet as clipped, and took a full-page screenshot of a fixed element. | With a modal open, only the modal is audited. Scroll containers don't count as clipping, boxes are cut to their scroll container before overlap checks, and modal scenes take a viewport screenshot. |
-| Hours 9–13 | The chip test failed even though removing the chip did clear the Max input. | The URL changes before React re-renders, and the test read the input in between. | The test waits for the input to clear. |
-| Hours 13–16 | On phones the tray squeezed "Compare 2 of 3" into three lines. | Thumbnails, label, Clear and the Compare button were in one row that doesn't fit in 358 px. | Two rows on phones: thumbnails with the count and Clear, then a full-width Compare button. One row from `sm` up. |
-| Hours 13–16 | The lint flagged `setState` inside an effect in the tray's "compare is full" notice. It would also have shown an old notice again whenever the tray remounted. | The notice's timing lived in the component. | The store sets the flag and clears it after 5 seconds itself. The component only reads it. |
-| Hours 13–16 | The audit flagged the tray thumbnails' corner "×" buttons and the content scrolling under the fixed tray as overlaps. | Both are deliberate layering. | The audit skips pairs where only one element is inside a fixed bar, and an absolutely positioned control sitting on its sibling. |
+| Catalog, search, cart | The first verification run hung for more than 8 minutes and printed nothing. | It waited for `networkidle` while DummyJSON images kept loading, used Playwright's default 30 s timeouts, ran scenes one at a time, and only printed at the end. | Rewrote `verify.mjs`: waits for DOMContentLoaded plus a selector for each page's content, 15 s per scene, a 2-minute budget, 6 scenes in parallel, timing reported per scene. The full run now takes about 17 s. |
+| Catalog, search, cart | The overlap check called `getBoundingClientRect` once per pair of elements. | O(n²) layout reads. | Measure each element once and skip pairs that can't intersect. |
+| Catalog, search, cart | A one-letter search ("a") returned all 194 products under "Results for 'a'". | Single-character search words were dropped, which left no filter at all. | Single-character words are kept as search terms. |
+| Catalog, search, cart | A cart quantity saved in localStorage could be higher than current stock. | Saved quantities weren't checked against stock. | The cart clamps each line to what's in stock and skips out-of-stock lines. |
+| Catalog, search, cart | Latent: the gallery position, quantity and "Added" message would carry over when moving from one product page directly to another. | React Router reuses the same component when only the `:id` changes. | The product details are keyed by id. Nothing links product to product yet, so this couldn't happen yet. |
+| Catalog, search, cart | The error-boundary test reported its own console error as a failure. | The test blocks DummyJSON on purpose. | That test is exempt from the console-error check. |
+| Checkout, orders, logo | Adding the Orders link pushed the theme toggle onto a row of its own on phones (390 px). | Logo, Orders, Cart and the toggle need about 370 px, and a phone has 358. | On phones, search and the theme toggle now share the second row. From `sm` up, everything is on one row. Checked at 320, 360, 390, 640 and 1024 px. |
+| Checkout, orders, logo | Item thumbnails in checkout and orders stretched into tall strips on phones. | The image tile is a flex child, and flex's default `stretch` overrode its square aspect ratio when the text beside it wrapped. | `self-start` on the tile. |
+| Checkout, orders, logo | On phones the line total sat next to the title for short titles and under it for long ones. Date ranges also broke in the middle of a date ("Thu," then "Oct 8" on the next line). | `flex-wrap` on the title row, and the range was one string. | The total always sits on the quantity row. Each date is `whitespace-nowrap`, so a range only breaks between its two dates. |
+| Checkout, orders, logo | The missing-postcode error read "Enter your zip or postal code." | The message lowercased the whole field label. | Only a leading capital is lowercased, so acronyms keep their case. |
+| Checkout, orders, logo | A DECISIONS.md edit script dropped everything after the inserted rows. | The insert kept only the text before the anchor. | Caught by checking section headings after the edit. Restored from git (no uncommitted changes were lost) and redone. |
+| Filters, facts, decision card | A filter checkbox snapped back to unchecked for a moment after a click. Playwright caught it: "Clicking the checkbox did not change its state". | The controls read only from the URL, and React Router applies URL updates as a transition, so React re-rendered the old state first. Sort had the same lag. | The new params are kept locally and shown immediately, then dropped once the URL changes. |
+| Filters, facts, decision card | The phone Filters button's accessible name didn't match "Filters, 1 applied", even though its text content was exactly that. | The name was assembled from separate flex items and screen-reader-only text, and the browser's name computation didn't join them into that string. | An explicit `aria-label`, and the visible count is `aria-hidden`. |
+| Filters, facts, decision card | Latent, fixed before shipping: the sidebar and the bottom sheet each render the rating radios under the same `name`, so the browser would treat them as one group. | Two instances of one panel. | The group name comes from `useId()`, so it's unique per panel. |
+| Filters, facts, decision card | Latent, fixed before shipping: the "showing 24" note would have stayed at 24 after "Show more". | The note was computed outside the component that knows how many are visible. | Moved into the result grid. |
+| Filters, facts, decision card | The audit reported 70+ overlaps and clippings on the bottom-sheet screenshot, and the screenshot itself was misplaced. | It measured the page behind the modal, treated rows scrolled inside the sheet as clipped, and took a full-page screenshot of a fixed element. | With a modal open, only the modal is audited. Scroll containers don't count as clipping, boxes are cut to their scroll container before overlap checks, and modal scenes take a viewport screenshot. |
+| Filters, facts, decision card | The chip test failed even though removing the chip did clear the Max input. | The URL changes before React re-renders, and the test read the input in between. | The test waits for the input to clear. |
+| Compare tray | On phones the tray squeezed "Compare 2 of 3" into three lines. | Thumbnails, label, Clear and the Compare button were in one row that doesn't fit in 358 px. | Two rows on phones: thumbnails with the count and Clear, then a full-width Compare button. One row from `sm` up. |
+| Compare tray | The lint flagged `setState` inside an effect in the tray's "compare is full" notice. It would also have shown an old notice again whenever the tray remounted. | The notice's timing lived in the component. | The store sets the flag and clears it after 5 seconds itself. The component only reads it. |
+| Compare tray | The audit flagged the tray thumbnails' corner "×" buttons and the content scrolling under the fixed tray as overlaps. | Both are deliberate layering. | The audit skips pairs where only one element is inside a fixed bar, and an absolutely positioned control sitting on its sibling. |
+| Orders, home, polish | Latent, found in review: with products in the compare tray, a catalog failure would have crashed the whole app instead of showing the error page. | The tray reads the catalog in the layout, outside each route's error boundary. | The tray has its own boundary that hides it; the route shows "Something went wrong". A test blocks the API with items in compare. |
+| Orders, home, polish | Latent, found in review: opening a product from far down the search results kept the scroll position, so the product page could open scrolled down. | The router had no `ScrollRestoration`. | Added it. Filter and sort changes pass `preventScrollReset`, so they keep your place. Both are tested. |
+| Orders, home, polish | The theme toggle is a radio group, but every option was its own Tab stop and the arrow keys did nothing. | The ARIA radio pattern wasn't fully implemented. | One Tab stop (the checked option), and the arrow keys move and select, wrapping around. Tested. |
+| Orders, home, polish | Every browser tab said "Plainly", whatever the page. | Pages didn't set a title. | Each page sets its own ("Electronics · Plainly", the product name, "Checkout · Plainly"). |
+| Orders, home, polish | The intro strip wrapped to two lines on phones, and the current department could sit out of sight in the department bar. | The full sentence doesn't fit in 358 px; the bar never scrolled to the active link. | Phones show only the intro heading; the bar scrolls the active link to its middle. Both tested at 390 px. |
+| Orders, home, polish | The audit flagged cards in the sideways rows as off-screen, and text inside closed `<details>` as overlapping the footer. | Both are hidden by design. | The audit skips items inside horizontal scrollers and content of closed `<details>`. |

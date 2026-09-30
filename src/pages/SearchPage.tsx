@@ -7,9 +7,11 @@ import { ProductCard, ProductCardSkeleton, gridClass } from '../components/Produ
 import { StatusMessage } from '../components/StatusMessage'
 import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog, type Product } from '../lib/catalog'
+import { findDepartment } from '../lib/departments'
 import { filterChips, matchesFilters, NO_FILTERS, parseFilters, writeFilters, type Filters } from '../lib/filters'
 import { pluralize } from '../lib/format'
 import { isSortKey, searchProducts, sortHits, sortLabels, type SortKey } from '../lib/search'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const PAGE_SIZE = 24
 const layoutClass = 'lg:grid lg:grid-cols-[14rem_1fr] lg:gap-8'
@@ -28,7 +30,8 @@ function useImmediateSearchParams() {
   }
   const update = (next: URLSearchParams) => {
     setPending(next)
-    setUrlParams(next, { replace: true })
+    // A filter or sort change keeps your scroll position; ScrollRestoration would reset it.
+    setUrlParams(next, { replace: true, preventScrollReset: true })
   }
   return [pending ?? urlParams, update] as const
 }
@@ -203,10 +206,16 @@ function ResultsSkeleton() {
   )
 }
 
+function searchHeading(query: string, filters: Filters): string {
+  if (query) return `Results for “${query}”`
+  return findDepartment(filters.department)?.name ?? 'All products'
+}
+
 export function SearchPage() {
   const { query, sort, setSort, filters, setFilters } = useSearchState()
   const [sheetOpen, setSheetOpen] = useState(false)
-  const heading = query ? `Results for “${query}”` : 'All products'
+  const heading = searchHeading(query, filters)
+  useDocumentTitle(heading)
   const activeCount = filterChips(filters).length
 
   return (

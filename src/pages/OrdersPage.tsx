@@ -4,6 +4,7 @@ import { StatusMessage } from '../components/StatusMessage'
 import { secondaryButton } from '../components/styles'
 import { formatPrice, pluralize } from '../lib/format'
 import { orderItemCount, useOrders, type Order } from '../orders/orders'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const placedFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' })
 
@@ -22,7 +23,7 @@ function OrderCard({ order }: { order: Order }) {
           </p>
         </header>
         <div className="grid gap-4 p-4 sm:p-6 md:grid-cols-[1fr_14rem]">
-          <OrderLines lines={order.lines} />
+          <OrderLines lines={order.lines} placedAt={order.placedAt} />
           <div className="text-sm md:border-l md:border-border md:pl-4">
             <h3 className="font-medium text-muted">Shipping to</h3>
             <AddressBlock address={order.address} />
@@ -34,6 +35,7 @@ function OrderCard({ order }: { order: Order }) {
 }
 
 export function OrdersPage() {
+  useDocumentTitle('Your orders')
   const orders = useOrders((s) => s.orders)
   if (orders.length === 0) {
     return (

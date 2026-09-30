@@ -8,6 +8,7 @@ import { primaryButton, secondaryButton } from '../components/styles'
 import { useCatalog } from '../lib/catalog'
 import { formatPrice, pluralize } from '../lib/format'
 import { salePrice } from '../lib/pricing'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 function CartRow({ line }: { line: ResolvedLine }) {
   const { product, quantity } = line
@@ -86,6 +87,7 @@ function CartContents() {
 }
 
 export function CartPage() {
+  useDocumentTitle('Cart')
   return (
     <Suspense fallback={<StatusMessage role="status" title="Loading your cart…" />}>
       <CartContents />

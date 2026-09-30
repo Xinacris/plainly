@@ -11,6 +11,7 @@ import { formatPrice, pluralize } from '../lib/format'
 import { salePrice } from '../lib/pricing'
 import { validateAddress, type AddressErrors } from '../orders/address'
 import { EMPTY_ADDRESS, useLastAddress, useOrders, type Address, type OrderLine } from '../orders/orders'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const section = 'rounded-xl border border-border bg-surface p-4 sm:p-6'
 const sectionHeading = 'text-lg font-bold tracking-tight'
@@ -160,6 +161,7 @@ function CheckoutContents() {
 }
 
 export function CheckoutPage() {
+  useDocumentTitle('Checkout')
   return (
     <Suspense fallback={<StatusMessage role="status" title="Loading checkout…" />}>
       <CheckoutContents />

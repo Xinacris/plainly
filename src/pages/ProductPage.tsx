@@ -8,6 +8,7 @@ import { secondaryButton } from '../components/styles'
 import { useProduct, type Product } from '../lib/catalog'
 import { TRANSIT } from '../lib/delivery'
 import { formatCategory, formatRating, pluralize, reviewRating } from '../lib/format'
+import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 function Gallery({ product }: { product: Product }) {
   const [index, setIndex] = useState(0)
@@ -91,6 +92,7 @@ function DetailList({ rows }: { rows: [string, string][] }) {
 
 function ProductDetails({ id }: { id: number }) {
   const product = useProduct(id)
+  useDocumentTitle(product?.title ?? 'Product not found')
   if (!product) {
     return (
       <StatusMessage
