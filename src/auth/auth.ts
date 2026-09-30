@@ -1,6 +1,7 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { create } from 'zustand'
 import { DEMO_EMAIL } from '../lib/demo.js'
+import { isOffline, OFFLINE } from '../lib/network'
 import { getSupabase, SUPABASE_CONFIGURED, UNREACHABLE } from '../lib/supabase'
 
 // The session lives in this browser (Supabase keeps it in localStorage) and is
@@ -44,6 +45,7 @@ export function useUser(): User | null {
 
 /** A plain-language message for an auth error, never a raw code. */
 export function authMessage(error: unknown): string {
+  if (isOffline()) return OFFLINE
   const e = error as { message?: string; status?: number; name?: string; code?: string } | null
   const message = e?.message ?? ''
   if (!e || e.name === 'AuthRetryableFetchError' || /fetch|network|Failed to/i.test(message) || e.status === 0) return UNREACHABLE
@@ -56,6 +58,7 @@ export function authMessage(error: unknown): string {
 }
 
 export async function signIn(email: string, password: string): Promise<string | null> {
+  if (isOffline()) return OFFLINE
   const supabase = await getSupabase()
   if (!supabase) return UNREACHABLE
   try {
@@ -67,6 +70,7 @@ export async function signIn(email: string, password: string): Promise<string | 
 }
 
 export async function signUp(fullName: string, email: string, password: string): Promise<string | null> {
+  if (isOffline()) return OFFLINE
   const supabase = await getSupabase()
   if (!supabase) return UNREACHABLE
   try {
@@ -81,6 +85,7 @@ export async function signUp(fullName: string, email: string, password: string):
 }
 
 export async function signInWithGoogle(next: string): Promise<string | null> {
+  if (isOffline()) return OFFLINE
   const supabase = await getSupabase()
   if (!supabase) return UNREACHABLE
   try {

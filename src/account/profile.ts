@@ -1,4 +1,5 @@
 import { authMessage } from '../auth/auth'
+import { isOffline, OFFLINE } from '../lib/network'
 import { getSupabase, UNREACHABLE } from '../lib/supabase'
 import { useAccountData } from './data'
 
@@ -15,6 +16,7 @@ const failed = (error: unknown): { ok: false; message: string } => ({ ok: false,
 // Loads the signed-in user's profile, creating it on first use (no database
 // trigger: the row is made by the user themselves, under RLS).
 export async function loadProfile(userId: string, fallbackName: string): Promise<Result<Profile>> {
+  if (isOffline()) return { ok: false, message: OFFLINE }
   const supabase = await getSupabase()
   if (!supabase) return { ok: false, message: UNREACHABLE }
   try {
@@ -30,6 +32,7 @@ export async function loadProfile(userId: string, fallbackName: string): Promise
 }
 
 export async function saveProfile(userId: string, fullName: string, phone: string): Promise<string | null> {
+  if (isOffline()) return OFFLINE
   const supabase = await getSupabase()
   if (!supabase) return UNREACHABLE
   try {
@@ -45,6 +48,7 @@ export async function saveProfile(userId: string, fullName: string, phone: strin
 }
 
 export async function changePassword(password: string): Promise<string | null> {
+  if (isOffline()) return OFFLINE
   const supabase = await getSupabase()
   if (!supabase) return UNREACHABLE
   try {

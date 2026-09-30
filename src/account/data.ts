@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { authMessage, isDemo, useAuth } from '../auth/auth'
 import { orderStatus } from '../lib/orderStatus'
+import { isOffline, OFFLINE } from '../lib/network'
 import { getSupabase, UNREACHABLE } from '../lib/supabase'
 import { trimAddress, useAddressBook, type SavedAddress } from '../orders/addresses'
 import { newOrderId, useOrders, type Address, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
@@ -71,6 +72,8 @@ function toOrder(row: Row, returns: Row[]): Order {
 }
 
 async function client() {
+  // Nothing is sent while offline (or simulating it), so nothing half-changes.
+  if (isOffline()) throw new Error(OFFLINE)
   const supabase = await getSupabase()
   if (!supabase) throw new Error(UNREACHABLE)
   return supabase

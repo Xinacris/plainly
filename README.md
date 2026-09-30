@@ -32,3 +32,9 @@ npm run dev
 Accounts need `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in a gitignored `.env.local`. Without them the site runs in guest mode. No other key ever goes to the browser.
 
 Every push to `main` deploys to production on Vercel.
+
+## Trying the offline state
+
+When the connection drops, a banner says you're offline: your cart is saved in this browser, and pages you've already opened still work. It goes away when the connection is back. Account actions (signing in, saving your profile, addresses or orders to your account) say they need a connection instead of failing silently.
+
+To see it without going offline, add `?simulate=offline` to any URL, for example https://plainly-wine.vercel.app/?simulate=offline. The simulation lasts for that tab until you press **Exit simulation** on the banner. It shows the banner and makes account actions answer as they would offline; product data and photos still load.

@@ -139,6 +139,7 @@ const SCENES = [
   { name: 'signup', page: 'account', url: '/signup', ready: 'main h1:has-text("Create an account")' },
   { name: 'profile-demo', page: 'account', url: '/signin?next=%2Fprofile', ready: 'main h1:has-text("Sign in")', needsAccounts: true,
     before: async (page) => { await page.getByRole('button', { name: 'Sign in as demo' }).click(); await page.getByRole('heading', { level: 1, name: 'Profile' }).waitFor(); await page.getByLabel('Name').waitFor() } },
+  { name: 'offline-banner', page: 'header', url: '/?simulate=offline', ready: 'main a:has-text("See all")', widths: [390, 1440] },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("This page isn’t here")' },
 ]
 
@@ -1614,6 +1615,22 @@ if (ACCOUNTS_AVAILABLE) {
       const p = await order(page.getByRole('dialog', { name: 'Menu' }))
       expect(p.join(',') === 'Orders,Addresses,Profile,Sign out', `phone menu order: ${p}`)
     }),
+    // A real dropped connection: saving the profile says so and changes nothing; back
+    // online, the same save works.
+    'account: offline profile save explains, works again once online': accountFlow(async (page) => {
+      const { email } = await makeUser('offline')
+      await signInUi(page, email, PASSWORD, '/profile')
+      const name = page.getByLabel('Name')
+      await name.waitFor()
+      await page.context().setOffline(true)
+      await page.getByRole('status').filter({ hasText: 'You’re offline' }).waitFor()
+      await name.fill('Offline Name')
+      await page.getByRole('button', { name: 'Save' }).first().click()
+      await page.getByText('You’re offline, and this needs a connection.').waitFor()
+      await page.context().setOffline(false)
+      await page.getByRole('button', { name: 'Save' }).first().click()
+      await page.getByText('Saved.').waitFor()
+    }),
     // Signed in, the drawer's account area shows an initial, the name, and the email
     // below it; with no name, the email alone. Sign out sits at the very bottom.
     'account: phone drawer shows who is signed in, Sign out at the bottom': accountFlow(async (page) => {
@@ -1876,6 +1893,51 @@ FLOWS['404: illustration, message, search and departments that work'] = async (p
   await search.getByLabel('Search products').fill('lipstick')
   await search.getByRole('button', { name: 'Search' }).click()
   await page.waitForURL((u) => u.pathname === '/search' && u.searchParams.get('q') === 'lipstick')
+}
+
+// Offline: a banner appears when the connection drops and goes when it's back; the
+// cart and already-opened pages keep working. ?simulate=offline forces the state,
+// with an Exit simulation button, and account actions answer with a clear message
+// without sending anything.
+const OFFLINE_TEXT = 'You’re offline, and this needs a connection.'
+FLOWS['offline: banner comes and goes with the connection, cart still works'] = async (page) => {
+  await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: 'Add to cart' }).first().click()
+  const banner = page.getByRole('status').filter({ hasText: 'You’re offline' })
+  expect((await banner.count()) === 0, 'offline banner shown while online')
+  await page.context().setOffline(true)
+  await banner.waitFor()
+  const text = await banner.innerText()
+  expect(text.includes('Your cart is saved in this browser') && text.includes('pages you’ve already opened still work'), `banner text: ${text}`)
+  expect(!text.includes('simulated') && (await banner.getByRole('button', { name: 'Exit simulation' }).count()) === 0, 'real offline shown as a simulation')
+  // In-app navigation still works, and the cart is there.
+  await page.getByRole('banner').getByRole('link', { name: /Cart/ }).first().click()
+  await page.getByRole('heading', { name: /Cart/, level: 1 }).waitFor()
+  await page.getByText('Essence Mascara Lash Princess').first().waitFor()
+  await page.context().setOffline(false)
+  await banner.waitFor({ state: 'detached' })
+}
+
+FLOWS['offline: ?simulate=offline forces it, account actions explain, Exit simulation ends it'] = async (page) => {
+  let accountRequests = 0
+  page.on('request', (r) => /supabase\.co/.test(r.url()) && /token|signup|rest\/v1/.test(r.url()) && accountRequests++)
+  await page.goto(base + '/signin?simulate=offline', { waitUntil: 'domcontentloaded' })
+  const banner = page.getByRole('status').filter({ hasText: 'You’re offline (simulated)' })
+  await banner.waitFor()
+  await page.getByLabel('Email').fill('someone@example.com')
+  await page.getByLabel('Password').fill('not-sent-anywhere')
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+  await page.getByText(OFFLINE_TEXT).waitFor()
+  expect(accountRequests === 0, `${accountRequests} account requests sent while simulating offline`)
+  // It lasts across pages in this tab.
+  await page.getByRole('banner').getByRole('link', { name: 'Plainly' }).first().click()
+  await page.waitForURL((u) => u.pathname === '/')
+  await banner.waitFor()
+  await banner.getByRole('button', { name: 'Exit simulation' }).click()
+  await banner.waitFor({ state: 'detached' })
+  await page.goto(base + '/signin', { waitUntil: 'domcontentloaded' })
+  await page.getByLabel('Email').waitFor()
+  expect((await page.getByRole('status').filter({ hasText: 'You’re offline' }).count()) === 0, 'simulation came back after Exit')
 }
 
 // The privacy contact is a real, working mailto link.

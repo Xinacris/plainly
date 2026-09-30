@@ -5,6 +5,7 @@ import { CompareTray } from './CompareTray'
 import { ErrorBoundary } from './ErrorBoundary'
 import { Footer } from './Footer'
 import { Header } from './Header'
+import { OfflineBanner } from './OfflineBanner'
 import { AccountNotice, MoveDataPrompt } from './MoveDataPrompt'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
 
@@ -21,6 +22,7 @@ export function Layout() {
         Skip to main content
       </a>
       <Header />
+      <OfflineBanner />
       <AccountNotice />
       <main id="main" tabIndex={-1} className="flex-1 outline-none">
         <RouteErrorBoundary>
