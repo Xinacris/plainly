@@ -1,5 +1,22 @@
 # Plainly: Decisions
 
+## Revision round progress
+
+Resume from the first unticked item: first read this list and `git log`. Verify on a `vite build --mode test` preview (full matrix for changed pages), and give the live URL one light smoke check at the end. Run `node scripts/check-secrets.mjs` before every commit.
+
+- [ ] 1. Privacy contact: the real address, as a working mailto link
+- [ ] 2. Select boxes: one consistent, themed chevron with padding (native selects kept)
+- [ ] 3. Account menu email: one line when it fits, ellipsis plus full address otherwise
+- [ ] 4. Sign out at the bottom of the account menu, below a divider
+- [ ] 5. "In stock" styled like the other decision-card facts
+- [ ] 6. Lazy images: only the first screen loads eagerly, high priority for the main photo, no layout shift, image-count check
+- [ ] 7. Horizontal rows on phones: start at the page padding, snap to it
+- [ ] 8. Phone menu: right-side drawer with account area, icon rows, Sign out at the bottom
+- [ ] 9. 404 page: the illustration, a friendly message, search and departments; Brand section
+- [ ] 10. Offline state: a banner, clear messages for account actions, `?simulate=offline`
+- [ ] 11. English and Turkish throughout, with a picker, Turkish search synonyms and Turkish flows
+- [ ] 12. Accessibility: `/accessibility` with display settings and a statement; verification at the largest text and increased contrast
+
 ## Step 2 progress: accounts on Supabase (complete)
 
 Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
