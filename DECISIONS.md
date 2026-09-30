@@ -1,5 +1,18 @@
 # Plainly: Decisions
 
+## Step 2 progress: accounts on Supabase
+
+Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
+
+- [x] 0. Setup: pinned `@supabase/supabase-js` and the Supabase CLI; `.env.test.local` pointed at plainly-test (it held production's URL and publishable key); production's "Confirm email" switched off, as decided; secret-scan guard.
+- [ ] 1. Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly
+- [ ] 2. Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained
+- [ ] 3. Profile page
+- [ ] 4. Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account
+- [ ] 5. Demo account: seed and reset script, sign-in page note, "Sign in as demo", README
+- [ ] 6. GitHub Actions: keep-alive and demo reset every 3 days, never printing the secret
+- [ ] 7. Tests (sign-up, sign-in, sign-out, profile, data move, demo, RLS isolation), verification, docs, deploy
+
 ## Thesis
 
 **Plainly is Amazon without the noise: decide with facts, not noise.**
