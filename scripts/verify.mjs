@@ -1410,9 +1410,9 @@ if (ACCOUNTS_AVAILABLE) {
   const PASSWORD = 'flow-test-Pw1!'
   const created = []
   const newEmail = (tag) => `flow-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}@example.com`
-  async function makeUser(tag) {
+  async function makeUser(tag, fullName) {
     const email = newEmail(tag)
-    const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true })
+    const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true, ...(fullName ? { user_metadata: { full_name: fullName } } : {}) })
     if (error) throw new Error(`createUser: ${error.message}`)
     created.push(data.user.id)
     return { email, id: data.user.id }
@@ -1614,6 +1614,33 @@ if (ACCOUNTS_AVAILABLE) {
       const p = await order(page.getByRole('dialog', { name: 'Menu' }))
       expect(p.join(',') === 'Orders,Addresses,Profile,Sign out', `phone menu order: ${p}`)
     }),
+    // Signed in, the drawer's account area shows an initial, the name, and the email
+    // below it; with no name, the email alone. Sign out sits at the very bottom.
+    'account: phone drawer shows who is signed in, Sign out at the bottom': accountFlow(async (page) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      for (const [name, initial] of [['Ada Lovelace', 'A'], ['', null]]) {
+        const { email } = await makeUser('drawer', name)
+        await signInUi(page, email)
+        await page.getByRole('button', { name: 'Menu' }).click()
+        const drawer = page.getByRole('dialog', { name: 'Menu' })
+        await drawer.getByText('Signed in as').waitFor()
+        if (name) await drawer.getByText(name, { exact: true }).waitFor() // arrives with the account data
+        const area = drawer.locator('div', { has: page.getByText('Signed in as', { exact: true }) }).last()
+        const texts = (await area.locator('p').allInnerTexts()).map((t) => t.trim())
+        const want = name ? ['Signed in as', name, email] : ['Signed in as', email]
+        expect(texts.join('|') === want.join('|'), `account area: ${texts.join(' | ')}`)
+        const shown = await drawer.locator('span[aria-hidden="true"]').first().innerText()
+        expect(shown === (initial ?? email[0].toUpperCase()), `avatar initial "${shown}"`)
+        const signOut = drawer.getByRole('button', { name: 'Sign out' })
+        const [dialogBox, signOutBox] = [await drawer.boundingBox(), await signOut.boundingBox()]
+        expect(dialogBox.y + dialogBox.height - (signOutBox.y + signOutBox.height) < 24, 'Sign out is not at the bottom of the drawer')
+        expect(await signOut.evaluate((b) => getComputedStyle(b.parentElement).borderTopWidth !== '0px'), 'no divider above Sign out')
+        await signOut.click()
+        await page.getByRole('button', { name: 'Menu' }).click()
+        await drawer.getByRole('link', { name: 'Sign in' }).waitFor()
+        await page.keyboard.press('Escape')
+      }
+    }),
     'account: service unreachable, guest shopping still works, account pages say so': Object.assign(accountFlow(async (page) => {
       const { email } = await makeUser('offline')
       await signInUi(page, email, PASSWORD, '/orders')
@@ -1762,6 +1789,69 @@ for (const width of [360, 390]) {
       expect(after.cards.includes(start.heading), `after a swipe no card sits on the ${start.heading}px line: ${after.cards.slice(0, 5).join(', ')}`)
     } finally {
       await context.close()
+    }
+  }
+}
+
+// Phones: the menu is a drawer from the right over a dimmed backdrop. A tap on the
+// backdrop or Escape closes it and focus returns to the menu button; Tab stays inside;
+// rows are normal-size text with an icon and a chevron at a comfortable height; focus
+// rings show for the keyboard only; reduced motion skips the slide.
+FLOWS['phone drawer: right side, backdrop and Escape close, focus kept inside and returned'] = async () => {
+  for (const reducedMotion of ['no-preference', 'reduce']) {
+    const context = await browser.newContext({ isMobile: true, hasTouch: true, viewport: { width: 390, height: 844 }, reducedMotion })
+    const page = await context.newPage()
+    page.setDefaultTimeout(SCENE_TIMEOUT)
+    try {
+      await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      const opener = page.getByRole('button', { name: 'Menu' })
+      const drawer = page.getByRole('dialog', { name: 'Menu' })
+      await opener.click()
+      await drawer.getByRole('link', { name: 'Orders' }).waitFor()
+      await page.waitForTimeout(300) // the slide
+      const box = await drawer.boundingBox()
+      expect(Math.abs(box.x + box.width - 390) < 1 && box.y === 0 && Math.abs(box.height - 844) < 1, `drawer not on the right, full height: ${JSON.stringify(box)}`)
+      expect(box.width > 390 * 0.8 && box.width < 390 * 0.9, `drawer ${box.width}px wide, not about 85%`)
+      const style = await drawer.evaluate((d) => ({ duration: getComputedStyle(d).transitionDuration, backdrop: getComputedStyle(d, '::backdrop').backgroundColor }))
+      expect(style.backdrop !== 'rgba(0, 0, 0, 0)', 'no dimmed backdrop')
+      if (reducedMotion === 'reduce') {
+        expect(style.duration === '0s', `slide not skipped with reduced motion: ${style.duration}`)
+        await context.close()
+        continue
+      }
+      expect(style.duration !== '0s', 'drawer does not slide in')
+      // Opened by a tap: no focus ring anywhere.
+      expect(!(await page.evaluate(() => document.activeElement?.matches(':focus-visible'))), 'focus ring shown after a tap')
+      // Rows: an icon, the label at normal size, a chevron, 44px or taller.
+      for (const name of ['Orders', 'Addresses']) {
+        const row = await drawer.getByRole('link', { name }).evaluate((a) => ({ h: a.getBoundingClientRect().height, size: getComputedStyle(a).fontSize, icons: a.querySelectorAll('svg').length }))
+        expect(row.h >= 44 && row.size === '16px' && row.icons === 2, `${name} row: ${JSON.stringify(row)}`)
+      }
+      expect(await drawer.getByRole('link', { name: 'Sign in' }).isVisible(), 'signed out: no Sign in button')
+      const order = await drawer.evaluate((d) => [...d.querySelectorAll('a, button, [role="radio"]')].map((el) => el.textContent.trim()).filter(Boolean))
+      expect(order.indexOf('Sign in') < order.indexOf('Orders') && order.indexOf('Addresses') < order.findIndex((t) => t.includes('Light')), `drawer order: ${order.join(', ')}`)
+      // Tab goes round inside the drawer, with a visible ring.
+      // Every press: in the drawer, or (past the last control) the browser's own UI, never the page.
+      let rings = 0
+      for (let i = 0; i < 16; i++) {
+        await page.keyboard.press('Tab')
+        const at = await page.evaluate(() => ({ inside: !!document.activeElement?.closest('dialog[open]'), body: document.activeElement === document.body, ring: !!document.activeElement?.matches(':focus-visible') }))
+        expect(at.inside || at.body, `Tab ${i + 1} left the drawer`)
+        if (at.inside && at.ring) rings++
+      }
+      expect(rings > 0, 'no focus ring for keyboard focus')
+      await page.keyboard.press('Escape')
+      expect(!(await drawer.isVisible()), 'Escape did not close the drawer')
+      expect(await opener.evaluate((b) => b === document.activeElement), 'focus not returned to the menu button after Escape')
+      // A tap on the dimmed backdrop, left of the drawer, closes it too.
+      await opener.click()
+      await drawer.getByRole('link', { name: 'Orders' }).waitFor()
+      await page.waitForTimeout(300)
+      await page.touchscreen.tap(20, 400)
+      await drawer.waitFor({ state: 'hidden' })
+      expect(await opener.evaluate((b) => b === document.activeElement), 'focus not returned to the menu button after a backdrop tap')
+    } finally {
+      await context.close().catch(() => {})
     }
   }
 }

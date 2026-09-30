@@ -18,6 +18,8 @@ interface AccountDataState {
   error: string
   addresses: SavedAddress[]
   defaultId: string | null
+  /** The profile's name, for the phone menu; empty when none is set. */
+  fullName: string
   orders: Order[]
   /** A short message after moving this browser's data in; shown once, then dismissed. */
   notice: string
@@ -29,6 +31,7 @@ export const useAccountData = create<AccountDataState>()(() => ({
   error: '',
   addresses: [],
   defaultId: null,
+  fullName: '',
   orders: [],
   notice: '',
 }))
@@ -82,7 +85,7 @@ export async function loadAccountData(userId: string, { skipDemoRefresh = false 
     const supabase = await client()
     const [addresses, profile, orders, returns] = await Promise.all([
       supabase.from('addresses').select('*').order('created_at', { ascending: true }),
-      supabase.from('profiles').select('default_address_id').eq('id', userId).maybeSingle(),
+      supabase.from('profiles').select('default_address_id, full_name').eq('id', userId).maybeSingle(),
       supabase.from('orders').select('*').order('placed_at', { ascending: false }),
       supabase.from('order_returns').select('*'),
     ])
@@ -93,6 +96,8 @@ export async function loadAccountData(userId: string, { skipDemoRefresh = false 
       status: 'ready',
       addresses: (addresses.data ?? []).map(toAddress),
       defaultId: (profile.data?.default_address_id as string | null) ?? null,
+      // Before the profile exists (it's made on first visit to Profile), the name given at sign-up.
+      fullName: ((profile.data?.full_name || useAuth.getState().user?.user_metadata?.full_name || '') as string).trim(),
       orders: (orders.data ?? []).map((o) => toOrder(o, returns.data ?? [])),
     })
     if (!skipDemoRefresh && isDemo(useAuth.getState().user)) void refreshDemoOrders(userId)
@@ -107,7 +112,7 @@ useAuth.subscribe((state, previous) => {
   const before = previous.status === 'signed-in' ? previous.user?.id ?? null : null
   if (id === before && !(id && current().status === 'idle')) return
   if (id) void loadAccountData(id)
-  else set({ userId: null, status: 'idle', error: '', addresses: [], defaultId: null, orders: [], notice: '' })
+  else set({ userId: null, status: 'idle', error: '', addresses: [], defaultId: null, fullName: '', orders: [], notice: '' })
 })
 
 // The demo account's Preparing and Shipped orders only last minutes (the status is

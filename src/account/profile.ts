@@ -1,5 +1,6 @@
 import { authMessage } from '../auth/auth'
 import { getSupabase, UNREACHABLE } from '../lib/supabase'
+import { useAccountData } from './data'
 
 export interface Profile {
   fullName: string
@@ -35,7 +36,9 @@ export async function saveProfile(userId: string, fullName: string, phone: strin
     const { error } = await supabase
       .from('profiles')
       .upsert({ id: userId, full_name: fullName.trim(), phone: phone.trim(), updated_at: new Date().toISOString() })
-    return error ? authMessage(error) : null
+    if (error) return authMessage(error)
+    useAccountData.setState({ fullName: fullName.trim() }) // the phone menu shows it
+    return null
   } catch (error) {
     return authMessage(error)
   }
