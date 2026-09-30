@@ -14,6 +14,7 @@ import { pluralize } from '../lib/format'
 import { SALE_LABEL, SALE_URL } from '../lib/pricing'
 import { isSortKey, searchProducts, sortHits, sortLabels, type SortKey } from '../lib/search'
 import { resolveQuery, type ResolvedQuery } from '../lib/spelling'
+import { Select } from '../components/Select'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 const PAGE_SIZE = 24
@@ -75,17 +76,17 @@ function SortSelect({ sort, hasQuery, onChange }: { sort: SortKey; hasQuery: boo
   return (
     <label className="flex items-center gap-2 text-sm">
       <span className="text-muted">Sort by</span>
-      <select
+      <Select
         value={sort}
         onChange={(e) => onChange(e.target.value as SortKey)}
-        className="h-10 rounded-lg border border-border-strong bg-surface px-2 text-text"
+        compact
       >
         {options.map((key) => (
           <option key={key} value={key}>
             {sortLabels[key]}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   )
 }

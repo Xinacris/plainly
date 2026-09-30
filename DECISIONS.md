@@ -5,7 +5,7 @@
 Resume from the first unticked item: first read this list and `git log`. Verify on a `vite build --mode test` preview (full matrix for changed pages), and give the live URL one light smoke check at the end. Run `node scripts/check-secrets.mjs` before every commit.
 
 - [x] 1. Privacy contact: the real address, as a working mailto link (`src/lib/contact.ts`, reused by `/accessibility`)
-- [ ] 2. Select boxes: one consistent, themed chevron with padding (native selects kept)
+- [x] 2. Select boxes: one consistent, themed chevron with padding (native selects kept). `src/components/Select.tsx`, used by quantity, sort and the return reason. The native arrow is hidden (`appearance: none`) and replaced by a `currentColor` chevron 12px from the edge, so it also shows in forced-colors mode. A flow checks all three, in both themes.
 - [ ] 3. Account menu email: one line when it fits, ellipsis plus full address otherwise
 - [ ] 4. Sign out at the bottom of the account menu, below a divider
 - [ ] 5. "In stock" styled like the other decision-card facts

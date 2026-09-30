@@ -24,6 +24,7 @@ import { useNow } from '../lib/useNow'
 import { useOrdersData } from '../account/hooks'
 import { LocalDataNotice } from '../components/MoveDataPrompt'
 import { primaryButton } from '../components/styles'
+import { Select } from '../components/Select'
 import { orderItemCount, RETURN_REASONS, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
 
 const dateTime = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' })
@@ -199,16 +200,16 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
             <label htmlFor={reasonId} className="mt-3 block font-medium">
               Reason
             </label>
-            <select
+            <Select
               id={reasonId}
               value={reason}
               onChange={(e) => setReason(e.target.value as ReturnReason)}
-              className="mt-1 h-11 w-full rounded-lg border border-border-strong bg-surface px-3 text-text"
+              wrapperClassName="mt-1 w-full"
             >
               {RETURN_REASONS.map((r) => (
                 <option key={r}>{r}</option>
               ))}
-            </select>
+            </Select>
           </>
         )}
       </ConfirmDialog>

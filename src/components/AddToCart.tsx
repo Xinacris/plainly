@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { MAX_PER_LINE, maxQuantity, useCart, useCartQuantity } from '../cart/cart'
 import { useCartToast } from '../cart/toast'
 import type { Product } from '../lib/catalog'
+import { Select } from './Select'
 import { primaryButton, textLink } from './styles'
 
 // Which limit applies, in words: the stock, or the per-item cap.
@@ -37,18 +38,17 @@ export function AddToCart({ product }: { product: Product }) {
               Quantity
             </label>
             {/* Only what can still be added, within stock and the per-item limit. */}
-            <select
+            <Select
               id={selectId}
               value={Math.min(quantity, remaining)}
               onChange={(e) => setQuantity(Number(e.target.value))}
-              className="h-11 rounded-lg border border-border-strong bg-surface px-3 text-text"
             >
               {Array.from({ length: remaining }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
                   {i + 1}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <button type="button" onClick={handleAdd} className={`${primaryButton} flex-1 sm:flex-none`}>
             Add to cart

@@ -1606,6 +1606,30 @@ if (ACCOUNTS_AVAILABLE) {
   log('Account flows: skipped (needs a `vite build --mode test` preview and .env.test.local)')
 }
 
+// Every select: native element kept, the browser arrow replaced by one themed
+// chevron with padding from the right edge (checked in both themes).
+FLOWS['selects: native, one chevron inset from the edge, themed'] = async (page) => {
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme })
+    for (const url of ['/product/14', '/search']) {
+      await page.goto(base + url, { waitUntil: 'domcontentloaded' })
+      const select = page.locator('main select').first()
+      await select.waitFor()
+      const m = await select.evaluate((el) => {
+        const chevron = el.parentElement.querySelector('svg')
+        const s = getComputedStyle(el)
+        const box = el.getBoundingClientRect()
+        const c = chevron?.getBoundingClientRect()
+        return { tag: el.tagName, appearance: s.appearance, chevron: Boolean(chevron), gap: c ? box.right - c.right : 0, color: chevron ? getComputedStyle(chevron).color : '', muted: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() }
+      })
+      const hex = '#' + m.color.match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
+      expect(m.tag === 'SELECT' && m.appearance === 'none' && m.chevron, `${url} (${scheme}): select not restyled`)
+      expect(m.gap >= 10, `${url} (${scheme}): chevron only ${m.gap}px from the edge`)
+      expect(hex === m.muted, `${url} (${scheme}): chevron color ${hex}, theme muted ${m.muted}`)
+    }
+  }
+}
+
 // The privacy contact is a real, working mailto link.
 FLOWS['privacy: contact is a working mailto link'] = async (page) => {
   await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })
