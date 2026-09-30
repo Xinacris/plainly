@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type FormEvent, type InputHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
+import { Field } from '../components/Field'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router'
 import { useNext } from '../auth/useNext'
 import { authMessage, providerSettings, signIn, signInWithGoogle, signUp, useAuth } from '../auth/auth'
@@ -6,25 +7,6 @@ import { primaryButton, secondaryButton, textLink } from '../components/styles'
 import { DEMO_EMAIL, DEMO_PASSWORD } from '../lib/demo.js'
 import { SUPABASE_CONFIGURED, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, UNREACHABLE } from '../lib/supabase'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-
-const input = 'h-11 w-full rounded-lg border border-border-strong bg-surface px-3 text-text'
-
-function Field({ label, hint, ...props }: { label: string; hint?: string } & InputHTMLAttributes<HTMLInputElement>) {
-  const id = useId()
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      <input id={id} aria-describedby={hint ? `${id}-hint` : undefined} className={input} {...props} />
-      {hint && (
-        <p id={`${id}-hint`} className="text-sm text-muted">
-          {hint}
-        </p>
-      )}
-    </div>
-  )
-}
 
 function AuthShell({ title, intro, children }: { title: string; intro: ReactNode; children: ReactNode }) {
   useDocumentTitle(title)

@@ -11,8 +11,5 @@ export const ACCOUNT_LINKS = BASE
 
 export function useAccountLinks(): { to: string; label: string }[] {
   const signedIn = useAuth((s) => s.status === 'signed-in')
-  return signedIn && PROFILE_READY ? [...BASE, { to: '/profile', label: 'Profile' }] : BASE
+  return signedIn ? [...BASE, { to: '/profile', label: 'Profile' }] : BASE
 }
-
-// The profile page arrives in the next checkpoint; until then it isn't linked.
-const PROFILE_READY = false
