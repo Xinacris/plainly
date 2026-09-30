@@ -27,4 +27,4 @@ dist-ssr
 *.sw?
 .vercel
 .env*
-verify-shots/
+verify-shots*/
