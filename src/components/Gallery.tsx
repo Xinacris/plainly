@@ -26,7 +26,8 @@ export function Gallery({ product }: { product: Product }) {
   const goTo = (i: number, smooth: boolean) => {
     const el = scroller.current
     const next = Math.max(0, Math.min(images.length - 1, i))
-    if (!el) return next
+    // Already on its way there (e.g. → pressed again at the last photo): don't restart it.
+    if (!el || target.current === next) return next
     setIndex(next)
     const animate = smooth && !prefersReducedMotion() && next !== shownNow()
     target.current = animate ? next : null
@@ -40,9 +41,15 @@ export function Gallery({ product }: { product: Product }) {
     const shown = shownNow()
     if (shown !== index) setIndex(shown)
   }
+  // A scroll we started can be interrupted by another one; that "end" lands between
+  // photos and mustn't reset the position. A real stop is always on a snap point.
   const onScrollEnd = () => {
+    const el = scroller.current
+    if (!el || el.clientWidth === 0) return
+    const exact = el.scrollLeft / el.clientWidth
+    if (target.current !== null && Math.abs(exact - Math.round(exact)) > 0.02) return
     target.current = null
-    setIndex(shownNow())
+    setIndex(Math.round(exact))
   }
 
   const onKeyDown = (e: KeyboardEvent) => {

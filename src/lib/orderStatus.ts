@@ -64,3 +64,14 @@ export function canReturn(order: Order, line: OrderLine, now: number): ReturnEli
   if (policy.kind === 'closed') return { ok: false, reason: `Return window closed on ${day.format(policy.lastDay)} (${policy.days} days from the order date).` }
   return { ok: true, lastDay: policy.lastDay }
 }
+
+// A returned item (requested or refunded) belongs only under Returns: the order's
+// Delivered view shows the items that were kept. Per item, so a partly returned
+// order stays under Delivered and a fully returned one appears only under Returns.
+export function keptLines(order: Order): OrderLine[] {
+  return order.lines.filter((line) => !findReturn(order, line.productId))
+}
+
+export function returnedCount(order: Order): number {
+  return order.lines.length - keptLines(order).length
+}

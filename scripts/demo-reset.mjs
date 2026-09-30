@@ -90,8 +90,9 @@ const addresses = [
 ]
 const shipTo = { fullName: 'Demo Reviewer', line1: '1 Sample Street', line2: '', city: 'Springfield', region: 'IL', postalCode: '62701' }
 
-// Lasting states. (Preparing and Shipped only last minutes, so the app adds those
-// when the demo signs in with nothing on its way.)
+// Lasting states, plus two fixed "live" orders. Preparing and Shipped only last
+// minutes, so when the demo signs in with nothing on its way the app re-dates the
+// live ones (refresh_demo_orders migration) instead of creating new orders.
 const orders = [
   // Delivered, with a refunded return on one item and a "No returns" item.
   // (Calvin Klein CK One: 90-day returns; Essence Mascara: no returns.)
@@ -100,6 +101,9 @@ const orders = [
   { id: 'PL-DEMO0002', placed_at: ago(DAY), lines: [line(14, 1, ago(DAY))] },
   // Cancelled a minute after it was placed.
   { id: 'PL-DEMO0003', placed_at: ago(2 * DAY), cancelled_at: ago(2 * DAY - 1), lines: [line(4, 1, ago(2 * DAY))] },
+  // Live: Preparing now, Shipped 3 minutes ago; re-dated on demo sign-in.
+  { id: 'PL-DEMOLIV1', placed_at: ago(0), lines: [line(47, 1, ago(0))] },
+  { id: 'PL-DEMOLIV2', placed_at: ago(3), lines: [line(26, 2, ago(3))] },
 ].map((o) => ({
   user_id: demoId,
   id: o.id,

@@ -127,6 +127,13 @@ try {
   check(Boolean(demoEmail), "the demo account's email cannot be changed")
   const { error: demoAgain } = await client().auth.signInWithPassword({ email: DEMO_EMAIL, password: DEMO_PASSWORD })
   check(!demoAgain, 'the demo password still works afterwards')
+  // Re-dating the demo's live orders: only the demo account may call it.
+  const { error: rpcAsUser } = await a.c.rpc('refresh_demo_orders')
+  check(Boolean(rpcAsUser), 'a normal user cannot call refresh_demo_orders')
+  const { error: rpcAnon } = await client().rpc('refresh_demo_orders')
+  check(Boolean(rpcAnon), 'an anonymous visitor cannot call refresh_demo_orders')
+  const { error: rpcDemo } = await demo.rpc('refresh_demo_orders')
+  check(!rpcDemo, `the demo account can refresh its live orders${rpcDemo ? `: ${rpcDemo.message}` : ''}`)
   const { error: userPw } = await a.c.auth.updateUser({ password: `${password}-new` })
   check(!userPw, 'a normal user can still change their own password')
 } finally {

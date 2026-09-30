@@ -59,6 +59,16 @@ const line = (productId, title, thumb, price, quantity, shippingInformation, est
   productId, title, price, quantity, shippingInformation, returnPolicy,
   thumbnail: `https://cdn.dummyjson.com/product-images/${thumb}/thumbnail.webp`, estimate,
 })
+// One fully returned order (Requested) and one partly returned (Refunded item + kept item).
+const RETURNED = JSON.stringify({ state: { orders: [
+  { id: 'PL-FULL0001', placedAt: daysAgo(0.01), address: ADDRESS, total: 13.51,
+    lines: [line(3, 'Powder Canister', 'beauty/powder-canister', 13.51, 1, 'Ships in 1-2 business days', undefined, '30 days return policy')],
+    returns: [{ productId: 3, reason: 'Arrived damaged', requestedAt: new Date().toISOString() }] },
+  { id: 'PL-PART0001', placedAt: daysAgo(1), address: ADDRESS, total: 538.99,
+    lines: [line(6, 'Calvin Klein CK One', 'fragrances/calvin-klein-ck-one', 49.05, 1, 'Ships overnight', undefined, '90 days return policy'),
+            line(14, 'Knoll Saarinen Executive Conference Chair', 'furniture/knoll-saarinen-executive-conference-chair', 489.94, 1, 'Ships overnight', undefined, '60 days return policy')],
+    returns: [{ productId: 6, reason: 'Changed my mind', requestedAt: daysAgo(0.5) }] },
+] }, version: 1 })
 const BOOK = JSON.stringify({ state: { addresses: [{ id: 'a1', ...ADDRESS }, { id: 'a2', fullName: 'Grace Hopper', line1: '200 Navy Way', line2: '', city: 'Arlington', region: 'VA', postalCode: '22201' }], defaultId: 'a2' }, version: 1 })
 const ORDERS = JSON.stringify({
   state: {
@@ -109,6 +119,8 @@ const SCENES = [
   { name: 'confirmation-missing', page: 'orders', url: '/orders/PL-NOPE/confirmation', ready: 'main h1:has-text("Order not found")' },
   { name: 'orders', page: 'orders', url: '/orders', orders: ORDERS, ready: 'main h1:has-text("Your orders")' },
   { name: 'orders-delivered', page: 'orders', url: '/orders?tab=delivered', orders: ORDERS, ready: 'main article' },
+  { name: 'orders-delivered-partial', page: 'orders', url: '/orders?tab=delivered', orders: RETURNED, ready: 'main article' },
+  { name: 'orders-returns', page: 'orders', url: '/orders?tab=returns', orders: RETURNED, ready: 'main ul[aria-label="Returned items"] li' },
   { name: 'addresses', page: 'addresses', url: '/addresses', addresses: BOOK, ready: 'main ul > li' },
   { name: 'addresses-empty', page: 'addresses', url: '/addresses', ready: 'main h1:has-text("Addresses")' },
   { name: 'checkout-picker', page: 'checkout', url: '/checkout', cart: CART, addresses: BOOK, ready: 'main aside[aria-label="Order summary"] button' },
@@ -1355,11 +1367,15 @@ FLOWS['orders: return per item with a reason, "No returns" disabled, Requested t
   await dialog.getByLabel('Reason').selectOption('Arrived damaged')
   await dialog.getByRole('button', { name: 'Request return' }).click()
   await dialog.waitFor({ state: 'hidden' })
-  await card.getByText('Return requested').waitFor()
-  await card.getByText('Arrived damaged', { exact: false }).waitFor()
-  expect((await card.getByRole('button', { name: 'Return this item: Powder Canister' }).count()) === 0, 'return offered twice')
+  // The returned item moves to Returns; the order stays under Delivered with the kept item.
+  await card.getByText('1 item returned', { exact: false }).waitFor()
+  expect((await card.getByText('Powder Canister').count()) === 0, 'returned item still listed under Delivered')
+  await card.getByText('Essence Mascara Lash Princess').waitFor()
+  await page.getByRole('link', { name: 'Delivered (1)' }).waitFor()
   await page.getByRole('link', { name: 'Returns (1)' }).click()
   await page.locator('main li').getByText('Requested', { exact: true }).waitFor()
+  await page.locator('main li').getByText('Arrived damaged', { exact: false }).waitFor()
+  await page.locator('main li').getByText('a refund of $13.51 (simulated)', { exact: false }).waitFor()
   await page.clock.fastForward('02:05')
   await page.locator('main li').getByText('Refunded', { exact: true }).waitFor()
   await page.locator('main li').getByText('$13.51 back (simulated)', { exact: false }).waitFor()
@@ -1539,6 +1555,14 @@ if (ACCOUNTS_AVAILABLE) {
       const steps = await page.locator('[aria-current=step]').allInnerTexts()
       // Topped up only when nothing is on its way, so at least one Preparing or Shipped order.
       expect(steps.some((t) => t.startsWith('Preparing') || t.startsWith('Shipped')), `demo has no order on its way: ${steps}`)
+      // Signed in, the same per-item rule: the seeded order's refunded item is only under Returns.
+      await page.getByRole('link', { name: /^Delivered/ }).click()
+      const seeded = page.locator('main article', { has: page.getByRole('heading', { name: 'Order PL-DEMO0001' }) })
+      await seeded.getByText('1 item returned', { exact: false }).waitFor()
+      expect((await seeded.getByText('Calvin Klein CK One').count()) === 0, 'demo: returned item listed under Delivered')
+      await seeded.getByText('Essence Mascara Lash Princess').waitFor()
+      await page.getByRole('link', { name: /^Returns/ }).click()
+      await page.getByRole('list', { name: 'Returned items' }).getByRole('listitem').filter({ hasText: 'Calvin Klein CK One' }).getByText('Order PL-DEMO0001', { exact: false }).waitFor()
       await page.goto(base + '/profile', { waitUntil: 'domcontentloaded' })
       await page.getByRole('heading', { name: 'Profile' }).waitFor()
       expect((await page.getByLabel('New password', { exact: true }).count()) === 0, 'demo can see the password form')
@@ -1580,6 +1604,48 @@ if (ACCOUNTS_AVAILABLE) {
   log('Account flows: on (plainly-test)')
 } else {
   log('Account flows: skipped (needs a `vite build --mode test` preview and .env.test.local)')
+}
+
+// Returns are per item: a returned item is listed only under Returns. A fully returned
+// order leaves Delivered; a partly returned one stays with only the kept items.
+FLOWS['orders: fully and partly returned orders, per item, never counted twice'] = async (page) => {
+  const now = Date.now()
+  const at = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString()
+  const powder = line(3, 'Powder Canister', 'beauty/powder-canister', 13.51, 1, 'Ships in 1-2 business days', undefined, '30 days return policy')
+  const ckOne = line(6, 'Calvin Klein CK One', 'fragrances/calvin-klein-ck-one', 49.05, 1, 'Ships overnight', undefined, '90 days return policy')
+  const chair = line(14, 'Knoll Saarinen Executive Conference Chair', 'furniture/knoll-saarinen-executive-conference-chair', 489.94, 1, 'Ships overnight', undefined, '60 days return policy')
+  const orders = { state: { orders: [
+    { id: 'PL-FULL0001', placedAt: at(10), address: ADDRESS, total: 13.51, lines: [powder], returns: [{ productId: 3, reason: 'Arrived damaged', requestedAt: at(1) }] },
+    { id: 'PL-PART0001', placedAt: at(30), address: ADDRESS, total: 538.99, lines: [ckOne, chair], returns: [{ productId: 6, reason: 'Changed my mind', requestedAt: at(10) }] },
+  ] }, version: 1 }
+  await page.addInitScript((o) => localStorage.setItem('plainly-orders', o), JSON.stringify(orders))
+  await page.goto(base + '/orders?tab=delivered', { waitUntil: 'domcontentloaded' })
+  await page.getByRole('link', { name: 'Delivered (1)' }).waitFor()
+  await page.getByRole('link', { name: 'Returns (2)' }).waitFor()
+  expect((await page.getByRole('heading', { name: 'Order PL-FULL0001' }).count()) === 0, 'a fully returned order is listed under Delivered')
+  const part = page.locator('main article', { has: page.getByRole('heading', { name: 'Order PL-PART0001' }) })
+  await part.getByText('Knoll Saarinen Executive Conference Chair').waitFor()
+  expect((await part.getByText('Calvin Klein CK One').count()) === 0, 'the returned item is listed under Delivered')
+  await part.getByText('1 item returned', { exact: false }).waitFor()
+  await part.getByRole('link', { name: 'see Returns' }).click()
+  await page.waitForURL(/tab=returns/)
+  const rows = page.getByRole('list', { name: 'Returned items' }).getByRole('listitem')
+  await rows.first().waitFor()
+  expect((await rows.count()) === 2, `Returns lists ${await rows.count()} items, want 2`)
+  // On a phone the current tab is scrolled into view.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await rows.first().waitFor()
+  const current = await page.getByRole('link', { name: 'Returns (2)' }).boundingBox()
+  expect(current.x >= 0 && current.x + current.width <= 390, `current tab at x=${Math.round(current.x)} is cut off`)
+  const full = rows.filter({ hasText: 'Powder Canister' })
+  await full.getByText('Order PL-FULL0001', { exact: false }).waitFor()
+  await full.getByText('Requested', { exact: true }).waitFor()
+  await full.getByText('a refund of $13.51 (simulated)', { exact: false }).waitFor()
+  const refunded = rows.filter({ hasText: 'Calvin Klein CK One' })
+  await refunded.getByText('Order PL-PART0001', { exact: false }).waitFor()
+  await refunded.getByText('Refunded', { exact: true }).waitFor()
+  await refunded.getByText('$49.05 back (simulated)', { exact: false }).waitFor()
 }
 
 // "System" shows the device's icon: phone, tablet or monitor, by media query.

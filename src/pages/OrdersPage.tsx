@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { AddressBlock, OrderLines } from '../components/OrderLines'
@@ -9,9 +9,10 @@ import { formatPrice, pluralize } from '../lib/format'
 import {
   canReturn,
   DELIVER_AFTER_MS,
-  findReturn,
+  keptLines,
   orderStatus,
   REFUND_AFTER_MS,
+  returnedCount,
   returnStatus,
   SHIP_AFTER_MS,
   STATUS_LABELS,
@@ -71,20 +72,7 @@ function Progress({ order, status }: { order: Order; status: OrderStatus }) {
 }
 
 function ReturnAction({ order, line, now, onStart }: { order: Order; line: OrderLine; now: number; onStart: () => void }) {
-  const request = findReturn(order, line.productId)
-  if (request) {
-    const refunded = returnStatus(request, now) === 'refunded'
-    const detail = refunded ? `${formatPrice(line.price * line.quantity)} back (simulated)` : `requested ${dateTime.format(new Date(request.requestedAt))}`
-    return (
-      <p className="mt-1 text-sm">
-        <span className="font-semibold">{refunded ? 'Refunded' : 'Return requested'}</span>
-        <span className="text-muted">
-          {' '}
-          · {request.reason} · {detail}
-        </span>
-      </p>
-    )
-  }
+  // (Returned items aren't listed here: they're under Returns.)
   const eligible = canReturn(order, line, now)
   if (eligible.ok) {
     return (
@@ -152,7 +140,22 @@ function OrderCard({ order, now, onCancel, onReturn }: CardProps) {
         </header>
         <div className="grid gap-4 p-4 sm:p-6 md:grid-cols-[1fr_14rem]">
           {/* On the way: each item's return window. Delivered: the return action carries it. */}
-          <OrderLines lines={order.lines} placedAt={status === 'preparing' || status === 'shipped' ? order.placedAt : undefined} actions={actions} />
+          <div className="min-w-0">
+            {/* Delivered: only the items kept; returned ones are under Returns. */}
+            <OrderLines
+              lines={status === 'delivered' ? keptLines(order) : order.lines}
+              placedAt={status === 'preparing' || status === 'shipped' ? order.placedAt : undefined}
+              actions={actions}
+            />
+            {status === 'delivered' && returnedCount(order) > 0 && (
+              <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
+                {pluralize(returnedCount(order), 'item')} returned ·{' '}
+                <Link to="/orders?tab=returns" replace className={linkButton}>
+                  see Returns
+                </Link>
+              </p>
+            )}
+          </div>
           <div className="text-sm md:border-l md:border-border md:pl-4">
             <h3 className="font-medium text-muted">Shipping to</h3>
             <AddressBlock address={order.address} />
@@ -222,12 +225,13 @@ function ReturnsList({ orders, now }: { orders: Order[]; now: number }) {
   )
   if (entries.length === 0) return <p className="mt-6 text-muted">No returns yet. Delivered items can be returned from the Delivered tab.</p>
   return (
-    <ul className="mt-4 flex flex-col gap-3">
+    <ul aria-label="Returned items" className="mt-4 flex flex-col gap-3">
       {entries.map(({ order, request, line }) => {
         const refunded = returnStatus(request, now) === 'refunded'
+        const amount = formatPrice(line.price * line.quantity)
         const detail = refunded
-          ? `· ${formatPrice(line.price * line.quantity)} back (simulated)`
-          : `${dateTime.format(new Date(request.requestedAt))} · refund follows in about ${minutes(REFUND_AFTER_MS)} minutes`
+          ? `· ${amount} back (simulated)`
+          : `${dateTime.format(new Date(request.requestedAt))} · a refund of ${amount} (simulated) follows in about ${minutes(REFUND_AFTER_MS)} minutes`
         return (
           <li key={`${order.id}-${line.productId}`} className="flex gap-3 rounded-xl border border-border bg-surface p-4">
             <ProductImage src={line.thumbnail} alt="" className="w-16 shrink-0 self-start p-1.5" />
@@ -262,6 +266,15 @@ export function OrdersPage() {
   const [params] = useSearchParams()
   const raw = params.get('tab')
   const tab: Tab = isTab(raw) ? raw : 'active'
+  const tabList = useRef<HTMLUListElement>(null)
+  // On phones the tabs scroll sideways: keep the current one in view (scrollLeft only,
+  // so the page itself never jumps).
+  useEffect(() => {
+    const ul = tabList.current
+    const current = ul?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (ul && current) ul.scrollLeft = current.offsetLeft - (ul.clientWidth - current.offsetWidth) / 2
+    // Also once the orders have loaded: before that the tabs aren't on the page yet.
+  }, [tab, data.status])
 
   if (data.status === 'loading') return <StatusMessage role="status" title="Loading your orders…" />
   if (data.status === 'error') {
@@ -295,7 +308,10 @@ export function OrdersPage() {
     )
   }
 
-  const inStatusTab = (t: Exclude<Tab, 'returns'>) => orders.filter((o) => inTab[t].includes(orderStatus(o, now)))
+  // Delivered lists an order only while it still has an item that wasn't returned, so
+  // no item is counted under both Delivered and Returns.
+  const inStatusTab = (t: Exclude<Tab, 'returns'>) =>
+    orders.filter((o) => inTab[t].includes(orderStatus(o, now)) && (t !== 'delivered' || keptLines(o).length > 0))
   const count = (t: Tab) => (t === 'returns' ? orders.reduce((sum, o) => sum + (o.returns?.length ?? 0), 0) : inStatusTab(t).length)
   const shown = tab === 'returns' ? [] : inStatusTab(tab)
   const tabLabel = TABS.find((t) => t.value === tab)?.label.toLowerCase()
@@ -317,7 +333,7 @@ export function OrdersPage() {
       </p>
 
       <nav aria-label="Order status" className="mt-4 border-b border-border">
-        <ul className="-mb-px flex gap-1 overflow-x-auto">
+        <ul ref={tabList} className="relative -mb-px flex gap-1 overflow-x-auto">
           {TABS.map((t) => {
             const current = t.value === tab
             return (

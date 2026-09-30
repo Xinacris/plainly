@@ -76,7 +76,7 @@ async function client() {
 const current = () => useAccountData.getState()
 const set = (partial: Partial<AccountDataState>) => useAccountData.setState(partial)
 
-export async function loadAccountData(userId: string): Promise<void> {
+export async function loadAccountData(userId: string, { skipDemoRefresh = false } = {}): Promise<void> {
   set({ userId, status: 'loading', error: '' })
   try {
     const supabase = await client()
@@ -95,7 +95,7 @@ export async function loadAccountData(userId: string): Promise<void> {
       defaultId: (profile.data?.default_address_id as string | null) ?? null,
       orders: (orders.data ?? []).map((o) => toOrder(o, returns.data ?? [])),
     })
-    if (isDemo(useAuth.getState().user)) void topUpDemoOrders()
+    if (!skipDemoRefresh && isDemo(useAuth.getState().user)) void refreshDemoOrders(userId)
   } catch (error) {
     if (current().userId === userId) set({ status: 'error', error: authMessage(error) })
   }
@@ -111,33 +111,18 @@ useAuth.subscribe((state, previous) => {
 })
 
 // The demo account's Preparing and Shipped orders only last minutes (the status is
-// simulated from timestamps), and the reset script can't keep them fresh. So when
-// the demo signs in with nothing on its way, one of each is added, copied from an
-// existing demo order. Capped, so the shared account doesn't pile up orders
-// between resets.
-const DEMO_ORDER_CAP = 20
-
-async function topUpDemoOrders(): Promise<void> {
-  const { orders } = current()
+// simulated from timestamps). When the demo signs in with nothing on its way, its two
+// fixed live orders are re-dated by a database function that only the demo account
+// may call, so nothing new is created and the shared account never piles up orders.
+async function refreshDemoOrders(userId: string): Promise<void> {
   const now = Date.now()
-  const onTheWay = orders.some((o) => ['preparing', 'shipped'].includes(orderStatus(o, now)))
-  const template = orders.find((o) => !o.cancelledAt)
-  if (onTheWay || !template || orders.length >= DEMO_ORDER_CAP) return
-  const fresh: Order[] = [0, 3].map((minutesAgo) => ({
-    id: newOrderId(),
-    placedAt: new Date(now - minutesAgo * 60_000).toISOString(),
-    address: template.address,
-    lines: template.lines,
-    total: template.total,
-  }))
+  if (current().orders.some((o) => ['preparing', 'shipped'].includes(orderStatus(o, now)))) return
   try {
     const supabase = await client()
-    const { error } = await supabase
-      .from('orders')
-      .insert(fresh.map((o) => ({ id: o.id, placed_at: o.placedAt, address: o.address, lines: o.lines, total: o.total })))
-    if (!error) set({ orders: [...fresh, ...current().orders] })
+    const { error } = await supabase.rpc('refresh_demo_orders')
+    if (!error) await loadAccountData(userId, { skipDemoRefresh: true })
   } catch {
-    // Not essential: the demo still works without them.
+    // Not essential: the demo still works without it.
   }
 }
 
