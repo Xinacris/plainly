@@ -7,7 +7,7 @@ Resume from the first unticked item: first read this list and `git log`. Verify 
 - [x] 1. Privacy contact: the real address, as a working mailto link (`src/lib/contact.ts`, reused by `/accessibility`)
 - [x] 2. Select boxes: one consistent, themed chevron with padding (native selects kept). `src/components/Select.tsx`, used by quantity, sort and the return reason. The native arrow is hidden (`appearance: none`) and replaced by a `currentColor` chevron 12px from the edge, so it also shows in forced-colors mode. A flow checks all three, in both themes.
 - [x] 3. Account menu email: one line when it fits, ellipsis plus full address otherwise. The desktop menu widens to fit (`w-max`, 14–24rem). Truncation applies only past that, with the full address in the text and in a `title`. The phone menu follows the same rule. A flow checks a short and a 70-character address. (Also: verification now runs 10 scenes at a time instead of 6, since the machine has 12 cores. The same run went from 113s to 86s, well inside the 2-minute budget.)
-- [ ] 4. Sign out at the bottom of the account menu, below a divider
+- [x] 4. Sign out at the bottom of the account menu, below a divider. In both menus the order is now: who's signed in, then Orders, Addresses, Profile, then Sign out. A flow checks the order and the divider.
 - [ ] 5. "In stock" styled like the other decision-card facts
 - [ ] 6. Lazy images: only the first screen loads eagerly, high priority for the main photo, no layout shift, image-count check
 - [ ] 7. Horizontal rows on phones: start at the page padding, snap to it

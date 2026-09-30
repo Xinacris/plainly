@@ -2,16 +2,16 @@ import { Link, useLocation } from 'react-router'
 import { signOut, useAuth } from '../auth/auth'
 import { ACCOUNTS_ENABLED } from '../lib/accounts'
 
-// Who's signed in, with Sign in / Sign out: the same block in the desktop Account
-// menu and the phone menu. Hidden while accounts are switched off.
-export function AccountStatus({ onDone, large = false }: { onDone: () => void; large?: boolean }) {
+// The top of the desktop Account menu and the phone menu: who's signed in, or a
+// "Sign in" link. Hidden while accounts are switched off.
+export function AccountHeader({ onDone, large = false }: { onDone: () => void; large?: boolean }) {
   const { pathname, search } = useLocation()
   const status = useAuth((s) => s.status)
   const user = useAuth((s) => s.user)
   if (!ACCOUNTS_ENABLED || status === 'loading') return null
-  const item = large ? 'flex h-12 items-center rounded-lg px-3 text-lg font-semibold' : 'block rounded-lg px-3 py-2 text-sm font-medium'
   if (status === 'signed-out') {
     const next = encodeURIComponent(pathname + search)
+    const item = large ? 'flex h-12 items-center rounded-lg px-3 text-lg font-semibold' : 'block rounded-lg px-3 py-2 text-sm font-medium'
     return (
       <Link to={`/signin?next=${next}`} onClick={onDone} className={`${item} text-action hover:bg-bg`}>
         Sign in
@@ -19,16 +19,26 @@ export function AccountStatus({ onDone, large = false }: { onDone: () => void; l
     )
   }
   return (
-    <div className="border-b border-border pb-1 mb-1">
+    <div className="mb-1 border-b border-border pb-1">
       <p className="px-3 pt-2 text-xs text-muted">Signed in as</p>
       <SignedInEmail email={user?.email ?? ''} className={`px-3 pb-2 ${large ? 'text-base' : 'text-sm'}`} />
+    </div>
+  )
+}
+
+// The bottom of the menus, below a divider, when signed in.
+export function SignOutButton({ onDone, className = '' }: { onDone: () => void; className?: string }) {
+  const status = useAuth((s) => s.status)
+  if (!ACCOUNTS_ENABLED || status !== 'signed-in') return null
+  return (
+    <div className="mt-1 border-t border-border pt-1">
       <button
         type="button"
         onClick={async () => {
           onDone()
           await signOut()
         }}
-        className={`${item} w-full text-left text-text hover:bg-bg hover:text-action`}
+        className={`block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-text hover:bg-bg hover:text-action ${className}`}
       >
         Sign out
       </button>

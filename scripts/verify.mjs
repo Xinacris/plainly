@@ -1595,6 +1595,25 @@ if (ACCOUNTS_AVAILABLE) {
       const phone = await emailBox(longEmail).evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 1, text: el.textContent }))
       expect(phone.cut && phone.text === longEmail, 'phone menu: long email not truncated with the full address kept')
     }),
+    'account: Sign out is last in both menus, below a divider': accountFlow(async (page) => {
+      const { email } = await makeUser('order')
+      await signInUi(page, email)
+      const order = async (scope) => {
+        const items = await scope.locator('a, button').filter({ visible: true }).allInnerTexts()
+        return items.map((t) => t.trim()).filter((t) => ['Orders', 'Addresses', 'Profile', 'Sign out'].includes(t))
+      }
+      await openAccountMenu(page)
+      const desktop = page.getByRole('banner').locator('[id]').filter({ has: page.getByRole('button', { name: 'Sign out' }) }).first()
+      const d = await order(desktop)
+      expect(d.join(',') === 'Orders,Addresses,Profile,Sign out', `desktop menu order: ${d}`)
+      const divider = await desktop.getByRole('button', { name: 'Sign out' }).evaluate((b) => getComputedStyle(b.parentElement).borderTopWidth)
+      expect(divider !== '0px', 'no divider above Sign out')
+      await page.keyboard.press('Escape')
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.getByRole('button', { name: 'Menu' }).click()
+      const p = await order(page.getByRole('dialog', { name: 'Menu' }))
+      expect(p.join(',') === 'Orders,Addresses,Profile,Sign out', `phone menu order: ${p}`)
+    }),
     'account: service unreachable, guest shopping still works, account pages say so': Object.assign(accountFlow(async (page) => {
       const { email } = await makeUser('offline')
       await signInUi(page, email, PASSWORD, '/orders')

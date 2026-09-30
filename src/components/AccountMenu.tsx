@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { useAccountLinks } from '../lib/accountLinks'
-import { AccountStatus } from './AccountStatus'
+import { AccountHeader, SignOutButton } from './AccountStatus'
 
 // Desktop header: a small disclosure menu. Opens on click or Enter/Space, closes on
 // Escape (focus back to the button), on a click outside, when focus leaves it, or
@@ -48,7 +48,7 @@ export function AccountMenu() {
       </button>
       {open && (
         <div id={listId} className="absolute top-full right-0 z-40 mt-2 w-max max-w-96 min-w-56 rounded-xl border border-border bg-surface p-1 shadow-lg">
-          <AccountStatus onDone={() => setOpen(false)} />
+          <AccountHeader onDone={() => setOpen(false)} />
           <ul>
           {links.map((l) => (
             <li key={l.to}>
@@ -63,6 +63,7 @@ export function AccountMenu() {
             </li>
           ))}
           </ul>
+          <SignOutButton onDone={() => setOpen(false)} />
         </div>
       )}
     </div>

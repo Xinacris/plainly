@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
 import { useAccountLinks } from '../lib/accountLinks'
-import { AccountStatus } from './AccountStatus'
+import { AccountHeader, SignOutButton } from './AccountStatus'
 import { BottomSheet } from './BottomSheet'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -36,7 +36,7 @@ export function MobileMenu() {
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Menu">
         <nav aria-label="Account">
           <h3 className="mb-1 px-1 text-sm font-bold">Account</h3>
-          <AccountStatus onDone={() => setOpen(false)} large />
+          <AccountHeader onDone={() => setOpen(false)} large />
           {links.map((l) => (
             <NavLink
               key={l.to}
@@ -50,6 +50,7 @@ export function MobileMenu() {
               {l.label}
             </NavLink>
           ))}
+          <SignOutButton onDone={() => setOpen(false)} className="text-base" />
         </nav>
         <h3 className="mt-6 mb-2 px-1 text-sm font-bold">Theme</h3>
         <ThemeToggle labelled />
