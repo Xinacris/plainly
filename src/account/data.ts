@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { authMessage, useAuth } from '../auth/auth'
+import { authMessage, isDemo, useAuth } from '../auth/auth'
+import { orderStatus } from '../lib/orderStatus'
 import { getSupabase, UNREACHABLE } from '../lib/supabase'
 import { trimAddress, useAddressBook, type SavedAddress } from '../orders/addresses'
 import { newOrderId, useOrders, type Address, type Order, type OrderLine, type ReturnReason } from '../orders/orders'
@@ -94,6 +95,7 @@ export async function loadAccountData(userId: string): Promise<void> {
       defaultId: (profile.data?.default_address_id as string | null) ?? null,
       orders: (orders.data ?? []).map((o) => toOrder(o, returns.data ?? [])),
     })
+    if (isDemo(useAuth.getState().user)) void topUpDemoOrders()
   } catch (error) {
     if (current().userId === userId) set({ status: 'error', error: authMessage(error) })
   }
@@ -107,6 +109,37 @@ useAuth.subscribe((state, previous) => {
   if (id) void loadAccountData(id)
   else set({ userId: null, status: 'idle', error: '', addresses: [], defaultId: null, orders: [], notice: '' })
 })
+
+// The demo account's Preparing and Shipped orders only last minutes (the status is
+// simulated from timestamps), and the reset script can't keep them fresh. So when
+// the demo signs in with nothing on its way, one of each is added, copied from an
+// existing demo order. Capped, so the shared account doesn't pile up orders
+// between resets.
+const DEMO_ORDER_CAP = 20
+
+async function topUpDemoOrders(): Promise<void> {
+  const { orders } = current()
+  const now = Date.now()
+  const onTheWay = orders.some((o) => ['preparing', 'shipped'].includes(orderStatus(o, now)))
+  const template = orders.find((o) => !o.cancelledAt)
+  if (onTheWay || !template || orders.length >= DEMO_ORDER_CAP) return
+  const fresh: Order[] = [0, 3].map((minutesAgo) => ({
+    id: newOrderId(),
+    placedAt: new Date(now - minutesAgo * 60_000).toISOString(),
+    address: template.address,
+    lines: template.lines,
+    total: template.total,
+  }))
+  try {
+    const supabase = await client()
+    const { error } = await supabase
+      .from('orders')
+      .insert(fresh.map((o) => ({ id: o.id, placed_at: o.placedAt, address: o.address, lines: o.lines, total: o.total })))
+    if (!error) set({ orders: [...fresh, ...current().orders] })
+  } catch {
+    // Not essential: the demo still works without them.
+  }
+}
 
 /** Runs an account write; returns a plain-language error, or null when it worked. */
 async function attempt(write: () => Promise<void>): Promise<string | null> {
