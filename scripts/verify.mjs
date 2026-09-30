@@ -1675,6 +1675,23 @@ FLOWS['selects: native, one chevron inset from the edge, themed'] = async (page)
   }
 }
 
+// Stock in the decision card reads like the other facts; exceptions keep the warning color.
+FLOWS['decision card: stock styled like the other facts'] = async (page) => {
+  const style = async (id) => {
+    await page.goto(base + `/product/${id}`, { waitUntil: 'domcontentloaded' })
+    const card = page.getByRole('region', { name: 'Price and key facts' })
+    await card.waitFor()
+    const read = (label) => card.locator('dt', { hasText: label }).locator('xpath=following-sibling::dd[1]//p').first()
+      .evaluate((el) => ({ size: getComputedStyle(el).fontSize, color: getComputedStyle(el).color, text: el.textContent }))
+    return { stock: await read('Stock'), warranty: await read('Warranty') }
+  }
+  const inStock = await style(14)
+  expect(inStock.stock.text === 'In stock', `product 14 stock: ${inStock.stock.text}`)
+  expect(inStock.stock.size === inStock.warranty.size && inStock.stock.color === inStock.warranty.color, `"In stock" ${inStock.stock.size} ${inStock.stock.color} vs facts ${inStock.warranty.size} ${inStock.warranty.color}`)
+  const low = await style(9) // only 4 left
+  expect(low.stock.size === low.warranty.size && low.stock.color !== low.warranty.color, `"Only 4 left" should keep the warning color at fact size`)
+}
+
 // The privacy contact is a real, working mailto link.
 FLOWS['privacy: contact is a working mailto link'] = async (page) => {
   await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })

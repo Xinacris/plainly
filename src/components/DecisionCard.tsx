@@ -61,7 +61,7 @@ export function DecisionCard({ product }: { product: Product }) {
           <FactText fact={warrantyFact(product.warrantyInformation)} />
         </Row>
         <Row label="Stock">
-          <StockNote product={product} />
+          <StockNote product={product} fact />
         </Row>
       </dl>
       <AddToCart product={product} />

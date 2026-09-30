@@ -56,7 +56,7 @@ const ATTRIBUTES: Attribute[] = [
   },
   { label: 'Returns', key: (p) => p.returnPolicy, render: (p) => <Flagged {...returnFact(p.returnPolicy)} /> },
   { label: 'Warranty', key: (p) => p.warrantyInformation, render: (p) => <Flagged {...warrantyFact(p.warrantyInformation)} /> },
-  { label: 'Stock', key: stockKey, render: (p) => <StockNote product={p} /> },
+  { label: 'Stock', key: stockKey, render: (p) => <StockNote product={p} fact /> },
 ]
 
 function differs(attribute: Attribute, products: Product[]): boolean {
