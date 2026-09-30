@@ -1171,6 +1171,24 @@ for (const [width, heights] of [[360, [640, 780]], [390, [664, 844]], [414, [715
           }
           await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
         }
+        // One surface: square, background-less slides and tiles with no gap between them,
+        // inside a rounded frame that clips (isolated and composited, for iOS Safari).
+        const structure = await gallery.evaluate((g) => {
+          const slides = [...g.children]
+          return {
+            frame: (({ borderTopLeftRadius, overflowX, isolation, transform, backgroundColor }) => ({ borderTopLeftRadius, overflowX, isolation, transform, backgroundColor }))(getComputedStyle(g)),
+            rounded: slides.flatMap((s) => [s, s.firstElementChild]).filter((el) => getComputedStyle(el).borderTopLeftRadius !== '0px' || getComputedStyle(el).borderBottomRightRadius !== '0px').length,
+            painted: slides.flatMap((s) => [s, s.firstElementChild]).filter((el) => getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)').length,
+            gaps: slides.slice(1).map((s, i) => s.offsetLeft - (slides[i].offsetLeft + slides[i].offsetWidth)).filter((gap) => Math.abs(gap) > 0.5),
+          }
+        })
+        const at0 = `${width}×${height}`
+        expect(structure.rounded === 0, `${at0}: ${structure.rounded} slides/tiles still have rounded corners`)
+        expect(structure.painted === 0, `${at0}: ${structure.painted} slides/tiles paint their own background`)
+        expect(structure.gaps.length === 0, `${at0}: gaps between slides: ${structure.gaps}`)
+        const f = structure.frame
+        expect(f.borderTopLeftRadius !== '0px' && f.overflowX !== 'visible' && f.isolation === 'isolate' && f.transform !== 'none' && f.backgroundColor !== 'rgba(0, 0, 0, 0)',
+          `${at0}: frame doesn't clip to its rounded tile: ${JSON.stringify(f)}`)
         for (let i = 0; i < 6; i++) {
           if (i > 0) await swipeLeft()
           const m = await gallery.evaluate((g, i) => new Promise((ok) => {
@@ -1205,6 +1223,64 @@ for (const [width, heights] of [[360, [640, 780]], [390, [664, 844]], [414, [715
         await context.close()
       }
     }
+  }
+}
+
+// Mid-swipe, pixel by pixel (dark mode, where the page and the light tile contrast):
+// where two slides meet there's tile color all the way to the frame's edge (no notch,
+// no seam), and the frame's own corner shows the page, so it clips to its radius.
+FLOWS['phone gallery mid-swipe: one continuous surface, rounded frame clips'] = async () => {
+  const context = await browser.newContext({ isMobile: true, hasTouch: true, deviceScaleFactor: 1, colorScheme: 'dark', viewport: { width: 390, height: 844 } })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  try {
+    await page.goto(base + '/product/167', { waitUntil: 'domcontentloaded' })
+    const gallery = page.getByRole('region', { name: /photos, \d of 6$/ })
+    await gallery.waitFor()
+    await page.waitForFunction(() => [...document.querySelectorAll('main article img')].slice(0, 2).every((i) => i.complete))
+    const box = await gallery.boundingBox()
+    const cdp = await context.newCDPSession(page)
+    const y = Math.round(box.y + box.height / 2)
+    const from = Math.round(box.x + box.width * 0.85)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from, y }] })
+    for (let i = 1; i <= 6; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(from - (box.width * 0.4 * i) / 6), y }] })
+      await page.waitForTimeout(16)
+    }
+    await page.waitForTimeout(150) // finger still down: the swipe is held halfway
+    const seam = await gallery.evaluate((g) => Math.round(g.children[1].getBoundingClientRect().left))
+    expect(seam > box.x + 20 && seam < box.x + box.width - 20, `not mid-swipe: slides meet at x=${seam}`)
+    const shot = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width, height: box.height } })
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    const points = [
+      ...[-2, -1, 0, 1].map((dx) => ({ name: `seam top ${dx}`, x: seam - box.x + dx, y: 1 })),
+      ...[-2, -1, 0, 1].map((dx) => ({ name: `seam bottom ${dx}`, x: seam - box.x + dx, y: box.height - 2 })),
+      { name: 'frame corner', x: 0, y: 0 },
+    ]
+    const colors = await page.evaluate(async ({ b64, points }) => {
+      const img = new Image()
+      img.src = `data:image/png;base64,${b64}`
+      await img.decode()
+      const canvas = Object.assign(document.createElement('canvas'), { width: img.width, height: img.height })
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0)
+      const hex = (v) => v.trim()
+      const css = getComputedStyle(document.documentElement)
+      return {
+        tile: hex(css.getPropertyValue('--image-tile')),
+        page: hex(css.getPropertyValue('--bg')),
+        samples: points.map((p) => ({ name: p.name, rgb: [...ctx.getImageData(Math.round(p.x), Math.round(p.y), 1, 1).data.slice(0, 3)] })),
+      }
+    }, { b64: shot.toString('base64'), points })
+    const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+    const distance = (a, b) => Math.max(...a.map((v, i) => Math.abs(v - b[i])))
+    const [tile, pageBg] = [rgb(colors.tile), rgb(colors.page)]
+    for (const sample of colors.samples) {
+      const want = sample.name === 'frame corner' ? pageBg : tile
+      expect(distance(sample.rgb, want) <= 12, `${sample.name}: rgb(${sample.rgb}) should be ${sample.name === 'frame corner' ? 'the page' : 'the tile'} ${want === tile ? colors.tile : colors.page}`)
+    }
+  } finally {
+    await context.close()
   }
 }
 
