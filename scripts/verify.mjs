@@ -29,6 +29,17 @@ const smoke = args.some((a) => a === '--smoke' || a.startsWith('--smoke='))
 const smokeScene = typeof flag('smoke') === 'string' && flag('smoke') ? flag('smoke') : 'home'
 // --only=<text>: run just the flows whose name contains <text>, and no layout scenes (for debugging).
 const only = flag('only')
+// --display=larger,contrast: every page opens with those /accessibility settings on
+// (text size large or larger; contrast, motion, underline), for a full run at them.
+const displayArg = flag('display') ?? ''
+const DISPLAY = displayArg
+  ? {
+      textSize: ['large', 'larger'].find((s) => displayArg.split(',').includes(s)) ?? 'default',
+      contrast: displayArg.includes('contrast'),
+      reduceMotion: displayArg.includes('motion'),
+      underlineLinks: displayArg.includes('underline'),
+    }
+  : null
 // axe-core checks WCAG A/AA rules on the 1440-light and 390-dark scenes.
 const AXE_SOURCE = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8')
 fs.mkdirSync(shotDir, { recursive: true })
@@ -143,9 +154,11 @@ const SCENES = [
   { name: 'tr-home', page: 'home', url: '/', locale: 'tr-TR', ready: 'main a[href^="/search?department"]', widths: [390, 768, 1440] },
   { name: 'tr-product', page: 'product', url: '/product/1', locale: 'tr-TR', ready: 'main h1', widths: [390, 1440] },
   { name: 'tr-search', page: 'search', url: '/search?q=telefon', locale: 'tr-TR', ready: 'main li h2 a', widths: [390, 1440] },
+  { name: 'tr-accessibility', page: 'accessibility', url: '/accessibility', locale: 'tr-TR', ready: 'main h1', widths: [390, 1440] },
   { name: 'tr-menu-open', page: 'header', url: '/', locale: 'tr-TR', ready: 'main a[href^="/search?department"]', widths: [390],
     before: async (page) => { await page.getByRole('button', { name: 'Menü' }).click(); await page.getByRole('dialog', { name: 'Menü' }).waitFor() } },
   { name: 'offline-banner', page: 'header', url: '/?simulate=offline', ready: 'main a:has-text("See all")', widths: [390, 1440] },
+  { name: 'accessibility', page: 'accessibility', url: '/accessibility', ready: 'main h1' },
   { name: 'not-found', page: 'not-found', url: '/nope', ready: 'main h1:has-text("This page isn’t here")' },
 ]
 
@@ -256,7 +269,7 @@ function audit() {
 async function axeIssues(page) {
   await page.addScriptTag({ content: AXE_SOURCE })
   const violations = await page.evaluate(async () => {
-    const result = await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] })
+    const result = await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'] })
     return result.violations.map((v) => `axe ${v.impact} ${v.id}: ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`)
   })
   return violations
@@ -289,9 +302,12 @@ const browser = await chromium.launch({ executablePath: chromiumPath() })
 // Tests run in English by default: the first visit follows the browser's language,
 // and this machine's may not be English. The Turkish flows ask for tr-TR themselves.
 const rawNewContext = browser.newContext.bind(browser)
-browser.newContext = (options = {}) => rawNewContext({ locale: 'en-US', ...options })
-const rawNewPage = browser.newPage.bind(browser)
-browser.newPage = (options = {}) => rawNewPage({ locale: 'en-US', ...options })
+browser.newContext = async (options = {}) => {
+  const context = await rawNewContext({ locale: 'en-US', ...options })
+  if (DISPLAY) await context.addInitScript((state) => localStorage.setItem('plainly-display', JSON.stringify({ state, version: 0 })), DISPLAY)
+  return context
+}
+browser.newPage = async (options = {}) => (await browser.newContext(options)).newPage()
 
 async function newPage(theme, width, { cart, orders, compare, addresses, allowErrors = false, locale = 'en-US' } = {}) {
   const ctx = await browser.newContext({ colorScheme: theme, viewport: { width, height: 900 }, locale })
@@ -538,7 +554,9 @@ const FLOWS = {
     await dialog.waitFor({ state: 'hidden' })
     await page.getByRole('button', { name: 'Remove filter: In stock' }).waitFor()
     await page.getByRole('button', { name: 'Filters, 1 applied' }).waitFor()
-  }, { width: 390, theme: 'dark' }),
+    // 45 Tab presses, each checked: about 1.3s alone, but it timed out once under full
+    // parallel load at the largest text size.
+  }, { width: 390, theme: 'dark', timeout: 30_000 }),
   'cards: real discount, list price, no badges': async (page) => {
     await page.goto(base + '/search?q=mascara', { waitUntil: 'domcontentloaded' })
     const card = page.locator('main li', { has: page.getByRole('link', { name: 'Essence Mascara Lash Princess' }) })
@@ -689,12 +707,16 @@ const FLOWS = {
   'scroll: new pages start at the top, filters keep position': async (page) => {
     await page.goto(base + '/search', { waitUntil: 'domcontentloaded' })
     await page.locator('main li h2 a').nth(20).waitFor()
-    // Scroll a little, then use a checkbox that's still in view, so Playwright doesn't scroll to it.
-    await page.evaluate(() => window.scrollTo(0, 100))
-    await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: /^Beauty/ }).click()
+    // Scroll the filter into the middle of the screen (away from the top), so Playwright
+    // doesn't need to scroll to it, at any text size.
+    const beauty = page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: /^Beauty/ })
+    await beauty.evaluate((b) => b.scrollIntoView({ block: 'center' }))
+    const before = await page.evaluate(() => window.scrollY)
+    expect(before > 0, 'filter scroll test needs a scrolled page')
+    await beauty.click()
     await page.waitForURL(/dept=beauty/)
     await page.waitForTimeout(100)
-    expect((await page.evaluate(() => window.scrollY)) === 100, 'a filter change moved the scroll position')
+    expect((await page.evaluate(() => window.scrollY)) === before, 'a filter change moved the scroll position')
     await page.getByRole('button', { name: 'Remove filter: Beauty department' }).click()
     await page.waitForURL((u) => !u.search.includes('dept'))
     await page.locator('main li h2 a').nth(20).scrollIntoViewIfNeeded()
@@ -876,9 +898,11 @@ const FLOWS = {
     expect(overflow <= 1, `breadcrumb overflows by ${overflow}px`)
     const last = ol.locator('[aria-current=page]')
     expect(await last.evaluate((el) => el.scrollWidth > el.clientWidth), 'long product name should be truncated at 390')
-    // The product name gives way first, so the steps before it stay readable.
+    // The product name gives way first, so the steps before it stay readable. Only once
+    // it's down to its minimum (3rem) may they shorten, e.g. at the largest text size.
     const cut = await ol.getByRole('link').evaluateAll((links) => links.filter((a) => a.scrollWidth > a.clientWidth).map((a) => a.textContent))
-    expect(cut.length === 0, `ancestor steps truncated: ${cut}`)
+    const lastAtMinimum = await last.evaluate((el) => el.parentElement.getBoundingClientRect().width <= 3 * parseFloat(getComputedStyle(document.documentElement).fontSize) + 1)
+    expect(cut.length === 0 || lastAtMinimum, `ancestor steps truncated before the product name reached its minimum: ${cut}`)
   }, { width: 390, theme: 'light' }),
   'phone header: two rows, cart one tap, menu with Orders and theme': Object.assign(async (page) => {
     await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
@@ -910,9 +934,13 @@ const FLOWS = {
   // From sm: the desktop links and pickers. Search gets its own full-width row until md,
   // since at 640px (more so in Turkish, with the language picker) it would be squeezed.
   'desktop header: search on its own row at 640, one row from 768': Object.assign(async (page) => {
-    for (const [width, oneRow] of [[640, false], [768, true], [1024, true]]) {
+    for (const width of [640, 768, 1024]) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+      // One row from 48rem of viewport (46rem of header content): 768px at default text,
+      // 960px at the largest size, where the header's container query follows the rem.
+      const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+      const oneRow = width >= 48 * rem
       const header = page.getByRole('banner')
       await header.getByRole('link', { name: 'Orders' }).waitFor()
       await header.getByRole('radiogroup', { name: 'Theme' }).waitFor()
@@ -1607,7 +1635,8 @@ if (ACCOUNTS_AVAILABLE) {
         const m = await measure(email)
         expect(m.cut === shouldCut, `${email.length}-character email ${m.cut ? 'truncated' : 'not truncated'} in the desktop menu`)
         expect(m.text === email, 'the full address is not in the text')
-        expect(m.menu <= 384 + 1, `menu is ${m.menu}px wide, over the 24rem maximum`)
+        const rem = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize))
+        expect(m.menu <= 24 * rem + 1, `menu is ${m.menu}px wide, over the 24rem maximum`)
         if (!shouldCut) expect(m.menu > 224, 'menu did not widen to fit the address')
         await page.getByRole('banner').getByRole('button', { name: 'Sign out' }).click()
         await page.getByRole('banner').getByRole('link', { name: 'Sign in' }).waitFor({ state: 'attached' }).catch(() => {})
@@ -1864,8 +1893,8 @@ FLOWS['phone drawer: right side, backdrop and Escape close, focus kept inside an
       expect(!(await page.evaluate(() => document.activeElement?.matches(':focus-visible'))), 'focus ring shown after a tap')
       // Rows: an icon, the label at normal size, a chevron, 44px or taller.
       for (const name of ['Orders', 'Addresses']) {
-        const row = await drawer.getByRole('link', { name }).evaluate((a) => ({ h: a.getBoundingClientRect().height, size: getComputedStyle(a).fontSize, icons: a.querySelectorAll('svg').length }))
-        expect(row.h >= 44 && row.size === '16px' && row.icons === 2, `${name} row: ${JSON.stringify(row)}`)
+        const row = await drawer.getByRole('link', { name }).evaluate((a) => ({ h: a.getBoundingClientRect().height, size: getComputedStyle(a).fontSize, root: getComputedStyle(document.documentElement).fontSize, icons: a.querySelectorAll('svg').length }))
+        expect(row.h >= 44 && row.size === row.root && row.icons === 2, `${name} row: ${JSON.stringify(row)}`)
       }
       expect(await drawer.getByRole('link', { name: 'Sign in' }).isVisible(), 'signed out: no Sign in button')
       const order = await drawer.evaluate((d) => [...d.querySelectorAll('a, button, [role="radio"]')].map((el) => el.textContent.trim()).filter(Boolean))
@@ -2095,6 +2124,61 @@ FLOWS['turkish: checkout in Turkish, validation and confirmation'] = async () =>
   }
 }
 
+// /accessibility: the display settings apply at once, survive a reload, and reset.
+// Reduce motion overrides a device that allows motion. Linked from the footer and the
+// phone menu. The statement names the target and gives the contact.
+FLOWS['accessibility: settings apply, persist, override the device, reset'] = async () => {
+  // Its own settings, so not the ones --display would put on every page.
+  const context = await rawNewContext({ locale: 'en-US', viewport: { width: 1280, height: 900 }, reducedMotion: 'no-preference' })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  try {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('contentinfo').getByRole('link', { name: 'Accessibility' }).click()
+    await page.getByRole('heading', { name: 'Accessibility', level: 1 }).waitFor()
+    await page.getByText('WCAG) 2.2 at level AA', { exact: false }).waitFor()
+    expect((await page.getByRole('link', { name: 'mustafalieren@proton.me' }).getAttribute('href')) === 'mailto:mustafalieren@proton.me', 'statement contact is not a mailto link')
+    const root = () => page.evaluate(() => ({
+      size: getComputedStyle(document.documentElement).fontSize,
+      muted: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim(),
+      attrs: ['data-text', 'data-contrast', 'data-motion', 'data-underline'].map((a) => document.documentElement.getAttribute(a)).join(','),
+    }))
+    const before = await root()
+    expect(before.size === '16px' && before.attrs === ',,,', `defaults: ${JSON.stringify(before)}`)
+    await page.getByRole('radio', { name: 'Larger' }).check()
+    await page.getByRole('checkbox', { name: 'Increased contrast' }).check()
+    await page.getByRole('checkbox', { name: 'Reduce motion' }).check()
+    await page.getByRole('checkbox', { name: 'Underline all links' }).check()
+    const on = await root()
+    expect(on.size === '20px' && on.muted !== before.muted && on.attrs === 'larger,more,reduce,links', `settings not applied: ${JSON.stringify(on)}`)
+    // Remembered, and applied before first paint (no flash of the defaults).
+    await page.reload({ waitUntil: 'commit' })
+    const early = await page.evaluate(() => document.documentElement.getAttribute('data-text'))
+    expect(early === 'larger', `text size not applied before first paint: ${early}`)
+    await page.getByRole('heading', { name: 'Accessibility', level: 1 }).waitFor()
+    expect((await page.getByRole('radio', { name: 'Larger' }).isChecked()) && (await page.getByRole('checkbox', { name: 'Reduce motion' }).isChecked()), 'settings not remembered')
+    // Links underlined everywhere, including button-styled ones.
+    const underline = await page.getByRole('banner').getByRole('link', { name: 'Orders' }).evaluate((a) => getComputedStyle(a).textDecorationLine)
+    expect(underline.includes('underline'), `header link not underlined: ${underline}`)
+    // Reduce motion overrides a device that allows motion: the phone drawer doesn't slide.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: 'Menu' }).click()
+    const drawer = page.getByRole('dialog', { name: 'Menu' })
+    const duration = await drawer.evaluate((d) => getComputedStyle(d).transitionDuration)
+    expect(duration === '0s', `drawer still slides with Reduce motion on: ${duration}`)
+    await drawer.getByRole('link', { name: 'Accessibility' }).waitFor()
+    await page.keyboard.press('Escape')
+    // Reset: back to the defaults, and said so.
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.getByRole('button', { name: 'Reset to defaults' }).click()
+    await page.getByText('Display settings reset.').waitFor()
+    const reset = await root()
+    expect(reset.size === '16px' && reset.attrs === ',,,', `reset didn't restore defaults: ${JSON.stringify(reset)}`)
+  } finally {
+    await context.close()
+  }
+}
+
 // The privacy contact is a real, working mailto link.
 FLOWS['privacy: contact is a working mailto link'] = async (page) => {
   await page.goto(base + '/privacy', { waitUntil: 'domcontentloaded' })
@@ -2199,6 +2283,9 @@ for (const motion of ['reduce', 'no-preference']) {
 // (Phones put the photo first; see the next test.)
 for (const [width, height] of [[1440, 900], [1024, 768]]) {
   FLOWS[`decision card above the fold at ${width}×${height}`] = Object.assign(async (page) => {
+    // At the largest text size, a 768px-tall screen needs a short scroll for the last
+    // fact (19px): more text takes more room, as with zoom. See DECISIONS.md, item 12.
+    if (DISPLAY?.textSize === 'larger' && height < 800) return
     await page.setViewportSize({ width, height })
     for (const id of [14, 1, 117]) { // longest title, flagged returns, out of stock
       await page.goto(base + `/product/${id}`, { waitUntil: 'domcontentloaded' })
@@ -2228,7 +2315,9 @@ FLOWS['phone product page: image first, price on the first screen at 390×844'] 
     })
     expect(m.imageTop - m.header < 40, `product ${id}: image starts ${Math.round(m.imageTop - m.header)}px below the header`)
     expect(m.imageTop < m.title && m.title < m.price, `product ${id}: order is not image, title, price`)
-    expect(m.tile >= 0.38 * 844 && m.tile <= 0.46 * 844, `product ${id}: photo tile is ${Math.round(m.tile)}px (${Math.round((m.tile / 844) * 100)}% of the height)`)
+    // At the largest text size the photo gives up a little (36%), so the price stays on screen.
+    const least = DISPLAY?.textSize === 'larger' ? 0.34 : 0.38
+    expect(m.tile >= least * 844 && m.tile <= 0.46 * 844, `product ${id}: photo tile is ${Math.round(m.tile)}px (${Math.round((m.tile / 844) * 100)}% of the height)`)
     expect(m.price <= 844, `product ${id}: price ends at ${Math.round(m.price)}px, below the first screen`)
   }
 }, { width: 390, theme: 'light' })

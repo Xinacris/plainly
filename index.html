@@ -23,6 +23,17 @@
         var dark = choice === 'dark' || (choice === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
         if (dark) document.documentElement.classList.add('dark')
       })()
+      // The display settings from /accessibility (src/a11y/display.ts), also before first paint.
+      ;(function () {
+        try {
+          var s = (JSON.parse(localStorage.getItem('plainly-display')) || {}).state || {}
+          var root = document.documentElement
+          if (s.textSize === 'large' || s.textSize === 'larger') root.setAttribute('data-text', s.textSize)
+          if (s.contrast) root.setAttribute('data-contrast', 'more')
+          if (s.reduceMotion) root.setAttribute('data-motion', 'reduce')
+          if (s.underlineLinks) root.setAttribute('data-underline', 'links')
+        } catch (e) {}
+      })()
     </script>
   </head>
   <body>

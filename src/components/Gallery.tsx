@@ -1,9 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
+import { prefersReducedMotion } from '../a11y/display'
 import { t } from '../i18n'
 import type { Product } from '../lib/catalog'
 import { ProductImage } from './ProductImage'
 
-const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // One photo at a time in a native horizontal scroller with snap points: on phones
 // you swipe it like a phone gallery, and the dots show (and set) the position. On
@@ -93,7 +93,8 @@ export function Gallery({ product }: { product: Product }) {
               alt={many ? t.gallery.image(product.title, i + 1, images.length) : product.title}
               priority={i === 0}
               tile={false}
-              className="w-full max-h-[45dvh] p-6 md:max-h-none"
+              // At the largest text size a little less, so the price still makes the first screen.
+              className="w-full max-h-[45dvh] p-6 in-data-[text=larger]:max-h-[36dvh] md:max-h-none"
             />
           </div>
         ))}

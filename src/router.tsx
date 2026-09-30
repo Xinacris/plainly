@@ -7,6 +7,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { ComparePage } from './pages/ComparePage'
 import { HomePage } from './pages/HomePage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { AccessibilityPage } from './pages/AccessibilityPage'
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage'
 import { OrdersPage } from './pages/OrdersPage'
 import { PrivacyPage } from './pages/PrivacyPage'
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { path: '/addresses', element: <AddressesPage /> },
       { path: '/orders/:id/confirmation', element: <OrderConfirmationPage /> },
       { path: '/privacy', element: <PrivacyPage /> },
+      { path: '/accessibility', element: <AccessibilityPage /> },
       { path: '/signin', element: <SignInPage /> },
       { path: '/signup', element: <SignUpPage /> },
       { path: '/profile', element: <ProfilePage /> },

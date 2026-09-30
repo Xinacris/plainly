@@ -45,6 +45,60 @@
   --image-tile: #e9e9e4;
 }
 
+/* Display settings from /accessibility (src/a11y/display.ts). */
+
+/* Text size: the root font size, so every rem-based size (text, spacing, widths) scales. */
+:root[data-text="large"] {
+  font-size: 112.5%;
+}
+:root[data-text="larger"] {
+  font-size: 125%;
+}
+
+/* Increased contrast: darker secondary text, stronger borders, deeper colors. Every
+   text color reaches WCAG AAA (7:1) on surface and bg:
+   light — text 18.5, muted 10.1, action 8.9, warning 9.9, sale 9.9; border-strong 8.5;
+   dark  — text 16.0, muted 12.0, action 11.1, warning 11.0, sale 10.5; border-strong 8.0. */
+:root:not(.dark)[data-contrast="more"] {
+  --text: #0e1512;
+  --muted: #3a443f;
+  --border: #9aa59e;
+  --border-strong: #454f4a;
+  --action: #13543a;
+  --action-hover: #0c3f2a;
+  --warning: #6e3205;
+  --sale: #7d1c45;
+}
+:root.dark[data-contrast="more"] {
+  --text: #f6f9f7;
+  --muted: #d3dbd6;
+  --border: #5c6862;
+  --border-strong: #a9b5ae;
+  --action: #93e2b9;
+  --action-hover: #b0ecca;
+  --warning: #ffc590;
+  --sale: #ffb8d6;
+}
+:root[data-contrast="more"] :focus-visible {
+  outline-width: 3px;
+}
+
+/* Reduce motion, whatever the device's setting: no transitions or animations. */
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+/* Underline all links, including ones styled as buttons or cards. */
+:root[data-underline="links"] a {
+  text-decoration-line: underline;
+  text-underline-offset: 0.15em;
+}
+
 @theme inline {
   --font-sans: "Public Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --color-bg: var(--bg);

@@ -153,6 +153,21 @@ export function MobileMenu() {
         <LanguagePicker labelled />
         <h3 className="mt-6 mb-2 px-1 text-sm font-bold">{t.theme.label}</h3>
         <ThemeToggle labelled />
+        <NavLink
+          to="/accessibility"
+          onClick={close}
+          className={({ isActive }) =>
+            `mt-4 flex h-12 items-center gap-3 rounded-lg px-3 font-medium hover:bg-bg ${isActive ? 'text-action' : 'text-text'}`
+          }
+        >
+          {/* A person with open arms, the usual accessibility sign. */}
+          <Icon>
+            <circle cx="12" cy="4.5" r="1.5" />
+            <path d="M5 8.5l7 1.5 7-1.5M12 10v4.5M12 14.5l-3 6M12 14.5l3 6" />
+          </Icon>
+          <span className="flex-1">{t.menu.accessibility}</span>
+          <Icon className="size-4 text-muted"><path d="m9 6 6 6-6 6" /></Icon>
+        </NavLink>
       </Drawer>
     </>
   )

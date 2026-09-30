@@ -66,7 +66,7 @@ function CartLink() {
 export function Header() {
   return (
     <header className="border-b border-border bg-surface">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
+      <div className="@container mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
         <Link to="/" aria-label={t.header.home} className="flex items-center gap-2 rounded-md text-action hover:text-action-hover">
           <LogoMark className="h-6 w-auto" />
           <span className="text-xl leading-none font-semibold">Plainly</span>
@@ -75,12 +75,14 @@ export function Header() {
         {/* Phones: logo with cart and menu on row 1, full-width search on row 2.
             From sm, the desktop links and the language and theme pickers, still with
             search on its own row (at 640px it would be squeezed to a sliver).
-            From md up, one row: logo, search, Orders, Account, Cart, language, theme. */}
-        <div className="order-last w-full min-w-0 md:order-none md:w-auto md:flex-1 md:basis-0">
+            From 46rem of header width (768px at default text), one row: logo, search,
+            Orders, Account, Cart, language, theme. A container query, because its rem
+            follows the text-size setting, where a media query's wouldn't. */}
+        <div className="order-last w-full min-w-0 @min-[46rem]:order-none @min-[46rem]:w-auto @min-[46rem]:flex-1 @min-[46rem]:basis-0">
           <SearchForm />
         </div>
 
-        <nav aria-label={t.header.main} className="hidden items-center gap-1 sm:ml-auto sm:flex md:ml-0">
+        <nav aria-label={t.header.main} className="hidden items-center gap-1 sm:ml-auto sm:flex @min-[46rem]:ml-0">
           <NavLink to="/orders" className={navClass}>
             {t.header.orders}
           </NavLink>

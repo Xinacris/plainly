@@ -15,6 +15,9 @@ export function Footer() {
           <Link to="/privacy" className={link}>
             {t.footer.privacy}
           </Link>
+          <Link to="/accessibility" className={link}>
+            {t.footer.accessibility}
+          </Link>
           <a href={REPO_URL} className={link}>
             {t.footer.source}
           </a>
