@@ -94,7 +94,7 @@ The Gemini prompt, verbatim:
 - **Counts:** each option shows how many results you'd get with it. Each facet's counts ignore that facet's own selection, so choosing a second category shows its real count. Options with nothing to show are hidden unless they're selected.
 - **Order in the panel:** the short facets come first (availability, price, rating), then category and brand, which are long lists. Brand shows the 8 most common and a "Show all" toggle, because there are 60+. Price filters on the price you pay.
 - **Phones:** below `lg`, a "Filters" button with a count of applied filters opens a bottom sheet. It's a native modal `<dialog>`, so focus is trapped and Escape closes it, and focus returns to the button. Filters apply as you tap; the footer says "Show N results".
-- **Decision card on phones:** title, then the card, then the photos, so the facts that decide a purchase are on the first screen at 390×844. From `md` up the photos are on the left. A test checks that the facts sit above the fold at 1440×900, 1024×768 and 390×844.
+- **Decision card on phones:** first built as title, then the card, then the photos, so the facts were on the first screen at 390×844. Later changed to photo first (see "Product page on phones: photo first, swipeable gallery"). Desktop is unchanged: photos on the left, and a test still checks the facts are above the fold at 1440×900 and 1024×768.
 - **Collapsible sections:** native `<details>`. Description and Reviews start open; "Shipping, returns and warranty" and "Product details" start closed.
 
 ### How #6 was built
@@ -192,6 +192,21 @@ The Gemini prompt, verbatim:
   - **Toggles elsewhere:** Compare toggles on cards from other departments stay visible, since the prompt is the explanation. Their pressed state only ever reflects what's actually in the tray, so while asking, after Cancel or after Escape they never look added.
   - **Old saved selections:** a selection saved before this rule (v1 of the stored state) that mixed departments keeps only the first department's items, in the order added. The tray says why, once: "Your saved comparison mixed departments, so only the Beauty items were kept." The repaired selection is saved, so the notice doesn't come back.
 
+### Product page on phones: photo first, swipeable gallery
+
+- **Photo first on phones.** The first thing below the header is now the product photo, then the breadcrumb, title and rating, then the decision card with the price.
+  - **Why:** people check they're on the right product before they read facts. This reverses the earlier facts-first order on phones.
+  - **Keeping the price on the first screen:** the photo tile is capped at 45% of the viewport height (`max-h-[45dvh]`). At 390×844 it's a 358 px square, 42% of the height, and the price still ends on the first screen.
+  - **The test:** the old phone above-the-fold check was replaced. It now checks the photo's tile starts right below the header, the order is photo → title → price, the tile is 38–46% of the height, and the price ends within 844 px. It runs on four products: the longest title, one photo, out of stock, and six photos.
+  - **Desktop:** unchanged.
+- **Swipeable gallery.**
+  - **One scroller:** all photos sit in one native horizontal scroller with `scroll-snap`, one photo per snap point. On phones you swipe it like a phone gallery; the scroller keeps the swipe (`overscroll-x-contain`) and the page never scrolls sideways.
+  - **Dots:** they show the position, can be tapped, and update as you swipe. The scroll position is the single source of truth.
+  - **Desktop:** the scroller can't be scrolled by hand, and the thumbnails work as before. The gallery is focusable, and ←/→ move between photos, including from a focused thumbnail (focus follows to the new one). The keys stop at the first and last photo.
+  - **Reduced motion:** smooth scrolling is skipped.
+  - **Single photo:** no dots, no thumbnails and nothing to swipe.
+  - **Screen readers:** the gallery's accessible name says where you are ("300 Touring photos, 3 of 6"), and each photo's alt text says which one it is.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
@@ -218,7 +233,7 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 4 | Filters and chips, facts instead of badges, decision card with the honest review section |
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
-| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, and compare limited to one department |
+| 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, and on phones a photo-first product page with a swipeable gallery |
 | 8 | No new features. Bug fixes, README, final deploy |
 
 **If something has to be cut, cut in this order:**
@@ -274,3 +289,5 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | Testing the live site | The applied-filter chips weren't reachable as a list. | The `<ul>` used `display: contents`, which can drop its list role. | The list is a real flex container. |
 | Testing the live site | The filter-sheet focus test failed after the sheet gained a control. | The test pressed Tab 40 times and checked the final spot. Past the last control a native modal hands focus to the browser's UI and back, and that's where the 40th press landed. | The test checks every press: focus must stay in the modal or on the browser UI, never on the page behind. The menu uses the same check. |
 | Sale view, typos | Latent, found while probing the correction before shipping: "aple watch" found nothing and wasn't corrected. | A word counted as "real" if the text search matched it anywhere, and "aple" happens to appear inside some product description. | A word counts as real only if it starts a word in the catalog; corrections come only from titles, brands, categories and synonyms. A probe confirmed no title word is ever "corrected". |
+| Photo-first product page | Two quick → presses from the first photo only reached the second. | Each key press starts a smooth scroll, and the scroll events on the way reported intermediate positions, which reset the current photo before the second press. | While a scroll the gallery started is on its way, it keeps the target and ignores positions passed through; `scrollend` syncs the final one. Tested with repeated presses, from a thumbnail, and at the end. |
+| Photo-first product page | The swipe test couldn't swipe: Chromium's `Input.synthesizeScrollGesture` left the gallery at 0 in either direction. | That synthetic gesture doesn't drive the scroller in this headless build. | The test sends raw touch events (`touchStart`, ten `touchMove`s, `touchEnd`), a real finger swipe. Native scrolling and snapping then land exactly on the next photo and back. |

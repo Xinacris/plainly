@@ -135,11 +135,12 @@ function audit() {
 
   // Boxes are cut to their nearest scroll container, so rows scrolled out of view
   // (e.g. under a sheet's sticky footer) don't count as overlapping it.
+  // Also any overflow-clipped box: the gallery hides its other slides with overflow: hidden.
   const clipToScroller = (el) => {
     const r = el.getBoundingClientRect()
     for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
-      const oy = getComputedStyle(a).overflowY
-      if (oy !== 'auto' && oy !== 'scroll') continue
+      const s = getComputedStyle(a)
+      if (s.overflowX === 'visible' && s.overflowY === 'visible') continue
       const c = a.getBoundingClientRect()
       return { left: Math.max(r.left, c.left), right: Math.min(r.right, c.right), top: Math.max(r.top, c.top), bottom: Math.min(r.bottom, c.bottom) }
     }
@@ -1052,8 +1053,9 @@ for (const motion of ['reduce', 'no-preference']) {
   }
 }
 
-// The decision card's facts must be on the first screen, with no scrolling.
-for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]]) {
+// Desktop: the decision card's facts are on the first screen, with no scrolling.
+// (Phones put the photo first; see the next test.)
+for (const [width, height] of [[1440, 900], [1024, 768]]) {
   FLOWS[`decision card above the fold at ${width}×${height}`] = Object.assign(async (page) => {
     await page.setViewportSize({ width, height })
     for (const id of [14, 1, 117]) { // longest title, flagged returns, out of stock
@@ -1064,6 +1066,111 @@ for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]]) {
       expect(bottom <= height, `product ${id}: facts end at ${Math.round(bottom)}px, viewport is ${height}px`)
     }
   }, { width })
+}
+
+// Phones: the photo comes first below the header, then the title, then the price,
+// and the price is still on the first screen.
+FLOWS['phone product page: image first, price on the first screen at 390×844'] = Object.assign(async (page) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const id of [14, 1, 117, 167]) { // longest title, one photo, out of stock, six photos
+    await page.goto(base + `/product/${id}`, { waitUntil: 'domcontentloaded' })
+    const article = page.locator('main article')
+    await article.locator('h1').waitFor()
+    const m = await page.evaluate(() => {
+      const box = (el) => el.getBoundingClientRect()
+      const header = box(document.querySelector('header'))
+      const image = box(document.querySelector('main article img').parentElement) // the photo's tile
+      const title = box(document.querySelector('main article h1'))
+      const price = box(document.querySelector('[aria-label="Price and key facts"] .text-3xl'))
+      return { header: header.bottom, imageTop: image.top, imageHeight: image.height, tile: box(document.querySelector('main article img').parentElement).height, title: title.top, price: price.bottom }
+    })
+    expect(m.imageTop - m.header < 40, `product ${id}: image starts ${Math.round(m.imageTop - m.header)}px below the header`)
+    expect(m.imageTop < m.title && m.title < m.price, `product ${id}: order is not image, title, price`)
+    expect(m.tile >= 0.38 * 844 && m.tile <= 0.46 * 844, `product ${id}: photo tile is ${Math.round(m.tile)}px (${Math.round((m.tile / 844) * 100)}% of the height)`)
+    expect(m.price <= 844, `product ${id}: price ends at ${Math.round(m.price)}px, below the first screen`)
+  }
+}, { width: 390, theme: 'light' })
+
+// Phones: swipe between photos (a real touch gesture via CDP), dots follow and can be tapped.
+FLOWS['phone gallery: swipe, dots, one photo at a time, no sideways page scroll'] = async () => {
+  const context = await browser.newContext({ isMobile: true, hasTouch: true, viewport: { width: 390, height: 844 } })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  try {
+    await page.goto(base + '/product/167', { waitUntil: 'domcontentloaded' })
+    const gallery = page.getByRole('region', { name: /photos, \d of 6$/ })
+    await gallery.waitFor()
+    const dots = page.getByRole('list', { name: 'Choose a photo' }).getByRole('button')
+    expect((await dots.count()) === 6, 'expected 6 dots')
+    expect((await page.getByRole('list', { name: 'Product images' }).isVisible()) === false, 'desktop thumbnails shown on a phone')
+    const layout = await gallery.evaluate((g) => ({ width: g.clientWidth, slide: g.firstElementChild.getBoundingClientRect().width, page: document.documentElement.scrollWidth }))
+    expect(Math.abs(layout.slide - layout.width) < 1, `slide ${layout.slide}px vs gallery ${layout.width}px: more than one photo visible`)
+    expect(layout.page <= 390, `page scrolls sideways: ${layout.page}px`)
+    const settled = (i) => gallery.evaluate((g, i) => new Promise((ok, fail) => {
+      const t0 = Date.now()
+      const check = () => (Math.abs(g.scrollLeft - i * g.clientWidth) < 2 ? ok() : Date.now() - t0 > 3000 ? fail(new Error(`scrollLeft ${g.scrollLeft}, want ${i * g.clientWidth}`)) : setTimeout(check, 50))
+      check()
+    }), i)
+    // A real finger swipe: raw touch events, so native scrolling and snapping do the work.
+    const box = await gallery.boundingBox()
+    const cdp = await context.newCDPSession(page)
+    const y = Math.round(box.y + box.height / 2)
+    const swipe = async (fromX, toX) => {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: fromX, y }] })
+      for (let i = 1; i <= 10; i++) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: Math.round(fromX + ((toX - fromX) * i) / 10), y }] })
+        await page.waitForTimeout(16)
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    }
+    const dotPressed = (i) => page.waitForFunction((i) => document.querySelectorAll('[aria-label="Choose a photo"] button')[i].getAttribute('aria-pressed') === 'true', i)
+    await swipe(Math.round(box.x + box.width * 0.85), Math.round(box.x + box.width * 0.2)) // swipe left: next photo
+    await settled(1)
+    await dotPressed(1)
+    await swipe(Math.round(box.x + box.width * 0.2), Math.round(box.x + box.width * 0.85)) // swipe right: back
+    await settled(0)
+    await dotPressed(0)
+    await dots.nth(3).tap()
+    await settled(3)
+    expect((await dots.nth(3).getAttribute('aria-pressed')) === 'true', 'tapped dot not marked')
+    expect((await dots.evaluateAll((ds) => ds.filter((d) => d.getAttribute('aria-pressed') === 'true').length)) === 1, 'more than one dot marked')
+    expect((await page.evaluate(() => document.documentElement.scrollWidth)) <= 390, 'page scrolls sideways after swiping')
+    // One photo: no dots and nothing to swipe.
+    await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+    await page.locator('main article h1').waitFor()
+    expect((await page.getByRole('list', { name: 'Choose a photo' }).count()) === 0, 'dots shown for a single photo')
+    expect((await page.locator('main article img').count()) === 1, 'single-photo product renders more than one photo')
+  } finally {
+    await context.close()
+  }
+}
+
+FLOWS['desktop gallery: thumbnails and arrow keys'] = async (page) => {
+  await page.goto(base + '/product/167', { waitUntil: 'domcontentloaded' })
+  const gallery = page.getByRole('region', { name: /photos, \d of 6$/ })
+  await gallery.waitFor()
+  const pressed = async () => (await page.getByRole('list', { name: 'Product images' }).getByRole('button').evaluateAll((bs) => bs.findIndex((b) => b.getAttribute('aria-pressed') === 'true'))) + 1
+  expect((await page.getByRole('list', { name: 'Choose a photo' }).isVisible()) === false, 'phone dots shown on desktop')
+  await gallery.focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowRight')
+  expect((await pressed()) === 3, `ArrowRight twice showed image ${await pressed()}`)
+  await page.getByRole('region', { name: /photos, 3 of 6$/ }).waitFor() // the region's name says where you are
+  await page.keyboard.press('ArrowLeft')
+  expect((await pressed()) === 2, 'ArrowLeft did not go back')
+  await page.getByRole('button', { name: 'Show image 5 of 6' }).click()
+  await page.keyboard.press('ArrowRight')
+  expect((await pressed()) === 6, 'ArrowRight from a thumbnail did not move')
+  expect(await page.getByRole('button', { name: 'Show image 6 of 6' }).evaluate((b) => b === document.activeElement), 'focus did not follow to the new thumbnail')
+  await page.keyboard.press('ArrowRight')
+  expect((await pressed()) === 6, 'ArrowRight past the last photo moved')
+  // Arrow keys scroll smoothly, so let it land before checking which photo shows.
+  const shown = await gallery.evaluate((g) => new Promise((ok) => {
+    const t0 = Date.now()
+    const check = () => { const i = Math.round(g.scrollLeft / g.clientWidth) + 1; if (i === 6 || Date.now() - t0 > 2000) ok(i); else setTimeout(check, 50) }
+    check()
+  }))
+  expect(shown === 6, `photo ${shown} is showing, thumbnail 6 is marked`)
 }
 
 // Full path, home → search → product → cart → checkout → orders, in both themes.

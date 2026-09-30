@@ -1,8 +1,8 @@
-import { Suspense, useState, type ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router'
 import { Breadcrumbs, type Crumb } from '../components/Breadcrumbs'
 import { DecisionCard } from '../components/DecisionCard'
-import { ProductImage } from '../components/ProductImage'
+import { Gallery } from '../components/Gallery'
 import { Rating } from '../components/Rating'
 import { StatusMessage } from '../components/StatusMessage'
 import { secondaryButton } from '../components/styles'
@@ -11,33 +11,6 @@ import { TRANSIT } from '../lib/delivery'
 import { departmentOf } from '../lib/departments'
 import { formatCategory, formatRating, pluralize, reviewRating } from '../lib/format'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-
-function Gallery({ product }: { product: Product }) {
-  const [index, setIndex] = useState(0)
-  const { images } = product
-  return (
-    <div>
-      <ProductImage src={images[index] ?? product.thumbnail} alt={product.title} eager className="p-6" />
-      {images.length > 1 && (
-        <ul className="mt-3 flex flex-wrap gap-2" aria-label="Product images">
-          {images.map((src, i) => (
-            <li key={src}>
-              <button
-                type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Show image ${i + 1} of ${images.length}`}
-                aria-pressed={i === index}
-                className={`block w-16 rounded-lg border-2 ${i === index ? 'border-action' : 'border-transparent'}`}
-              >
-                <ProductImage src={src} alt="" className="p-1" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
-}
 
 // Collapsible sections below the decision card. Native <details>, so they work
 // with keyboard and screen readers without any script.
@@ -136,22 +109,22 @@ function ProductDetails({ id }: { id: number }) {
     ['SKU', product.sku],
   ]
 
-  // Phones: title, then the decision card, then photos, so the facts are on the
-  // first screen. From md: photos on the left, title and card on the right.
   return (
     <article className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       {/* grid-cols-1 (minmax(0, 1fr)) so the one-line breadcrumb truncates instead of widening the page. */}
-      <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2 md:grid-rows-[auto_1fr] lg:gap-x-12">
-        <div className="md:col-start-2">
+      {/* Phones: photos first (people check it's the right product), then the title and the
+          decision card. From md: photos on the left, title and card on the right. */}
+      <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2 md:grid-rows-[auto_1fr] md:gap-y-5 lg:gap-x-12">
+        <div className="md:col-start-1 md:row-span-2 md:row-start-1">
+          <Gallery product={product} />
+        </div>
+        <div className="md:col-start-2 md:row-start-1">
           <Breadcrumbs items={productCrumbs(product)} />
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-balance sm:text-3xl">{product.title}</h1>
           <Rating product={product} className="mt-2" />
         </div>
-        <div className="md:col-start-2">
+        <div className="md:col-start-2 md:row-start-2">
           <DecisionCard product={product} />
-        </div>
-        <div className="md:col-start-1 md:row-span-2 md:row-start-1">
-          <Gallery product={product} />
         </div>
       </div>
 
