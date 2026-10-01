@@ -54,6 +54,17 @@ The round ends with both full runs green on the test build (default, and the lar
 - **Test:** a flow checks cards at 360px in both languages (one line, the compact form, the spoken label) and the product page's no-break count.
 - **404 illustration:** redrawn as SVG (see Brand).
 
+**Second follow-up:**
+- **404 illustration:** now the logo mark with a dashed outline for the missing middle bar (see Brand).
+- **Card alignment:** cards in a row stretch to the same height. The price was pushed to the bottom, so a card with a one-line title (Decoration Swing) had a large gap between rating and price. Now every line sits at the same height across a row:
+  - **Brand line:** it keeps its height when a product has no brand (empty and hidden from screen readers).
+  - **Title:** always exactly two lines (`line-clamp-2` with a two-line minimum height). Longer titles get an ellipsis, and the full title stays the link's text (its accessible name) and its tooltip.
+  - **Price:** it follows the rating with a small, fixed gap, and leftover space goes below Compare.
+  - **Where:** this applies to every product card, in search results and the home rows.
+  - **Test:** a flow checks brand, title, rating and price tops per row on the home page and a department, at 360, 1024 and 1440px, in both themes and languages. It also checks two-line titles with their tooltip, a gap of 12px or less, and a one-line list price.
+  - **Audit:** the layout audit now accepts a line clamp as intended when the full text is in a `title`, as it already did for a one-line ellipsis.
+- **List price:** "List price" / "Liste fiyatı" and its amount stay on one line, like the review count.
+
 ## Step 2 progress: accounts on Supabase (complete)
 
 Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
@@ -163,12 +174,12 @@ The Gemini prompt, verbatim:
 
 Also generated with Gemini, outside this agent session. The source, `design/gemini-404-concept.jpeg` (1200×896), stays in the repo: three bars like the logo's, the middle one tipped over.
 
-**Redrawn as SVG so it follows the theme.** The first version used the JPEG on the light image tile. It's now an inline SVG component, `FallenBarsArt`, like `LogoMark`:
+**Redrawn as SVG so it follows the theme.** The first version used the JPEG on the light image tile. Since then the illustration has been an inline SVG component, `MissingBarArt`, like `LogoMark`:
 - **No tile:** transparent, with no background.
-- **Bars:** `currentColor`, the action green in light mode and the mint in dark mode, with the logo's proportions.
-- **Shadow:** a soft ellipse in the muted token at 18% opacity.
+- **Bars:** `currentColor`, the action green in light mode and the mint in dark mode.
+- **Outline:** a dashed rectangle in the muted token.
 
-The pose changed too. In the concept, the middle bar leans at about 45° between the two upright ones, and the three shapes read as the letter "N". Now it lies flat on the ground in front of the others, slightly askew, with clear space above it, so it reads as a bar that has fallen over. A lean against the right bar was tried too. In the logo's narrow gap it still read as a letter ("И"). `public/not-found.webp` was removed. The 404 test checks that the illustration has three bars, that their color is the action token, and that there's no tile.
+**The pose took two tries.** The concept's middle bar leans at about 45° between the uprights, and the three shapes read as the letter "N". A bar lying flat below two upright ones read as a face (two eyes and a mouth), and it had lost the logo's rounded corners. The illustration is now the logo mark itself, with the same geometry and corner radius. The middle bar is replaced by a dashed outline of where it should be, inset by half its stroke so its outer edge is the missing bar's. It says "something is missing from its place", matching "This page isn't here", without reading as a letter or a face. The 404 test checks two bars in the action color, one dashed outline in the muted color, and no tile.
 
 The Gemini prompt, verbatim:
 

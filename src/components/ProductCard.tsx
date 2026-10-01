@@ -11,21 +11,25 @@ export function ProductCard({ product, className = '' }: { product: Product; cla
   return (
     <li className={`group relative flex flex-col rounded-xl border border-border bg-surface p-3 ${className}`}>
       <ProductImage src={product.thumbnail} alt="" />
-      <div className="mt-3 flex flex-1 flex-col gap-1">
+      {/* Every line sits at the same height across a row: the brand line keeps its height
+          without a brand, the title always takes two lines, and the price follows the
+          rating directly. Cards stretch to the row's height; the leftover space goes at
+          the bottom, below Compare. */}
+      <div className="mt-3 flex flex-col gap-1">
         {/* lang="en": brands are English data, and Turkish uppercase would turn "i" into "İ". */}
-        {product.brand && (
-          <p lang="en" className="text-xs font-medium tracking-wide text-muted uppercase">
-            {product.brand}
-          </p>
-        )}
-        <h2 lang="en" className="font-semibold leading-snug">
+        <p lang="en" aria-hidden={product.brand ? undefined : true} className="h-4 truncate text-xs leading-4 font-medium tracking-wide text-muted uppercase">
+          {product.brand}
+        </p>
+        {/* Two lines exactly; longer titles get an ellipsis. The clamp is visual only, so the
+            link's accessible name is the full title, which is also its tooltip. */}
+        <h2 lang="en" className="line-clamp-2 min-h-[2lh] font-semibold leading-snug">
           {/* The stretched link makes the whole card clickable with one tab stop. */}
-          <Link to={`/product/${product.id}`} className="after:absolute after:inset-0 after:rounded-xl group-hover:text-action">
+          <Link to={`/product/${product.id}`} title={product.title} className="after:absolute after:inset-0 after:rounded-xl group-hover:text-action">
             {product.title}
           </Link>
         </h2>
         <Rating product={product} compact />
-        <div className="mt-auto flex flex-col gap-0.5 pt-2">
+        <div className="flex flex-col gap-0.5 pt-2">
           <Price product={product} />
           <StockNote product={product} exceptionsOnly />
         </div>

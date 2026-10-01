@@ -21,7 +21,8 @@ export function Price({ product, size = 'card' }: Props) {
         )}
       </p>
       {hasDiscount(product) && (
-        <p className="text-sm text-muted">
+        // The label and its amount stay on one line, like the review count.
+        <p className="text-sm whitespace-nowrap text-muted">
           {t.sale.listPrice} <s className="tabular-nums">{formatPrice(product.price)}</s>
         </p>
       )}

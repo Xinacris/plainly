@@ -211,6 +211,9 @@ function audit() {
       // Content that scrolls inside an overflow:auto box isn't clipped; hidden/clip is.
       if (s.overflowY === 'auto' || s.overflowY === 'scroll') break
       if (s.overflowX !== 'visible' || s.overflowY !== 'visible') {
+        // A line clamp (card titles: two lines, then an ellipsis) is on purpose when the full
+        // text is in a title, like the one-line ellipsis below.
+        if (s.webkitLineClamp !== 'none' && el.title === el.textContent) break
         const ar = a.getBoundingClientRect()
         if (r.right > ar.right + 1 || r.bottom > ar.bottom + 1) issues.push(`clipped: ${describe(el)}`)
         break
@@ -1931,15 +1934,23 @@ FLOWS['404: illustration, message, search and departments that work'] = async (p
   await page.goto(base + '/no/such/page', { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { level: 1, name: 'This page isn’t here' }).waitFor()
   expect((await page.title()).startsWith('Page not found'), `title: ${await page.title()}`)
-  // Bars in currentColor = the action token, no background tile, hidden from screen readers.
-  const art = await page.locator('main svg[aria-hidden="true"]').first().evaluate((svg) => ({
-    bars: svg.querySelectorAll('rect').length,
-    fill: getComputedStyle(svg.querySelector('rect')).fill,
-    action: getComputedStyle(document.documentElement).getPropertyValue('--action').trim(),
-    tile: getComputedStyle(svg.parentElement).backgroundColor,
-  }))
+  // The logo mark with its middle bar missing: two bars in currentColor (the action
+  // token), a dashed outline in the muted token, no background tile, hidden from screen readers.
+  const art = await page.locator('main svg[aria-hidden="true"]').first().evaluate((svg) => {
+    const rects = [...svg.querySelectorAll('rect')]
+    const root = getComputedStyle(document.documentElement)
+    return {
+      bars: rects.filter((r) => getComputedStyle(r).fill !== 'none').map((r) => getComputedStyle(r).fill),
+      outline: rects.filter((r) => getComputedStyle(r).fill === 'none').map((r) => ({ stroke: getComputedStyle(r).stroke, dash: r.getAttribute('stroke-dasharray') })),
+      action: root.getPropertyValue('--action').trim(),
+      muted: root.getPropertyValue('--muted').trim(),
+      tile: getComputedStyle(svg.parentElement).backgroundColor,
+    }
+  })
   const hex = (rgb) => '#' + rgb.match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
-  expect(art.bars === 3 && hex(art.fill) === art.action && art.tile === 'rgba(0, 0, 0, 0)', `illustration: ${JSON.stringify(art)}`)
+  expect(art.bars.length === 2 && art.bars.every((f) => hex(f) === art.action), `illustration bars: ${JSON.stringify(art)}`)
+  expect(art.outline.length === 1 && art.outline[0].dash && hex(art.outline[0].stroke) === art.muted, `missing bar outline: ${JSON.stringify(art.outline)}`)
+  expect(art.tile === 'rgba(0, 0, 0, 0)', `illustration has a background: ${art.tile}`)
   const links = page.getByRole('navigation', { name: 'Shop by department' }).getByRole('link')
   expect((await links.count()) === 8, `${await links.count()} department links`)
   await links.filter({ hasText: 'Beauty' }).click()
@@ -2211,6 +2222,59 @@ FLOWS['ratings: compact on cards at 360px, full on the product page, both langua
       await full.waitFor()
       const count = full.locator('[aria-hidden="true"]').filter({ hasText: word })
       expect(await count.evaluate((el) => getComputedStyle(el).whiteSpace === 'nowrap'), `${locale}: product page count can break from its word`)
+    } finally {
+      await context.close()
+    }
+  }
+}
+
+// Cards in a row line up: brand line (kept without a brand), a two-line title clamped
+// with an ellipsis (full title in the tooltip and accessible name), rating, then the
+// price right after it. Leftover space goes below Compare. The list price stays on one line.
+FLOWS['cards: every line at the same height across a row, both languages'] = async () => {
+  for (const [width, locale, theme] of [[360, 'tr-TR', 'light'], [1024, 'en-US', 'dark'], [1440, 'tr-TR', 'dark'], [1440, 'en-US', 'light']]) {
+    const context = await browser.newContext({ locale, colorScheme: theme, viewport: { width, height: 900 } })
+    const page = await context.newPage()
+    page.setDefaultTimeout(SCENE_TIMEOUT)
+    try {
+      for (const url of ['/', '/search?department=home']) {
+        await page.goto(base + url, { waitUntil: 'domcontentloaded' })
+        await page.locator('main li h2 a').first().waitFor()
+        const rows = await page.evaluate(() => {
+          const cards = [...document.querySelectorAll('main li:has(> div > h2)')]
+          const m = cards.map((li) => {
+            const top = (el) => Math.round(el.getBoundingClientRect().top)
+            const h2 = li.querySelector('h2')
+            const brand = li.querySelector('h2').previousElementSibling
+            const rating = h2.nextElementSibling
+            const price = rating.nextElementSibling
+            const list = price.querySelector('s')?.parentElement
+            return {
+              title: h2.textContent, row: top(li), brand: top(brand), brandH: Math.round(brand.getBoundingClientRect().height),
+              h2: top(h2), lines: Math.round(h2.getBoundingClientRect().height / parseFloat(getComputedStyle(h2).lineHeight)),
+              rating: top(rating), price: top(price), gap: Math.round(price.getBoundingClientRect().top - rating.getBoundingClientRect().bottom),
+              tooltip: h2.querySelector('a').title === h2.textContent,
+              listLines: list ? Math.round(list.getBoundingClientRect().height / parseFloat(getComputedStyle(list).lineHeight)) : 1,
+            }
+          })
+          const byRow = {}
+          for (const c of m) (byRow[c.row] ??= []).push(c)
+          return Object.values(byRow)
+        })
+        expect(rows.length > 0, `${url} ${width}: no cards`)
+        for (const row of rows) {
+          const where = `${url} at ${width}px ${locale}`
+          for (const key of ['brand', 'h2', 'rating', 'price']) {
+            const tops = new Set(row.map((c) => c[key]))
+            expect(tops.size === 1, `${where}: ${key} not aligned across a row: ${row.map((c) => `${c.title}=${c[key]}`).join(', ')}`)
+          }
+          for (const c of row) {
+            expect(c.lines === 2 && c.brandH > 0 && c.tooltip, `${where}: ${c.title}: ${JSON.stringify(c)}`)
+            expect(c.gap <= 12, `${where}: ${c.title}: ${c.gap}px between rating and price`)
+            expect(c.listLines === 1, `${where}: ${c.title}: list price wraps`)
+          }
+        }
+      }
     } finally {
       await context.close()
     }

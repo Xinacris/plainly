@@ -1,18 +1,18 @@
 import { Link } from 'react-router'
-import { FallenBarsArt } from '../components/FallenBarsArt'
+import { MissingBarArt } from '../components/MissingBarArt'
 import { SearchForm } from '../components/SearchForm'
 import { textLink } from '../components/styles'
 import { t } from '../i18n'
 import { DEPARTMENTS, departmentName } from '../lib/departments'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-// The illustration (the logo's three bars, the middle one fallen over) is inline SVG,
-// so it follows the theme; see FallenBarsArt.
+// The illustration (the logo's three bars, the middle one missing, drawn as a dashed outline) is inline SVG,
+// so it follows the theme; see MissingBarArt.
 export function NotFoundPage() {
   useDocumentTitle(t.notFound.docTitle)
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
-      <FallenBarsArt className="mx-auto w-full max-w-xs text-action" />
+      <MissingBarArt className="mx-auto mt-4 w-32 text-action" />
       <h1 className="mt-6 text-center text-2xl font-bold tracking-tight">{t.notFound.heading}</h1>
       <p className="mt-2 text-center text-muted">{t.notFound.body}</p>
       <div className="mx-auto mt-6 max-w-md">
