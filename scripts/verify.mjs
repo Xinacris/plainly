@@ -2129,8 +2129,8 @@ FLOWS['turkish: checkout in Turkish, validation and confirmation'] = async () =>
     expect(await page.getByLabel('Ad soyad').evaluate((el) => el === document.activeElement), 'focus not on the first invalid field')
     await page.getByLabel('Ad soyad').fill('Ayşe Yılmaz')
     await page.getByLabel('Açık adres').fill('Atatürk Cad. 1')
-    await page.getByLabel('Şehir').fill('İzmir')
-    await page.getByLabel('Eyalet ya da bölge').fill('İzmir')
+    await page.getByLabel('İlçe', { exact: true }).fill('Konak')
+    await page.getByLabel('İl', { exact: true }).fill('İzmir')
     await page.getByLabel('Posta kodu').fill('35000')
     await page.getByRole('button', { name: 'Siparişi ver' }).click()
     await page.getByRole('heading', { name: 'Siparişiniz alındı' }).waitFor()
@@ -2198,7 +2198,7 @@ FLOWS['accessibility: settings apply, persist, override the device, reset'] = as
 // Ratings: cards show "★ 4.6 (3)" on one line at 360px in both languages, with a full
 // spoken label; the product page keeps "· 3 reviews" with the count and word together.
 FLOWS['ratings: compact on cards at 360px, full on the product page, both languages'] = async () => {
-  for (const [locale, spoken, word] of [['en-US', /^\d\.\d rating, 3 reviews$/, '3 reviews'], ['tr-TR', /^\d,\d puan, 3 değerlendirme$/, '3 değerlendirme']]) {
+  for (const [locale, spoken, word] of [['en-US', /^\d\.\d rating, 3 reviews$/, '3 reviews'], ['tr-TR', /^5 üzerinden \d,\d puan, 3 değerlendirme$/, '3 değerlendirme']]) {
     const context = await browser.newContext({ locale, viewport: { width: 360, height: 800 } })
     const page = await context.newPage()
     page.setDefaultTimeout(SCENE_TIMEOUT)
@@ -2278,6 +2278,38 @@ FLOWS['cards: every line at the same height across a row, both languages'] = asy
     } finally {
       await context.close()
     }
+  }
+}
+
+// The Turkish wording a native speaker reviewed, as it shows in the interface.
+FLOWS['turkish: reviewed wording in the menu, search, filters, addresses and accessibility'] = async () => {
+  const context = await browser.newContext({ locale: 'tr-TR', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const page = await context.newPage()
+  page.setDefaultTimeout(SCENE_TIMEOUT)
+  try {
+    await page.goto(base + '/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Menü' }).click()
+    await page.getByRole('dialog', { name: 'Menü' }).getByRole('link', { name: 'Giriş yap' }).waitFor()
+    await page.keyboard.press('Escape')
+    await page.goto(base + '/search?q=phone&stock=in&rating=3', { waitUntil: 'domcontentloaded' })
+    await page.locator('main li h2 a').first().waitFor()
+    await page.getByRole('button', { name: 'Filtreler, 3 filtre uygulandı' }).waitFor() // the category chip, stock and rating
+    expect((await page.locator('main select option[value="relevance"]').innerText()) === 'En alakalı', 'relevance sort not "En alakalı"')
+    await page.goto(base + '/product/78', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('navigation', { name: 'Gezinti yolu' }).waitFor()
+    await page.goto(base + '/search?department=sports-outdoors', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Spor & Outdoor', level: 1 }).waitFor()
+    await page.goto(base + '/addresses', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Adres ekle' }).click()
+    for (const label of ['İlçe', 'İl', 'Posta kodu']) await page.getByLabel(label, { exact: true }).waitFor()
+    await page.goto(base + '/accessibility', { waitUntil: 'domcontentloaded' })
+    await page.getByText('içeriğe atla bağlantısını', { exact: false }).waitFor()
+    await page.getByText('ekran okuyuculara sunulan sayfa yapısını', { exact: false }).waitFor()
+    expect((await page.getByText('erişilebilirlik ağacı', { exact: false }).count()) === 0, 'old wording still on /accessibility')
+    const text = await page.evaluate(() => document.body.innerText)
+    expect(!/oturum/i.test(text), 'an "oturum" phrasing is still shown')
+  } finally {
+    await context.close()
   }
 }
 

@@ -361,7 +361,7 @@ Twelve items from a full test of the live site, each built, verified and deploye
   - **Search:** the synonyms telefon → smartphones, tişört and gömlek → mens-shirts, parfüm → fragrances and dizüstü → laptops were added, with their plural and multi-word forms. Turkish category and department names count as search terms in both languages. Queries and product text are folded (lowercase, diacritics removed, ı → i), so "tisort" finds "tişört". These words are in the typo-tolerance vocabulary, so "telefn" and "parfm" are corrected and understood.
   - **Header:** with the language picker next to the theme control, the search box at 640px was squeezed to about 40px (Turkish labels are longer). From `sm` to `md`, search now has its own full-width row, as it does on phones. From `md` up it's one row again, with search at 178px or more at 768px.
   - **Tests:** verification runs in English by default. `verify.mjs` pins the browser locale to en-US, because this machine's is Turkish and the first visit follows it. Four Turkish flows cover the first visit per browser language (tr, de and en-GB), switching in the header (focus kept, remembered after reload, arrow keys) and in the phone drawer (it stays open, and focus returns on close). They also cover Turkish prices, dates, plurals and facts with the English data note, the synonyms and typos, and a full Turkish checkout with validation. Turkish layout scenes (home, product, search, the open menu) get the overlap and axe audit.
-  - **Turkish strings to review:** listed at the end of this section.
+  - **Turkish strings, reviewed:** at the end of this section.
 - **12.** Accessibility: `/accessibility`, linked from the footer and the phone menu, in English and Turkish.
   - **Display settings** (`src/a11y/display.ts`), remembered in this browser and applied before first paint by the inline script in `index.html`, like the theme:
     - **Text size:** Default, Large (112.5%) or Larger (125%). It's the root font size, so every rem-based size scales, spacing included.
@@ -403,26 +403,35 @@ The round ended with both full runs green on the test build (default, and the la
   - **Audit:** the layout audit now accepts a line clamp as intended when the full text is in a `title`, as it already did for a one-line ellipsis.
 - **List price:** "List price" / "Liste fiyatı" and its amount stay on one line, like the review count.
 
-#### Turkish strings to review
+#### Turkish strings, reviewed
 
-Translated here, without a native reviewer. These are the ones I'd check first:
+First translated here without a native reviewer. A native speaker then reviewed the strings flagged as uncertain, and these changes were applied:
 
-- **"Oturum aç" / "Oturumu kapat"** (Sign in / Sign out). Correct, but Turkish shops more often say "Giriş yap" / "Çıkış yap".
-- **"Oturum açan"** (Signed in as), above the email in the menus. It reads a little stiffly.
-- **"İlgi düzeyi"** (sort by Relevance). Turkish shops often use "Önerilen" instead.
-- **"Spor ve outdoor"** (Sports & outdoors) uses the loanword. An alternative is "Spor ve doğa".
-- **"Üst giyim"** for DummyJSON's "tops" category, which holds only dresses and frocks.
-- **"Erkek gömlek ve tişörtleri"** (Mens shirts) is long on cards. "Erkek gömlekleri" is shorter, but misses the t-shirts.
-- **"Otomobiller"** (Vehicle category) vs **"Araçlar"** (the Vehicles department).
-- **"Eyalet ya da bölge"** (State or region). The address form is US-shaped; a Turkish address would use "İl".
-- **"Kargoda"** (Shipped) and **"Para iadesi yapıldı"** (Refunded) as status labels.
-- **"diğer değerlendiricilerin"** in the demo account notes means "other reviewers" of the project. It could be confused with product reviews ("değerlendirme").
-- **"Sayfa yolu"** as the breadcrumb's accessible name.
-- **"Filtreler, 2 tane uygulandı"** (Filters, 2 applied) on the phone filter button's accessible name.
-- **"Görünüm ayarları"** (Display settings) and **"Daha büyük"** (Larger text) on `/accessibility`.
-- **"atlama bağlantısı"** (skip link) and **"erişilebilirlik ağacı"** (accessibility tree) in the accessibility statement: technical terms; a native reader may prefer plainer wording.
-- **"görsel yüklediğiniz her sitede olduğu gibi"** (as any site you load images from does), the last clause of the DummyJSON sentence on `/privacy`. It's a bit loose.
-- **"5 üzerinden 4,0 puan, 3 değerlendirme"** and the short **"4,0 puan, 3 değerlendirme"**, the spoken rating labels.
+| Before | After | Note |
+|---|---|---|
+| "Oturum aç" / "Oturumu kapat" | **"Giriş yap" / "Çıkış yap"** | Everywhere, including the related phrasings (privacy, sign-in page, messages). No "oturum" remains in the Turkish catalog. |
+| "Oturum açan" (Signed in as) | **"Giriş yapılan hesap"** | |
+| "İlgi düzeyi" (sort: Relevance) | **"En alakalı"** | Not "Önerilen": on Turkish shops it usually implies a sponsored order, which Plainly doesn't have. |
+| "Spor ve outdoor" | **"Spor & Outdoor"** | |
+| City / State / ZIP | **"İlçe" / "İl" / "Posta kodu"** | The fields as a Turkish address names them; the validation messages match ("İlçenizi girin.", "İlinizi girin."). |
+| "Kargoda" (Shipped) | **"Kargoya verildi"** | "Para iadesi yapıldı" (Refunded) kept. |
+| "diğer değerlendiricilerin" | **"diğer alıcıların"** | In the demo account's notes on Profile. |
+| "Sayfa yolu" (breadcrumb's name) | **"Gezinti yolu"** | |
+| "Filtreler, 2 tane uygulandı" | **"Filtreler, 2 filtre uygulandı"** | The phone filter button's accessible name. |
+| "atlama bağlantısı" | **"içeriğe atla bağlantısı"** | In the accessibility statement. |
+| "erişilebilirlik ağacı" | **"ekran okuyuculara sunulan sayfa yapısı"** | Plain wording instead of the technical term. |
+| "4,0 puan, 3 değerlendirme" (cards' spoken label) | **"5 üzerinden 4,0 puan, 3 değerlendirme"** | Now the same as the product page's. |
+
+Kept as they were, after review: "Üst giyim", "Erkek gömlek ve tişörtleri", "Otomobiller" / "Araçlar", "Para iadesi yapıldı", "Görünüm ayarları", "Daha büyük", and the DummyJSON sentence on `/privacy`.
+
+**Checked:** a Turkish flow finds the reviewed wording in the interface:
+- **Menu:** "Giriş yap".
+- **Search:** "En alakalı" as the sort, and "Filtreler, 3 filtre uygulandı" on the filter button.
+- **Navigation:** "Gezinti yolu" as the breadcrumb, and "Spor & Outdoor" as the department heading.
+- **Addresses:** the İlçe, İl and Posta kodu fields.
+- **Accessibility statement:** the new wording, and that no "oturum" phrasing shows.
+
+The checkout and rating flows use the new labels.
 
 ## Changed from the proposal
 
