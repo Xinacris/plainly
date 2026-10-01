@@ -24,7 +24,7 @@ export function ProductCard({ product, className = '' }: { product: Product; cla
             {product.title}
           </Link>
         </h2>
-        <Rating product={product} />
+        <Rating product={product} compact />
         <div className="mt-auto flex flex-col gap-0.5 pt-2">
           <Price product={product} />
           <StockNote product={product} exceptionsOnly />

@@ -48,6 +48,12 @@ Resume from the first unticked item: first read this list and `git log`. Verify 
 
 The round ends with both full runs green on the test build (default, and the largest text with increased contrast), one smoke check on live (`--smoke=accessibility`: clean), and a deploy.
 
+**Follow-up from testing:**
+- **Ratings on cards:** in Turkish, "3 değerlendirme" broke onto its own line on narrow cards. Cards (including the home rows) now show "★ 4.6 (3)" / "★ 4,6 (3)" on one line, with a full spoken label: "4.6 rating, 3 reviews" / "4,6 puan, 3 değerlendirme".
+- **Full wording:** the product page keeps "· 3 reviews", and the compare page "3 reviews". On both, the count and its word can't break apart.
+- **Test:** a flow checks cards at 360px in both languages (one line, the compact form, the spoken label) and the product page's no-break count.
+- **404 illustration:** redrawn as SVG (see Brand).
+
 ## Step 2 progress: accounts on Supabase (complete)
 
 Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
@@ -155,7 +161,14 @@ The Gemini prompt, verbatim:
 
 ### 404 illustration
 
-Also generated with Gemini, outside this agent session. The source is `design/gemini-404-concept.jpeg` (1200×896): three bars like the logo's, the middle one tipped over. It's used as supplied, with one change. Its near-white background (RGB 247–251, with JPEG noise) was flooded to pure white, and the result was scaled to 800px wide as WebP: `public/not-found.webp`, 5 KB. On the page it sits on the same light image tile as product photos, with the same multiply blend, so the white becomes the tile color in both themes. Without the flood, a paler box showed inside the tile. Gemini didn't follow the prompt exactly: the green is a little more teal than #1F6B4A, and it added no berry accent. Neither was changed, since the image reads clearly as the logo's bars.
+Also generated with Gemini, outside this agent session. The source, `design/gemini-404-concept.jpeg` (1200×896), stays in the repo: three bars like the logo's, the middle one tipped over.
+
+**Redrawn as SVG so it follows the theme.** The first version used the JPEG on the light image tile. It's now an inline SVG component, `FallenBarsArt`, like `LogoMark`:
+- **No tile:** transparent, with no background.
+- **Bars:** `currentColor`, the action green in light mode and the mint in dark mode, with the logo's proportions.
+- **Shadow:** a soft ellipse in the muted token at 18% opacity.
+
+The pose changed too. In the concept, the middle bar leans at about 45° between the two upright ones, and the three shapes read as the letter "N". Now it lies flat on the ground in front of the others, slightly askew, with clear space above it, so it reads as a bar that has fallen over. A lean against the right bar was tried too. In the logo's narrow gap it still read as a letter ("И"). `public/not-found.webp` was removed. The 404 test checks that the illustration has three bars, that their color is the action token, and that there's no tile.
 
 The Gemini prompt, verbatim:
 

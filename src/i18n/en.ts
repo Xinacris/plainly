@@ -95,6 +95,7 @@ export const en = {
     none: 'No reviews yet',
     spoken: (value: string, count: number) => `Rated ${value} out of 5 from ${plural(count, { one: '# review', other: '# reviews' })}`,
     outOf5: (value: string) => `${value} out of 5`,
+    short: (value: string, count: number) => `${value} rating, ${plural(count, { one: '# review', other: '# reviews' })}`,
   },
   facts: {
     region: 'Price and key facts',

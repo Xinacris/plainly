@@ -1925,16 +1925,21 @@ FLOWS['phone drawer: right side, backdrop and Escape close, focus kept inside an
   }
 }
 
-// The 404: the illustration on the image tile, a friendly message, its own search
-// box, and every department, each leading somewhere real.
+// The 404: the illustration (inline SVG in the theme's colors), a friendly message, its
+// own search box, and every department, each leading somewhere real.
 FLOWS['404: illustration, message, search and departments that work'] = async (page) => {
   await page.goto(base + '/no/such/page', { waitUntil: 'domcontentloaded' })
   await page.getByRole('heading', { level: 1, name: 'This page isn’t here' }).waitFor()
   expect((await page.title()).startsWith('Page not found'), `title: ${await page.title()}`)
-  const art = page.locator('main img[src="/not-found.webp"]')
-  await page.waitForFunction(() => document.querySelector('main img[src="/not-found.webp"]')?.complete)
-  const img = await art.evaluate((i) => ({ w: i.naturalWidth, tile: getComputedStyle(i.parentElement).backgroundColor, alt: i.getAttribute('alt') }))
-  expect(img.w === 800 && img.alt === '' && img.tile !== 'rgba(0, 0, 0, 0)', `illustration: ${JSON.stringify(img)}`)
+  // Bars in currentColor = the action token, no background tile, hidden from screen readers.
+  const art = await page.locator('main svg[aria-hidden="true"]').first().evaluate((svg) => ({
+    bars: svg.querySelectorAll('rect').length,
+    fill: getComputedStyle(svg.querySelector('rect')).fill,
+    action: getComputedStyle(document.documentElement).getPropertyValue('--action').trim(),
+    tile: getComputedStyle(svg.parentElement).backgroundColor,
+  }))
+  const hex = (rgb) => '#' + rgb.match(/\d+/g).slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')
+  expect(art.bars === 3 && hex(art.fill) === art.action && art.tile === 'rgba(0, 0, 0, 0)', `illustration: ${JSON.stringify(art)}`)
   const links = page.getByRole('navigation', { name: 'Shop by department' }).getByRole('link')
   expect((await links.count()) === 8, `${await links.count()} department links`)
   await links.filter({ hasText: 'Beauty' }).click()
@@ -2176,6 +2181,39 @@ FLOWS['accessibility: settings apply, persist, override the device, reset'] = as
     expect(reset.size === '16px' && reset.attrs === ',,,', `reset didn't restore defaults: ${JSON.stringify(reset)}`)
   } finally {
     await context.close()
+  }
+}
+
+// Ratings: cards show "★ 4.6 (3)" on one line at 360px in both languages, with a full
+// spoken label; the product page keeps "· 3 reviews" with the count and word together.
+FLOWS['ratings: compact on cards at 360px, full on the product page, both languages'] = async () => {
+  for (const [locale, spoken, word] of [['en-US', /^\d\.\d rating, 3 reviews$/, '3 reviews'], ['tr-TR', /^\d,\d puan, 3 değerlendirme$/, '3 değerlendirme']]) {
+    const context = await browser.newContext({ locale, viewport: { width: 360, height: 800 } })
+    const page = await context.newPage()
+    page.setDefaultTimeout(SCENE_TIMEOUT)
+    try {
+      await page.goto(base + '/search?department=beauty', { waitUntil: 'domcontentloaded' })
+      await page.locator('main li h2 a').first().waitFor()
+      const lines = await page.locator('main li p:has(svg)').evaluateAll((ps) => ps.map((p) => ({
+        lines: Math.round(p.getBoundingClientRect().height / parseFloat(getComputedStyle(p).lineHeight)),
+        shown: [...p.querySelectorAll('[aria-hidden="true"]')].map((el) => el.textContent).join(' ').trim(),
+        label: p.querySelector('.sr-only')?.textContent ?? '',
+      })))
+      const rated = lines.filter((l) => l.label)
+      expect(rated.length > 0, `${locale}: no rating lines found`)
+      for (const l of rated) {
+        expect(l.lines === 1, `${locale}: card rating wraps: ${JSON.stringify(l)}`)
+        expect(/^\d[.,]\d \(\d+\)$/.test(l.shown), `${locale}: card rating shows "${l.shown}"`)
+      }
+      expect(rated.some((l) => spoken.test(l.label)), `${locale}: spoken labels: ${rated.map((l) => l.label).slice(0, 3)}`)
+      await page.goto(base + '/product/1', { waitUntil: 'domcontentloaded' })
+      const full = page.locator('main article h1 + p')
+      await full.waitFor()
+      const count = full.locator('[aria-hidden="true"]').filter({ hasText: word })
+      expect(await count.evaluate((el) => getComputedStyle(el).whiteSpace === 'nowrap'), `${locale}: product page count can break from its word`)
+    } finally {
+      await context.close()
+    }
   }
 }
 

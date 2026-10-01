@@ -129,6 +129,7 @@ export const tr: Messages = {
     none: 'Henüz değerlendirme yok',
     spoken: (value, count) => `5 üzerinden ${value} puan, ${plural(count, { one: '# değerlendirme', other: '# değerlendirme' })}`,
     outOf5: (value) => `5 üzerinden ${value}`,
+    short: (value, count) => `${value} puan, ${count} değerlendirme`,
   },
   facts: {
     region: 'Fiyat ve temel bilgiler',

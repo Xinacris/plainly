@@ -49,7 +49,7 @@ const ATTRIBUTES: Attribute[] = [
     key: (p) => formatRating(reviewRating(p)),
     render: (p) => t.rating.outOf5(formatRating(reviewRating(p))),
   },
-  { label: () => t.compare.rows.reviews, key: (p) => String(p.reviews.length), render: (p) => t.common.reviews(p.reviews.length) },
+  { label: () => t.compare.rows.reviews, key: (p) => String(p.reviews.length), render: (p) => <span className="whitespace-nowrap">{t.common.reviews(p.reviews.length)}</span> },
   {
     label: () => t.compare.rows.delivery,
     key: (p) => (p.stock <= 0 ? 'none' : JSON.stringify(estimateDelivery(p.shippingInformation) ?? p.shippingInformation)),
