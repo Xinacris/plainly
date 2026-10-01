@@ -594,7 +594,7 @@ export const en = {
     demo: 'Plainly is a portfolio project, not a real shop. Products and reviews come from DummyJSON’s public mock API. Nothing you order is shipped, and nothing is charged.',
     guestHeading: 'If you don’t sign in',
     guest:
-      'Your cart, saved addresses, orders and returns are stored only in this browser (its local storage). They never leave your device, and clearing your browser’s site data removes them.',
+      'Your cart, saved addresses, orders and returns, and your settings (theme, language, display settings and the products you’re comparing) are stored only in this browser (its local storage). They never leave your device, and clearing your browser’s site data removes them.',
     signedInHeading: 'If you sign in',
     signedInLead: 'Signing in is optional. When you do, your account stores:',
     stores: [
@@ -608,7 +608,7 @@ export const en = {
     google:
       'If you choose “Continue with Google”, Google shares only your name and email address with us. We don’t get your Google password or access to anything else in your Google account.',
     dontHeading: 'What we don’t do',
-    dont: 'We don’t sell or share your data with anyone, show ads, or use tracking or analytics cookies. The site is hosted on Vercel, which keeps standard request logs (such as IP address, time and page) to run the service.',
+    dont: 'We don’t sell or share your data with anyone, show ads, or use tracking or analytics cookies. The site is hosted on Vercel, which keeps standard request logs (such as IP address, time and page) to run the service. Product data and photos load directly from DummyJSON’s servers, so DummyJSON sees those requests, as any site you load images from does.',
     paymentsHeading: 'Payments',
     payments: 'Payments are simulated. There’s no card form, and we never ask for or store payment details.',
     deleteHeading: 'Deleting your account and data',

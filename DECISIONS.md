@@ -1,102 +1,5 @@
 # Plainly: Decisions
 
-## Revision round progress (complete)
-
-Resume from the first unticked item: first read this list and `git log`. Verify on a `vite build --mode test` preview (full matrix for changed pages), and give the live URL one light smoke check at the end. Run `node scripts/check-secrets.mjs` before every commit.
-
-- [x] 1. Privacy contact: the real address, as a working mailto link (`src/lib/contact.ts`, reused by `/accessibility`)
-- [x] 2. Select boxes: one consistent, themed chevron with padding (native selects kept). `src/components/Select.tsx`, used by quantity, sort and the return reason. The native arrow is hidden (`appearance: none`) and replaced by a `currentColor` chevron 12px from the edge, so it also shows in forced-colors mode. A flow checks all three, in both themes.
-- [x] 3. Account menu email: one line when it fits, ellipsis plus full address otherwise. The desktop menu widens to fit (`w-max`, 14–24rem). Truncation applies only past that, with the full address in the text and in a `title`. The phone menu follows the same rule. A flow checks a short and a 70-character address. (Also: verification now runs 10 scenes at a time instead of 6, since the machine has 12 cores. The same run went from 113s to 86s, well inside the 2-minute budget.)
-- [x] 4. Sign out at the bottom of the account menu, below a divider. In both menus the order is now: who's signed in, then Orders, Addresses, Profile, then Sign out. A flow checks the order and the divider.
-- [x] 5. "In stock" styled like the other decision-card facts. `StockNote` has a `fact` variant (surrounding size, text color), used in the decision card and, for consistency, on the compare page. "Only N left" and "Out of stock" keep the warning color at the same size. Cards still show only the exceptions, small. A flow compares the Stock value's size and color with the Warranty value's.
-- [x] 6. Lazy images. Native `loading="lazy"` alone started too early: Chrome loads anything within 1,250–2,500px, so a phone's first visit to the home page requested 16 photos and a desktop's 39, of 56. Photos now get their `src` only when they come within 300px of the screen (one shared IntersectionObserver, `src/lib/useNearViewport.ts`). In sideways rows, `scrollMargin` (where supported) preloads the next card; elsewhere, cards load as they scroll in. The first department card is in the first screen at every width, so its photos load right away. The product page's main photo is `eager` with `fetchpriority="high"`. Every photo sits in a square box sized before it loads, so nothing shifts (measured layout shift on the home page: 0 on a phone, 0.0002 on desktop). First load now: 8 photos on a phone (390×844), 32 at 1280×720 (24 of them in the first screen), 39 at 1440×900, where 32 are in the first screen. A flow counts image requests on the home page's first load at 390 and 1280px, checks that scrolling to and along a row loads more, and checks the main product photo's priority.
-- [x] 7. Horizontal rows on phones. The rows already had the page's 16px padding, but snapping ignored it: on load, the browser snapped the first card to the screen's edge, 16px left of the heading, and every swipe settled there too. Adding `scroll-padding-inline: 1rem` moves the snap line onto the page's left line. The rows now snap mandatorily, so a swipe always settles with a card on that line. Cards still run off the right edge to show there's more. A flow at 360 and 390px checks that the first card lines up with the heading, that the row runs off the right edge, and that a real touch swipe settles with a card on the line. Against the old build, it fails with "first card at 0px, heading at 16px".
-- [x] 8. Phone menu: a drawer from the right (`src/components/Drawer.tsx`), 85% wide up to 24rem, full height, over a dimmed backdrop; a tap on the backdrop closes it. It's a native modal `<dialog>` like the filter sheet: focus stays inside, Escape closes, and focus returns to the menu button. It slides in over 200ms, and not at all with reduced motion. From the top: "Menu" and a close button. Then the account area. Signed in, it shows an initial, the name, and the email below (each on one line with an ellipsis only when needed, as in item 3), or the email alone when there's no name. Signed out, it shows a full-width Sign in button. Then Orders, Addresses and Profile as 48px rows with an icon, 16px text and a chevron, then the theme choice. Sign out is pinned to the bottom below a divider. The language choice joins the theme choice in item 11. The name comes from the profile, loaded with the account data, falling back to the name given at sign-up, and it updates when Profile is saved. Focus rings use `:focus-visible` only, so none shows after a tap. Two flows cover it. The first checks position and width, the backdrop, the slide and reduced motion, row size and icons, the order of the parts, Tab staying inside with a ring, and Escape and backdrop-tap closing with focus returned. The second, signed in, checks the account area with and without a name, and Sign out at the bottom.
-- [x] 9. 404 page: the illustration on the light image tile, "This page isn’t here" with a short, friendly explanation, its own search box, links to all 8 departments, and Back to home. The illustration is described in the Brand section. The search box is the header's form with its own id, a visible label and its own landmark name. The department list is named "Shop by department", because "Departments" was already the header bar's name; the new flow caught the duplicate. A flow checks the illustration, the title, all 8 links (one followed), and that the search box searches. The layout scene for the page now waits for the new heading.
-- [x] 10. Offline state. `src/lib/network.ts` follows the browser's `online`/`offline` events. A banner below the header (`OfflineBanner`, in an always-present `role="status"` region so screen readers announce it) says: "You’re offline. Your cart is saved in this browser, and pages you’ve already opened still work." That's true because the cart is in localStorage, every page's code is in the main bundle, and the catalog stays in memory once loaded. Photos that haven't loaded yet won't load, and a full reload offline doesn't work (there's no service worker; see "Considered, not now"). The banner goes as soon as the connection is back. Every account action checks first and, when offline, sends nothing and says "You’re offline, and this needs a connection. Nothing was changed; try again when you’re back online." This covers sign-in, sign-up, Google, profile load and save, password change, and address, order and return writes. A real network failure while offline gets the same words instead of "couldn’t reach the account service". Sign-out stays local and works offline. `?simulate=offline` forces the state for the tab (kept in sessionStorage, so it survives navigation) and adds "(simulated)" and an Exit simulation button, which also removes the parameter from the URL. The simulation doesn't block requests, so product data still loads; the README says so. Guest checkout works offline, because the order is kept in the browser. Three flows cover it: a real dropped connection (the banner comes and goes, and in-app navigation and the cart still work), the simulation (sign-in answers without sending any request, it lasts across pages, and Exit ends it), and, signed in, a profile save offline and then online. A layout scene checks the banner at 390 and 1440px in both themes.
-- [x] 11. English and Turkish throughout, with a picker, Turkish search synonyms and Turkish flows.
-  - **Catalogs:** `src/i18n/en.ts` holds every string of the interface, including `/privacy`, error and offline messages, aria-labels and page titles. `tr.ts` is typed as the same shape, so a missing Turkish string fails the build instead of showing a blank. Strings with numbers are functions. Plurals use `Intl.PluralRules`: Turkish nouns stay singular after a number ("3 ürün"), so both forms are the same there, but the rules still apply per language. No library: two languages and a typed object don't need one.
-  - **Switching:** `t` is a live binding. Switching replaces it and remounts the routes (`App.tsx` keys `RouterProvider` by language), so every string and format is read again. That keeps call sites plain (`t.cartPage.title`) instead of a hook in every component. The URL, the catalog cache and the stores (cart, compare, theme, orders) survive; half-typed form input doesn't, which is acceptable for a rare action. Two flags outside React (`i18n/switching.ts`) carry what the remount would lose: the picker that was used gets focus back, and the phone menu reopens if the switch happened there. Its close then returns focus to the menu button.
-  - **Formats:** prices use `Intl.NumberFormat` with USD in both languages ("$8.94", "$8,94"). Dates use `Intl.DateTimeFormat` ("Thu, Oct 8", "8 Eki Per"), as do ratings ("4.0", "4,0"). Percent discounts put the sign first in Turkish ("%10 indirim").
-  - **Choosing:** on the first visit, the first of `navigator.languages` that's English or Turkish wins, otherwise English. The choice is remembered in localStorage (`plainly-locale`), and `<html lang>` always matches. The picker is a radio group like the theme toggle: EN / TR in the desktop header next to the theme control (each named in its own language, "English" and "Türkçe", and marked with `lang`), and full names under Language in the phone menu, above the theme.
-  - **Product data:** titles, descriptions, reviews and brands stay in English. In Turkish, a small note above the description says so, and the footer mentions it. English data is marked `lang="en"` (card titles and brands, the product heading, description and reviews), so screen readers pronounce it right. That also fixed a real bug: Turkish uppercase turned brand names like "Gigabyte" into "GİGABYTE". Plainly's own readings of the data are translated where the phrasing is known: "No returns", "30-day returns", warranty periods and the six shipping phrases. The raw policy strings in "Shipping, returns and warranty" stay as the seller wrote them, and the Turkish note says they're in English. Category and department names are translated. The English category names are unchanged.
-  - **Search:** the synonyms telefon → smartphones, tişört and gömlek → mens-shirts, parfüm → fragrances and dizüstü → laptops were added, with their plural and multi-word forms. Turkish category and department names count as search terms in both languages. Queries and product text are folded (lowercase, diacritics removed, ı → i), so "tisort" finds "tişört". These words are in the typo-tolerance vocabulary, so "telefn" and "parfm" are corrected and understood.
-  - **Header:** with the language picker next to the theme control, the search box at 640px was squeezed to about 40px (Turkish labels are longer). From `sm` to `md`, search now has its own full-width row, as it does on phones. From `md` up it's one row again, with search at 178px or more at 768px.
-  - **Tests:** verification runs in English by default. `verify.mjs` pins the browser locale to en-US, because this machine's is Turkish and the first visit follows it. Four Turkish flows cover the first visit per browser language (tr, de and en-GB), switching in the header (focus kept, remembered after reload, arrow keys) and in the phone drawer (it stays open, and focus returns on close). They also cover Turkish prices, dates, plurals and facts with the English data note, the synonyms and typos, and a full Turkish checkout with validation. Turkish layout scenes (home, product, search, the open menu) get the overlap and axe audit.
-  - **Turkish strings I'm unsure about:** see "Turkish strings to review" below.
-- [x] 12. Accessibility: `/accessibility`, linked from the footer and the phone menu, in English and Turkish.
-  - **Display settings** (`src/a11y/display.ts`), remembered in this browser and applied before first paint by the inline script in `index.html`, like the theme:
-    - **Text size:** Default, Large (112.5%) or Larger (125%). It's the root font size, so every rem-based size scales, spacing included.
-    - **Increased contrast:** new token values for light and dark. Every text color reaches 7:1 on surface and background, border-strong 8:1, and focus rings are 3px.
-    - **Reduce motion:** turns off every transition and animation even when the device allows motion. When off, the device's setting still applies, and the gallery's scripted scroll checks both.
-    - **Underline all links:** every link, including those styled as buttons or cards.
-    - **Reset to defaults**, with a status message.
-  - **Statement:**
-    - **Target:** WCAG 2.2 AA.
-    - **What's tested and how:** axe on every page with the 2.2 AA rules (the `wcag22aa` tag was added to `verify.mjs` for this; nothing new failed), the layout audit, the keyboard flows, the contrast values, and the reduced-motion checks for the drawer, tray and cart notice.
-    - **Known limitations,** said plainly: no screen-reader testing yet, Chromium only, product photos without descriptions, English product data in Turkish, and automated checks catch only part.
-    - **Contact:** the address from item 1, as a mailto link.
-  - **Largest text size:** a full run with `--display=larger,contrast`, a new `verify.mjs` flag that puts those settings on every page. The layout audit and axe were clean from the start, with no overlap, clipping or sideways scroll. Nine flows failed, and each was sorted:
-    - **One real breakage:** the header's search box at 768px was 31px wide. Media-query breakpoints don't follow the root font size, so the header now switches to one row with a container query in rem: 768px at default text, 960px at the largest.
-    - **Price on the first screen:** on phones, the price fell 19px below it, so at the largest size the gallery takes 36% of the height instead of 45%.
-    - **Pixel-based assertions:** four tests hard-coded pixel sizes (16px text, a 384px menu, the breadcrumb rule, a scroll position), and now use the root size or the underlying rule.
-    - **Settings flow:** the settings flow now runs without the forced settings.
-    - **Two load timeouts.**
-  - **One deliberate exception:** at the largest text size, the decision card's last fact on a 1024×768 screen is 19px below the fold. More text needs more room, as with zoom, and shrinking the desktop layout to avoid a short scroll would cost more than it saves. That one check is skipped at that size, with the reason in the test.
-  - **Runs:** both are green, the default (90s) and the largest text with increased contrast (104s). Turkish scenes include the new page.
-
-
-The round ends with both full runs green on the test build (default, and the largest text with increased contrast), one smoke check on live (`--smoke=accessibility`: clean), and a deploy.
-
-**Follow-up from testing:**
-- **Ratings on cards:** in Turkish, "3 değerlendirme" broke onto its own line on narrow cards. Cards (including the home rows) now show "★ 4.6 (3)" / "★ 4,6 (3)" on one line, with a full spoken label: "4.6 rating, 3 reviews" / "4,6 puan, 3 değerlendirme".
-- **Full wording:** the product page keeps "· 3 reviews", and the compare page "3 reviews". On both, the count and its word can't break apart.
-- **Test:** a flow checks cards at 360px in both languages (one line, the compact form, the spoken label) and the product page's no-break count.
-- **404 illustration:** redrawn as SVG (see Brand).
-
-**Second follow-up:**
-- **404 illustration:** now the logo mark with a dashed outline for the missing middle bar (see Brand).
-- **Card alignment:** cards in a row stretch to the same height. The price was pushed to the bottom, so a card with a one-line title (Decoration Swing) had a large gap between rating and price. Now every line sits at the same height across a row:
-  - **Brand line:** it keeps its height when a product has no brand (empty and hidden from screen readers).
-  - **Title:** always exactly two lines (`line-clamp-2` with a two-line minimum height). Longer titles get an ellipsis, and the full title stays the link's text (its accessible name) and its tooltip.
-  - **Price:** it follows the rating with a small, fixed gap, and leftover space goes below Compare.
-  - **Where:** this applies to every product card, in search results and the home rows.
-  - **Test:** a flow checks brand, title, rating and price tops per row on the home page and a department, at 360, 1024 and 1440px, in both themes and languages. It also checks two-line titles with their tooltip, a gap of 12px or less, and a one-line list price.
-  - **Audit:** the layout audit now accepts a line clamp as intended when the full text is in a `title`, as it already did for a one-line ellipsis.
-- **List price:** "List price" / "Liste fiyatı" and its amount stay on one line, like the review count.
-
-## Step 2 progress: accounts on Supabase (complete)
-
-Resume from the first unticked item. First read this list and `git log`, and check which migrations are applied (`npx supabase migration list` after linking; see item 1). Before every commit, run `node scripts/check-secrets.mjs`.
-
-- [x] 0. Setup: pinned `@supabase/supabase-js` and the Supabase CLI; `.env.test.local` pointed at plainly-test (it held production's URL and publishable key); production's "Confirm email" switched off, as decided; secret-scan guard.
-- [x] 1. Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly. Three files in `supabase/migrations/`, all three applied to both projects; advisors clean. `scripts/rls-test.mjs` passes all 31 checks against plainly-test. It caught that this project grants every table right to `authenticated` by default, which the third migration fixes.
-- [x] 2. Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained. `/signin` (with the demo note and "Sign in as demo"), `/signup` and `/auth/callback`, plus the Account menu's Sign in / Sign out. supabase-js loads on demand, so guests don't download it. Entry points stay hidden in production until item 7 (`src/lib/accounts.ts`); test builds (`vite build --mode test`, pointed at plainly-test) show them.
-- [x] 3. Profile page: `/profile` for name and phone (saved to `profiles`, created on first use), the email shown read-only with why it can't change, and a password change with no email needed. The demo account gets notes instead of the email and password controls. It has an error state with Try again, and signed-out visitors go to sign-in and come back.
-- [x] 4. Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account. `src/account/data.ts` holds the account copy and its writes; `src/account/hooks.ts` gives pages the same shapes whether the data is in the browser or the account. Every account page has loading and error states. After sign-in, a one-time dialog offers to move this browser's data, and an inline notice on Addresses and Orders keeps the offer open. The move is idempotent, and the browser's copy is cleared only after it succeeds. Checked end to end on plainly-test; all 67 existing flows still pass.
-- [x] 5. Demo account: seed and reset script, sign-in page note, "Sign in as demo", README. `scripts/demo-reset.mjs` restores 3 addresses and lasting order states (delivered with a refunded return and a no-returns item, delivered and returnable, cancelled), using real catalog snapshots. It's idempotent and has been run on plainly-test; production is seeded by the workflow (item 6). On demo sign-in, when nothing is on its way, its two fixed live orders are re-dated to Preparing and Shipped by a demo-only database function; this replaced an earlier top-up that added new orders, see the bug log. The credentials are on the sign-in page and in the README.
-- [x] 6. GitHub Actions: keep-alive and demo reset every 3 days, never printing the secret. `.github/workflows/keep-alive.yml`, pushed after the `gh` login got the `workflow` scope. Its first run created and seeded production's demo account; the log shows the key only as `***`. The demo was checked with the publishable key: 3 addresses, 3 orders, 1 return, and its password change is refused.
-- [x] 7. Tests (sign-up, sign-in, sign-out, profile, data move, demo, RLS isolation), verification, docs, deploy.
-  - [x] 7a. Tests: 5 account flows in `verify.mjs` (run only against a `vite build --mode test` preview pointed at plainly-test; they create and delete their own users), plus `scripts/rls-test.mjs` (31 checks). All 72 flows pass. The flows found a real race: the confirm dialog ran its action on the dialog's `close` event, which fires a moment after the dialog disappears. It now runs on the click.
-  - [x] 7b. Accounts switched on (`src/lib/accounts.ts`). `/privacy` and the footer now say accounts are live. The decisions are recorded below. Verified on the test build: 154 scenes and 72 flows, including sign-in, sign-up and the demo's profile at every size, plus the RLS test. Deployed, with one live smoke check on `/signin`.
-
-### Turkish strings to review
-
-Translated here, without a native reviewer. These are the ones I'd check first:
-
-- **"Oturum aç" / "Oturumu kapat"** (Sign in / Sign out). Correct, but Turkish shops more often say "Giriş yap" / "Çıkış yap".
-- **"Oturum açan"** (Signed in as), above the email in the menus. It reads a little stiffly.
-- **"İlgi düzeyi"** (sort by Relevance). Turkish shops often use "Önerilen" instead.
-- **"Spor ve outdoor"** (Sports & outdoors) uses the loanword. An alternative is "Spor ve doğa".
-- **"Üst giyim"** for DummyJSON's "tops" category, which holds only dresses and frocks.
-- **"Erkek gömlek ve tişörtleri"** (Mens shirts) is long on cards. "Erkek gömlekleri" is shorter, but misses the t-shirts.
-- **"Otomobiller"** (Vehicle category) vs **"Araçlar"** (the Vehicles department).
-- **"Eyalet ya da bölge"** (State or region). The address form is US-shaped; a Turkish address would use "İl".
-- **"Kargoda"** (Shipped) and **"Para iadesi yapıldı"** (Refunded) as status labels.
-- **"diğer değerlendiricilerin"** in the demo account notes means "other reviewers" of the project. It could be confused with product reviews ("değerlendirme").
-- **"Sayfa yolu"** as the breadcrumb's accessible name.
-- **"Filtreler, 2 tane uygulandı"** (Filters, 2 applied) on the phone filter button's accessible name.
-
 ## Thesis
 
 **Plainly is Amazon without the noise: decide with facts, not noise.**
@@ -107,7 +10,9 @@ Search results are ranked honestly, with no sponsored slots and no badges. The f
 
 - **Framework:** Vite, React, TypeScript and React Router. There's no server rendering, because the data comes from a public mock API, so SSR adds nothing.
 - **Data:** TanStack Query loads DummyJSON's catalog of 194 products once. Search, filters and sorting then run in the browser, so they're instant, and facets that the API doesn't offer become possible.
-- **Local state:** Zustand with the `persist` middleware stores the cart, orders and theme in localStorage. There's no backend and no sign-in.
+- **Local state:** Zustand with the `persist` middleware stores the cart, compare list, theme, language and display settings in localStorage, plus addresses and orders for guests.
+- **Accounts:** Supabase (Auth and Postgres with row-level security, EU region) for signed-in addresses, orders and returns; see "Accounts, reversed from Cut". supabase-js loads on demand, so guests never download it.
+- **Languages:** English and Turkish from two typed message catalogs, with no i18n library; see the revision round, item 11.
 - **Styling:** Tailwind v4, with every color defined as a CSS variable token.
 - **Hosting:** Vercel, with a rewrite that sends every path to `index.html`, so deep links load directly.
 
@@ -117,7 +22,7 @@ These apply to every step:
 
 - **Truthful copy.** Never show badges, delivery promises or discount claims the data doesn't support. Every number shown is computed from the data. Fields that would look broken are hidden.
 - **Prices** are formatted with `Intl.NumberFormat`. **Ratings** are truncated to one decimal and never rounded up, so 4.99 shows as 4.9.
-- **Cards size to their content.** No fixed heights with `overflow-hidden`.
+- **Cards size to their content.** No fixed heights with `overflow-hidden`. The one exception is deliberate: product card titles take exactly two lines and end in an ellipsis, so every line of a card aligns across a row. The full title stays in the DOM and in a tooltip.
 - **Breakpoints:** Tailwind v4's `sm`, `md`, `lg`, `xl` and `2xl` only.
 - **Errors:** each route has an error boundary whose "Try again" actually refetches.
 - **No dead links.** If something isn't built yet, it isn't shown.
@@ -127,11 +32,12 @@ These apply to every step:
 
 ### Verification after each step
 
-`node scripts/verify.mjs <url> --changed=<pages>` screenshots each page and audits it for horizontal scroll, clipping, overlap and low-contrast text. Then it runs the key user flows.
+`node scripts/verify.mjs [url] --changed=<pages>` screenshots each page and audits it for horizontal scroll, clipping, overlap and low-contrast text, and runs axe-core (WCAG 2.2 A/AA and best practices). Then it runs the user flows. It runs against a local preview of the test build (see "Deployment notes"). The final run has 111 scenes and 94 flows in about 90 seconds, 10 at a time. It also runs `scripts/rls-test.mjs` (33 checks).
 
 - **Changed pages** get the full matrix: 1440, 1024 and 390 px in light and dark.
 - **Every other page** gets a quick check at 1440 px (light) and 390 px (dark).
 - **Limits:** each scene waits for its main content (never `networkidle`), has a 15-second limit, and the whole run has a 2-minute budget. Scenes run in parallel and report their timing as they finish.
+- **Locale and display:** pages open in English unless a test asks for Turkish. `--display=larger,contrast` runs everything again at the largest text size with increased contrast.
 - **Kernel check:** key output, edge cases, reuse, no nested logic, error states, least surprise.
 
 ## Data decisions
@@ -143,7 +49,7 @@ DummyJSON's data has quirks, and each one is handled so the page stays honest:
 | `rating` doesn't match the product's own reviews. For product 1 it's 2.56, while its 3 reviews average 4.0. | The rating shown is the **average of the 3 reviews shown**, truncated. | A number that contradicts the reviews right below it is noise. This also matches decision #8: the rating rests on 3 reviews. |
 | Every one of the 582 reviews has the same date. | Review dates aren't shown. | A date that's identical everywhere carries no information. |
 | `minimumOrderQuantity` makes no sense (48 for a mascara). | Hidden, and never enforced. | It would look broken. |
-| 92 of the 194 products have no `brand`. | The brand line only appears when a brand exists. | No "Unknown brand" filler. |
+| 92 of the 194 products have no `brand`. | No brand is shown for them. On cards the brand line stays, empty and hidden from screen readers, so the lines of every card align across a row. | No "Unknown brand" filler. |
 | Two titles are cut off in the source data ("Dolce Shine Eau de", "Gucci Bloom Eau de"). | Shown exactly as in the data. | Completing them would mean inventing data. |
 | `price` together with `discountPercentage` | **Resolved while building facts instead of badges (#4):** `price` is the list price *before* the discount. DummyJSON's own carts API charges `total × (1 − discountPercentage / 100)`, which settles it. So the price you pay is the discounted price, rounded to the cent, and it's used everywhere: cards, product page, cart, checkout, sorting and the price filter. Where there's a discount, the page shows it as "12% off" next to the price, with "List price ~~$29.99~~" underneath. The % is truncated, never rounded up. Discounts under 1% (7 products, a few cents at most) aren't presented as discounts. | Showing a discount means charging it, or the page would claim a saving the checkout doesn't give. Orders placed before this change keep the prices they were placed at. |
 | `stock` and `availabilityStatus` | Cards show only exceptions ("Only N left" when stock is 5 or fewer, "Out of stock"). The product page also shows "In stock". Quantities are capped at stock, and at 10 per line. | "In stock" on every card is noise. Scarcity is only claimed when it's true. |
@@ -196,7 +102,7 @@ The Gemini prompt, verbatim:
 | 5 | **A decision card at the top of the product page.** It shows price, delivery date, return policy, warranty and stock, and everything else collapses. | Returns and shipping details are buried in very long product pages. These are the facts that decide a purchase. |
 | 6 | **A compare tray.** Add up to 3 products and see them side by side, with the differences highlighted. | Comparing similar products on Amazon means juggling tabs. |
 | 7 | **Dark mode.** It follows the system setting, has a light / dark / system toggle, and is built on tokens from the first step. | People shop late at night. Building it in from the start costs little; adding it later means touching every component. |
-| 10 | **Cut sign-in** (reversed later: see "Accounts, reversed from Cut"), **Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Cart and the theme toggle, plus one bar of department links. The footer is one line on what's mocked and a repo link. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
+| 10 | **Cut sign-in** (reversed later: see "Accounts, reversed from Cut"), **Prime, recommendation carousels, lists, Q&A and seller pages.** The header is reduced to logo, search, Orders, Account, Cart and the language and theme controls, plus one bar of department links. The footer is one line on what's mocked, plus Privacy, Accessibility and a repo link. | The header and footer are full of links nobody uses. Everything works as a guest, so the public URL works for anyone without signing in. |
 
 **Home page:** Amazon's structure, not its look. A slim one-line intro so products show above the fold, a category bar, department cards with four subcategory tiles each, two product rows (biggest real discounts, highest rated) that say how they were chosen, and a minimal footer. No carousel and no sign-in block.
 
@@ -232,7 +138,7 @@ The Gemini prompt, verbatim:
   - Keyboard and screen readers: a skip link, a title for every page, and the theme toggle follows the ARIA radio-group keyboard pattern (one Tab stop, arrow keys).
   - Navigation: new pages start at the top, while filter changes keep your scroll position.
   - Errors: the tray has its own error boundary.
-  - Checks: `verify.mjs` now runs axe-core (WCAG 2.1 A/AA and best practices) on the 1440-light and 390-dark scene of every page.
+  - Checks: `verify.mjs` now runs axe-core (WCAG 2.1 A/AA and best practices, later 2.2) on the 1440-light and 390-dark scene of every page.
 
 ### Changes after testing the live site
 
@@ -244,7 +150,7 @@ The Gemini prompt, verbatim:
    - **The rule:** it uses the same truncated whole-number % the cards show, so every product in the view shows at least "10% off". The chip is labeled with the rule itself.
    - **Where it appears:** first built as a filter everywhere (a chip even when opened from the bar). It was then split by the context-vs-filter rule (see "Sale view as context" below). The bar link and the home page's "Biggest discounts" "See all" open the sale view as context (`view=sale`, sorted by discount). The checkbox in the filter panel stays a filter (`sale=1`).
    - **Colour:** it has its own `sale` token, a calm berry (#a3285b light, #f39abf dark; 7.0 and 8.2:1 on surface). It's clearly a different hue from action green and from the warning color, which means low stock and no returns. The "N% off" text on cards and the decision card uses it too, so the token means "discount" everywhere.
-3. **Two-row phone header.** Below `sm`, the header took three rows and pushed products down. Row 1 is now the logo, a cart icon with its count (the cart stays one tap away), and a menu button; row 2 is full-width search. The menu was the same modal sheet as the filters, and is now a drawer from the right (revision item 8). Either way, focus stays in it, Escape closes it, and focus returns to the button. It holds Orders and the light / dark / system choice. It closes itself if the screen grows past `sm` while open (a phone turned sideways), so the page is never left inert behind a hidden modal. The department bar and the desktop header are unchanged.
+3. **Two-row phone header.** Below `sm`, the header took three rows and pushed products down. Row 1 is now the logo, a cart icon with its count (the cart stays one tap away), and a menu button; row 2 is full-width search. The menu was the same modal sheet as the filters, and is now a drawer from the right (revision item 8). Either way, focus stays in it, Escape closes it, and focus returns to the button. At first it held Orders and the light / dark / system choice; it now holds the account, Orders, Addresses, Profile, the language and theme choices, and Accessibility. It closes itself if the screen grows past `sm` while open (a phone turned sideways), so the page is never left inert behind a hidden modal. The department bar and the desktop header are unchanged.
 4. **No "Best sellers" sort.** See "Considered, not now".
 5. **Search that understands categories.**
    - **When it applies:** only when the *whole* query names a category, a department or a common synonym ("tee", "phone", "perfume", "watch"…). Search then applies that category instead of matching the words as text, and shows it as a chip, e.g. "Smartphones (from “phone”)". There's no redirect: the URL keeps `q`.
@@ -340,7 +246,7 @@ The Gemini prompt, verbatim:
 
 ### Address book, order management, Account menu
 
-Everything stays in this browser, like the cart, with no backend and no sign-in, so anyone can try it. Guest checkout stays the default.
+Built while sign-in was still cut, so at first everything stayed in this browser, like the cart. Accounts came later and use the same pages (see "Accounts, reversed from Cut"); guests still keep everything in the browser. Guest checkout stays the default.
 
 - **Address book (`/addresses`):**
   - Add, edit (in place) and delete addresses, and mark one as the default, with the same validation as checkout.
@@ -361,7 +267,7 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
 - **Account menu:**
   - **Desktop:** an "Account" disclosure menu with Orders and Addresses. It opens on click or Enter, and closes on Escape (focus back to the button), on a click outside, when focus leaves it, or when a link is followed. The header's Orders link stays too.
   - **Phones:** an "Account" section with the same two links in the phone menu. (Now a drawer from the right, with the account at the top; see revision item 8.)
-  - **No sign-in yet.** The confirmation page's "See your orders" and the header's Orders link lead to the orders page.
+  - **Sign-in came later:** with accounts, the menu also shows who's signed in, Profile, and Sign in or Sign out. The confirmation page's "See your orders" and the header's Orders link lead to the orders page.
 
 ### Accounts, reversed from Cut
 
@@ -370,14 +276,18 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
   - **Guest checkout stays the default:** the original reason still holds (an account is friction before the first purchase), and the live link must work for someone who isn't signed in.
   - **The cart stays in the browser** in both cases.
 - **No email provider, so email confirmation is off.** Supabase's built-in sender only delivers to the project's own team members, at 2 messages an hour. The rule that follows from "no dead links": any flow that depends on email delivery is either hidden or clearly says it's unavailable in this demo. That covers forgot password and email change. It's never a form that silently sends nothing. Changing the password while signed in stays, since it needs no email.
-- **Keys:** the browser gets only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (Supabase's publishable key; the legacy `anon` key is deprecated by the end of 2026). The production secret key lives only as a GitHub Actions secret, for the keep-alive and demo-reset workflow, which must never print it.
+- **Keys:**
+  - **The browser:** it gets only `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. That's Supabase's publishable key; the legacy `anon` key is deprecated by the end of 2026. Both are public by design, since row-level security protects the data.
+  - **The production secret key:** it lives only as a GitHub Actions secret, for the keep-alive and demo-reset workflow, which must never print it. The script logs counts only.
+  - **Everything else:** the test project's secret key, the CLI access token and the database passwords are in gitignored env files. `.env.example` shows the names with placeholders.
+  - **What's never in the repo or the logs:** a service-role or secret key, a token or a password.
 - **Privacy page (`/privacy`),** linked from the footer.
   - **Why now:** Google won't let the OAuth app leave "Testing" without a privacy policy URL.
   - **Content:** it says what's stored for signed-in users and where (Supabase, EU region), that guest data stays in the browser, what Google shares (name and email), that nothing is sold or shared, that payments are simulated, the hosting logs, and how to get an account deleted.
-  - **Truthful before launch:** it says accounts aren't live yet. That line changes when they are.
+  - **Kept truthful:** while accounts were being built, it said they weren't live yet; it changed when they went live. It also says that guest settings stay in the browser, and that product data and photos load from DummyJSON's servers, which see those requests.
   - **Contact:** first a placeholder shown as plain text; since the revision round, the real address (`CONTACT_EMAIL` in `src/lib/contact.ts`) as a working mailto link.
 
-- **How accounts are built** (details in the Step 2 checklist at the top):
+- **How accounts are built:**
   - **Schema and RLS** are SQL migrations in `supabase/migrations/`, applied to both projects with the Supabase CLI. Every table has RLS, every policy checks ownership, and `anon` gets nothing.
     - **Orders** are updatable only in `cancelled_at`, and only during the 2-minute Preparing window.
     - **Returns** need a delivered, uncancelled order.
@@ -395,8 +305,21 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
     - **Reset:** `scripts/demo-reset.mjs` restores its data every 3 days, from the keep-alive workflow.
     - **Kept fresh:** Preparing and Shipped only last minutes. The demo has two fixed "live" orders, and when it signs in with nothing on its way, `refresh_demo_orders()` re-dates them: one placed now, one 3 minutes ago. That's a SECURITY DEFINER function that refuses every caller except the demo account. Nothing new is created, so the shared account doesn't pile up orders.
   - **Keep-alive:** a GitHub Actions workflow runs the demo reset every 3 days, which writes to the database and keeps the free project from pausing. The secret key reaches only that step, as an environment variable, and the script prints counts only.
-  - **Guarding secrets:** `scripts/check-secrets.mjs` runs before every commit. The session log in `.agent-logs/` is committed, so this guard matters.
-- **Testing:** the full verification runs on a `vite build --mode test` preview pointed at the separate plainly-test project; its account flows create and delete their own users. The live URL still gets one light smoke check.
+  - **Guarding secrets:** `scripts/check-secrets.mjs` runs before every commit. It reads the secret values from the local env files and fails if any appears in a tracked file or in `.agent-logs/`.
+  - **Log redaction:** the session logs in `.agent-logs/` are committed, so this guard matters. Once, the first four characters of the two database passwords were echoed into the session while debugging. The full values never appeared. The script now also redacts any four-character prefix of a secret in `.agent-logs/`, the logs were checked clean, and rotating both passwords was recommended. The final pass re-ran the check and searched the repo and logs for key-shaped strings (`sb_secret_`, `sbp_`, JWTs, GitHub tokens): none.
+- **A separate test project.** Verification never touches production. A second Supabase project, plainly-test, has the same migrations. `vite build --mode test` reads `.env.test.local`, which points the test build at it. The account flows in `verify.mjs` and `scripts/rls-test.mjs` create and delete their own users there with the test project's secret key. That key lives only in the gitignored `.env.test.local`. Production is touched only by the deployed app and the keep-alive workflow.
+- **Testing:** the full verification runs on that test build's local preview; the live URL gets one light smoke check.
+- **Built in checkpoints, in this order:**
+  - **0.** Setup: pinned `@supabase/supabase-js` and the Supabase CLI; `.env.test.local` pointed at plainly-test (it held production's URL and publishable key); production's "Confirm email" switched off, as decided; secret-scan guard.
+  - **1.** Migrations (schema, RLS, grants, demo lock) written and applied to plainly-test, then plainly. Three files in `supabase/migrations/` at this point (a fourth, for the demo's live orders, came with item 5), all applied to both projects; advisors clean. `scripts/rls-test.mjs` passed all 31 checks against plainly-test (33 once the demo function's checks were added). It caught that this project grants every table right to `authenticated` by default, which the third migration fixes.
+  - **2.** Supabase client and auth flows: sign in, sign up, sign out, Google, and email-dependent flows explained. `/signin` (with the demo note and "Sign in as demo"), `/signup` and `/auth/callback`, plus the Account menu's Sign in / Sign out. supabase-js loads on demand, so guests don't download it. Entry points stay hidden in production until item 7 (`src/lib/accounts.ts`); test builds (`vite build --mode test`, pointed at plainly-test) show them.
+  - **3.** Profile page: `/profile` for name and phone (saved to `profiles`, created on first use), the email shown read-only with why it can't change, and a password change with no email needed. The demo account gets notes instead of the email and password controls. It has an error state with Try again, and signed-out visitors go to sign-in and come back.
+  - **4.** Signed-in data in Supabase (addresses, orders, returns), and moving this browser's data into the account. `src/account/data.ts` holds the account copy and its writes; `src/account/hooks.ts` gives pages the same shapes whether the data is in the browser or the account. Every account page has loading and error states. After sign-in, a one-time dialog offers to move this browser's data, and an inline notice on Addresses and Orders keeps the offer open. The move is idempotent, and the browser's copy is cleared only after it succeeds. Checked end to end on plainly-test; all 67 existing flows still pass.
+  - **5.** Demo account: seed and reset script, sign-in page note, "Sign in as demo", README. `scripts/demo-reset.mjs` restores 3 addresses and lasting order states (delivered with a refunded return and a no-returns item, delivered and returnable, cancelled), using real catalog snapshots. It's idempotent and has been run on plainly-test; production is seeded by the workflow (item 6). On demo sign-in, when nothing is on its way, its two fixed live orders are re-dated to Preparing and Shipped by a demo-only database function; this replaced an earlier top-up that added new orders, see the bug log. The credentials are on the sign-in page and in the README.
+  - **6.** GitHub Actions: keep-alive and demo reset every 3 days, never printing the secret. `.github/workflows/keep-alive.yml`, pushed after the `gh` login got the `workflow` scope. Its first run created and seeded production's demo account; the log shows the key only as `***`. The demo was checked with the publishable key: 3 addresses, 3 orders, 1 return, and its password change is refused.
+  - **7.** Tests (sign-up, sign-in, sign-out, profile, data move, demo, RLS isolation), verification, docs, deploy.
+    - **7a.** Tests: 5 account flows in `verify.mjs` (run only against a `vite build --mode test` preview pointed at plainly-test; they create and delete their own users), plus `scripts/rls-test.mjs` (31 checks). All 72 flows pass. The flows found a real race: the confirm dialog ran its action on the dialog's `close` event, which fires a moment after the dialog disappears. It now runs on the click.
+    - **7b.** Accounts switched on (`src/lib/accounts.ts`). `/privacy` and the footer now say accounts are live. The decisions are recorded in this section. Verified on the test build: 154 scenes and 72 flows, including sign-in, sign-up and the demo's profile at every size, plus the RLS test. Deployed, with one live smoke check on `/signin`.
 - **Google sign-in, checked by hand** (it can't be automated). While the Google app is in "Testing", only listed test users can use it.
   1. On the live site, open Sign in: "Continue with Google" shows only when Google is enabled in the project.
   2. With a Google account listed as a test user: Continue with Google, pick the account, and you land back on the page you started from, signed in (Account menu shows your email).
@@ -415,26 +338,113 @@ Everything stays in this browser, like the cart, with no backend and no sign-in,
 - **Counts:** Delivered counts orders that still have a kept item, and Returns counts returned items, so no item is ever counted in two tabs.
 - **Everywhere:** it's one orders page over one data shape, so it works the same for guests, signed-in users and the demo's seeded orders. The demo's partly returned order (the CK One refunded, the mascara kept) is checked in the demo flow.
 
+### Revision round: twelve fixes from testing
+
+Twelve items from a full test of the live site, each built, verified and deployed on its own, in this order.
+
+- **1.** Privacy contact: the real address, as a working mailto link (`src/lib/contact.ts`, reused by `/accessibility`)
+- **2.** Select boxes: one consistent, themed chevron with padding (native selects kept). `src/components/Select.tsx`, used by quantity, sort and the return reason. The native arrow is hidden (`appearance: none`) and replaced by a `currentColor` chevron 12px from the edge, so it also shows in forced-colors mode. A flow checks all three, in both themes.
+- **3.** Account menu email: one line when it fits, ellipsis plus full address otherwise. The desktop menu widens to fit (`w-max`, 14–24rem). Truncation applies only past that, with the full address in the text and in a `title`. The phone menu follows the same rule. A flow checks a short and a 70-character address. (Also: verification now runs 10 scenes at a time instead of 6, since the machine has 12 cores. The same run went from 113s to 86s, well inside the 2-minute budget.)
+- **4.** Sign out at the bottom of the account menu, below a divider. In both menus the order is now: who's signed in, then Orders, Addresses, Profile, then Sign out. A flow checks the order and the divider.
+- **5.** "In stock" styled like the other decision-card facts. `StockNote` has a `fact` variant (surrounding size, text color), used in the decision card and, for consistency, on the compare page. "Only N left" and "Out of stock" keep the warning color at the same size. Cards still show only the exceptions, small. A flow compares the Stock value's size and color with the Warranty value's.
+- **6.** Lazy images. Native `loading="lazy"` alone started too early: Chrome loads anything within 1,250–2,500px, so a phone's first visit to the home page requested 16 photos and a desktop's 39, of 56. Photos now get their `src` only when they come within 300px of the screen (one shared IntersectionObserver, `src/lib/useNearViewport.ts`). In sideways rows, `scrollMargin` (where supported) preloads the next card; elsewhere, cards load as they scroll in. The first department card is in the first screen at every width, so its photos load right away. The product page's main photo is `eager` with `fetchpriority="high"`. Every photo sits in a square box sized before it loads, so nothing shifts (measured layout shift on the home page: 0 on a phone, 0.0002 on desktop). First load now: 8 photos on a phone (390×844), 32 at 1280×720 (24 of them in the first screen), 39 at 1440×900, where 32 are in the first screen. A flow counts image requests on the home page's first load at 390 and 1280px, checks that scrolling to and along a row loads more, and checks the main product photo's priority.
+- **7.** Horizontal rows on phones. The rows already had the page's 16px padding, but snapping ignored it: on load, the browser snapped the first card to the screen's edge, 16px left of the heading, and every swipe settled there too. Adding `scroll-padding-inline: 1rem` moves the snap line onto the page's left line. The rows now snap mandatorily, so a swipe always settles with a card on that line. Cards still run off the right edge to show there's more. A flow at 360 and 390px checks that the first card lines up with the heading, that the row runs off the right edge, and that a real touch swipe settles with a card on the line. Against the old build, it fails with "first card at 0px, heading at 16px".
+- **8.** Phone menu: a drawer from the right (`src/components/Drawer.tsx`), 85% wide up to 24rem, full height, over a dimmed backdrop; a tap on the backdrop closes it. It's a native modal `<dialog>` like the filter sheet: focus stays inside, Escape closes, and focus returns to the menu button. It slides in over 200ms, and not at all with reduced motion. From the top: "Menu" and a close button. Then the account area. Signed in, it shows an initial, the name, and the email below (each on one line with an ellipsis only when needed, as in item 3), or the email alone when there's no name. Signed out, it shows a full-width Sign in button. Then Orders, Addresses and Profile as 48px rows with an icon, 16px text and a chevron, then the theme choice. Sign out is pinned to the bottom below a divider. The language choice joins the theme choice in item 11. The name comes from the profile, loaded with the account data, falling back to the name given at sign-up, and it updates when Profile is saved. Focus rings use `:focus-visible` only, so none shows after a tap. Two flows cover it. The first checks position and width, the backdrop, the slide and reduced motion, row size and icons, the order of the parts, Tab staying inside with a ring, and Escape and backdrop-tap closing with focus returned. The second, signed in, checks the account area with and without a name, and Sign out at the bottom.
+- **9.** 404 page: an illustration (first the Gemini image on the light image tile; later redrawn as SVG, see Brand), "This page isn’t here" with a short, friendly explanation, its own search box, links to all 8 departments, and Back to home. The illustration is described in the Brand section. The search box is the header's form with its own id, a visible label and its own landmark name. The department list is named "Shop by department", because "Departments" was already the header bar's name; the new flow caught the duplicate. A flow checks the illustration, the title, all 8 links (one followed), and that the search box searches. The layout scene for the page now waits for the new heading.
+- **10.** Offline state. `src/lib/network.ts` follows the browser's `online`/`offline` events. A banner below the header (`OfflineBanner`, in an always-present `role="status"` region so screen readers announce it) says: "You’re offline. Your cart is saved in this browser, and pages you’ve already opened still work." That's true because the cart is in localStorage, every page's code is in the main bundle, and the catalog stays in memory once loaded. Photos that haven't loaded yet won't load, and a full reload offline doesn't work (there's no service worker; see "Considered, not now"). The banner goes as soon as the connection is back. Every account action checks first and, when offline, sends nothing and says "You’re offline, and this needs a connection. Nothing was changed; try again when you’re back online." This covers sign-in, sign-up, Google, profile load and save, password change, and address, order and return writes. A real network failure while offline gets the same words instead of "couldn’t reach the account service". Sign-out stays local and works offline. `?simulate=offline` forces the state for the tab (kept in sessionStorage, so it survives navigation) and adds "(simulated)" and an Exit simulation button, which also removes the parameter from the URL. The simulation doesn't block requests, so product data still loads; the README says so. Guest checkout works offline, because the order is kept in the browser. Three flows cover it: a real dropped connection (the banner comes and goes, and in-app navigation and the cart still work), the simulation (sign-in answers without sending any request, it lasts across pages, and Exit ends it), and, signed in, a profile save offline and then online. A layout scene checks the banner at 390 and 1440px in both themes.
+- **11.** English and Turkish throughout, with a picker, Turkish search synonyms and Turkish flows.
+  - **Catalogs:** `src/i18n/en.ts` holds every string of the interface, including `/privacy`, error and offline messages, aria-labels and page titles. `tr.ts` is typed as the same shape, so a missing Turkish string fails the build instead of showing a blank. Strings with numbers are functions. Plurals use `Intl.PluralRules`: Turkish nouns stay singular after a number ("3 ürün"), so both forms are the same there, but the rules still apply per language. No library: two languages and a typed object don't need one.
+  - **Switching:** `t` is a live binding. Switching replaces it and remounts the routes (`App.tsx` keys `RouterProvider` by language), so every string and format is read again. That keeps call sites plain (`t.cartPage.title`) instead of a hook in every component. The URL, the catalog cache and the stores (cart, compare, theme, orders) survive; half-typed form input doesn't, which is acceptable for a rare action. Two flags outside React (`i18n/switching.ts`) carry what the remount would lose: the picker that was used gets focus back, and the phone menu reopens if the switch happened there. Its close then returns focus to the menu button.
+  - **Formats:** prices use `Intl.NumberFormat` with USD in both languages ("$8.94", "$8,94"). Dates use `Intl.DateTimeFormat` ("Thu, Oct 8", "8 Eki Per"), as do ratings ("4.0", "4,0"). Percent discounts put the sign first in Turkish ("%10 indirim").
+  - **Choosing:** on the first visit, the first of `navigator.languages` that's English or Turkish wins, otherwise English. The choice is remembered in localStorage (`plainly-locale`), and `<html lang>` always matches. The picker is a radio group like the theme toggle: EN / TR in the desktop header next to the theme control (each named in its own language, "English" and "Türkçe", and marked with `lang`), and full names under Language in the phone menu, above the theme.
+  - **Product data:** titles, descriptions, reviews and brands stay in English. In Turkish, a small note above the description says so, and the footer mentions it. English data is marked `lang="en"` (card titles and brands, the product heading, description and reviews), so screen readers pronounce it right. That also fixed a real bug: Turkish uppercase turned brand names like "Gigabyte" into "GİGABYTE". Plainly's own readings of the data are translated where the phrasing is known: "No returns", "30-day returns", warranty periods and the six shipping phrases. The raw policy strings in "Shipping, returns and warranty" stay as the seller wrote them, and the Turkish note says they're in English. Category and department names are translated. The English category names are unchanged.
+  - **Search:** the synonyms telefon → smartphones, tişört and gömlek → mens-shirts, parfüm → fragrances and dizüstü → laptops were added, with their plural and multi-word forms. Turkish category and department names count as search terms in both languages. Queries and product text are folded (lowercase, diacritics removed, ı → i), so "tisort" finds "tişört". These words are in the typo-tolerance vocabulary, so "telefn" and "parfm" are corrected and understood.
+  - **Header:** with the language picker next to the theme control, the search box at 640px was squeezed to about 40px (Turkish labels are longer). From `sm` to `md`, search now has its own full-width row, as it does on phones. From `md` up it's one row again, with search at 178px or more at 768px.
+  - **Tests:** verification runs in English by default. `verify.mjs` pins the browser locale to en-US, because this machine's is Turkish and the first visit follows it. Four Turkish flows cover the first visit per browser language (tr, de and en-GB), switching in the header (focus kept, remembered after reload, arrow keys) and in the phone drawer (it stays open, and focus returns on close). They also cover Turkish prices, dates, plurals and facts with the English data note, the synonyms and typos, and a full Turkish checkout with validation. Turkish layout scenes (home, product, search, the open menu) get the overlap and axe audit.
+  - **Turkish strings to review:** listed at the end of this section.
+- **12.** Accessibility: `/accessibility`, linked from the footer and the phone menu, in English and Turkish.
+  - **Display settings** (`src/a11y/display.ts`), remembered in this browser and applied before first paint by the inline script in `index.html`, like the theme:
+    - **Text size:** Default, Large (112.5%) or Larger (125%). It's the root font size, so every rem-based size scales, spacing included.
+    - **Increased contrast:** new token values for light and dark. Every text color reaches 7:1 on surface and background, border-strong 8:1, and focus rings are 3px.
+    - **Reduce motion:** turns off every transition and animation even when the device allows motion. When off, the device's setting still applies, and the gallery's scripted scroll checks both.
+    - **Underline all links:** every link, including those styled as buttons or cards.
+    - **Reset to defaults**, with a status message.
+  - **Statement:**
+    - **Target:** WCAG 2.2 AA.
+    - **What's tested and how:** axe on every page with the 2.2 AA rules (the `wcag22aa` tag was added to `verify.mjs` for this; nothing new failed), the layout audit, the keyboard flows, the contrast values, and the reduced-motion checks for the drawer, tray and cart notice.
+    - **Known limitations,** said plainly: no screen-reader testing yet, Chromium only, product photos without descriptions, English product data in Turkish, and automated checks catch only part.
+    - **Contact:** the address from item 1, as a mailto link.
+  - **Largest text size:** a full run with `--display=larger,contrast`, a new `verify.mjs` flag that puts those settings on every page. The layout audit and axe were clean from the start, with no overlap, clipping or sideways scroll. Nine flows failed, and each was sorted:
+    - **One real breakage:** the header's search box at 768px was 31px wide. Media-query breakpoints don't follow the root font size, so the header now switches to one row with a container query in rem: 768px at default text, 960px at the largest.
+    - **Price on the first screen:** on phones, the price fell 19px below it, so at the largest size the gallery takes 36% of the height instead of 45%.
+    - **Pixel-based assertions:** four tests hard-coded pixel sizes (16px text, a 384px menu, the breadcrumb rule, a scroll position), and now use the root size or the underlying rule.
+    - **Settings flow:** the settings flow now runs without the forced settings.
+    - **Two load timeouts.**
+  - **One deliberate exception:** at the largest text size, the decision card's last fact on a 1024×768 screen is 19px below the fold. More text needs more room, as with zoom, and shrinking the desktop layout to avoid a short scroll would cost more than it saves. That one check is skipped at that size, with the reason in the test.
+  - **Runs:** both are green, the default (90s) and the largest text with increased contrast (104s). Turkish scenes include the new page.
+
+
+The round ended with both full runs green on the test build (default, and the largest text with increased contrast), one smoke check on live, and a deploy.
+
+**Follow-ups from testing:**
+- **Ratings on cards:** in Turkish, "3 değerlendirme" broke onto its own line on narrow cards. Cards (including the home rows) now show "★ 4.6 (3)" / "★ 4,6 (3)" on one line, with a full spoken label: "4.6 rating, 3 reviews" / "4,6 puan, 3 değerlendirme".
+- **Full wording:** the product page keeps "· 3 reviews", and the compare page "3 reviews". On both, the count and its word can't break apart.
+- **Test:** a flow checks cards at 360px in both languages (one line, the compact form, the spoken label) and the product page's no-break count.
+- **404 illustration:** redrawn as SVG (see Brand).
+
+**Second round of follow-ups:**
+- **404 illustration:** now the logo mark with a dashed outline for the missing middle bar (see Brand).
+- **Card alignment:** cards in a row stretch to the same height. The price was pushed to the bottom, so a card with a one-line title (Decoration Swing) had a large gap between rating and price. Now every line sits at the same height across a row:
+  - **Brand line:** it keeps its height when a product has no brand (empty and hidden from screen readers).
+  - **Title:** always exactly two lines (`line-clamp-2` with a two-line minimum height). Longer titles get an ellipsis, and the full title stays the link's text (its accessible name) and its tooltip.
+  - **Price:** it follows the rating with a small, fixed gap, and leftover space goes below Compare.
+  - **Where:** this applies to every product card, in search results and the home rows.
+  - **Test:** a flow checks brand, title, rating and price tops per row on the home page and a department, at 360, 1024 and 1440px, in both themes and languages. It also checks two-line titles with their tooltip, a gap of 12px or less, and a one-line list price.
+  - **Audit:** the layout audit now accepts a line clamp as intended when the full text is in a `title`, as it already did for a one-line ellipsis.
+- **List price:** "List price" / "Liste fiyatı" and its amount stay on one line, like the review count.
+
+#### Turkish strings to review
+
+Translated here, without a native reviewer. These are the ones I'd check first:
+
+- **"Oturum aç" / "Oturumu kapat"** (Sign in / Sign out). Correct, but Turkish shops more often say "Giriş yap" / "Çıkış yap".
+- **"Oturum açan"** (Signed in as), above the email in the menus. It reads a little stiffly.
+- **"İlgi düzeyi"** (sort by Relevance). Turkish shops often use "Önerilen" instead.
+- **"Spor ve outdoor"** (Sports & outdoors) uses the loanword. An alternative is "Spor ve doğa".
+- **"Üst giyim"** for DummyJSON's "tops" category, which holds only dresses and frocks.
+- **"Erkek gömlek ve tişörtleri"** (Mens shirts) is long on cards. "Erkek gömlekleri" is shorter, but misses the t-shirts.
+- **"Otomobiller"** (Vehicle category) vs **"Araçlar"** (the Vehicles department).
+- **"Eyalet ya da bölge"** (State or region). The address form is US-shaped; a Turkish address would use "İl".
+- **"Kargoda"** (Shipped) and **"Para iadesi yapıldı"** (Refunded) as status labels.
+- **"diğer değerlendiricilerin"** in the demo account notes means "other reviewers" of the project. It could be confused with product reviews ("değerlendirme").
+- **"Sayfa yolu"** as the breadcrumb's accessible name.
+- **"Filtreler, 2 tane uygulandı"** (Filters, 2 applied) on the phone filter button's accessible name.
+- **"Görünüm ayarları"** (Display settings) and **"Daha büyük"** (Larger text) on `/accessibility`.
+- **"atlama bağlantısı"** (skip link) and **"erişilebilirlik ağacı"** (accessibility tree) in the accessibility statement: technical terms; a native reader may prefer plainer wording.
+- **"görsel yüklediğiniz her sitede olduğu gibi"** (as any site you load images from does), the last clause of the DummyJSON sentence on `/privacy`. It's a bit loose.
+- **"5 üzerinden 4,0 puan, 3 değerlendirme"** and the short **"4,0 puan, 3 değerlendirme"**, the spoken rating labels.
+
 ## Changed from the proposal
 
 | # | Proposal | Decision | Why |
 |---|---|---|---|
 | 8 | Star distribution and filtering reviews by star | **Cut.** Show the real reviews, with a clear note that the rating is based on only 3 reviews. | DummyJSON has exactly 3 reviews per product. A distribution chart built from 3 data points is the kind of noise this product rejects. |
-| 9 | A full return flow from the order page | **Simplified.** The orders page shows each item's return policy and whether its return window is still open, counted from the order date. | This answers "can I still return this?" without building a flow the mock backend can't carry out. |
+| 9 | A full return flow from the order page | **First simplified, then built per item.** At first the orders page only showed each item's return policy and whether its window was still open. Later, per-item returns came with a reason, Requested → Refunded on the simulated timeline, and a Returns tab. Replacements are still out. | The first version answered "can I still return this?" cheaply. Once order management existed, returns fit the same simulated timeline. |
 
 ## Considered, not now
 
-- **Full return flow:** return reasons, return status, and a replacement option.
+- **Replacements in returns.** Returns with reasons and statuses were built; offering a replacement item instead of a refund wasn't, since there's no stock to reserve.
 - **Star distribution for reviews:** not meaningful with 3 reviews per product (see #8).
 - **Lists and wishlists.** (Sign-in and per-user addresses moved out of this list: see "Accounts, reversed from Cut".) Originally: **Accounts and lists:** sign-in, saved addresses per user, wishlists. Guest use with localStorage covers the core loop.
-- **Wallet and loyalty points.** Payment is simulated and there's no account yet, so a balance or points would be made-up numbers, not a fact to shop by.
+- **Wallet and loyalty points.** Payment is simulated, so a balance or points would be made-up numbers, not a fact to shop by, even with accounts.
 - **Third-party accessibility overlay widgets.** These are scripts that add a toolbar or "fix" pages automatically. They don't repair the underlying code. They often conflict with the screen readers and settings people already use, and they add a third-party script that sees every page. Many disabled users and accessibility experts advise against them (see the Overlay Fact Sheet). Plainly builds accessibility into its own components instead, and offers four display settings that change only its own CSS.
 - **A service worker, so a reload works offline.** The offline banner covers the common case, a connection dropping mid-visit. Caching the app shell and catalog for offline reloads would add a cache-invalidation layer to a site that deploys on every push, and a stale catalog would show prices and stock that may have changed.
+- **Switching to a product API with a larger catalog.** DummyJSON's 194 products are small for a store. The free alternatives either have fewer products (Fake Store API has 20) or lack the fields this product is built on: return policy, shipping time, warranty, stock and reviews. Platzi's Fake Store, for one, has titles, prices and images, but none of those. The decision card, the compare rows, the delivery estimates, the return windows and the honest ratings all come from those fields. A bigger catalog would have meant less truth per product, or inventing the missing fields, which is exactly what Plainly is against.
 - **A "Best sellers" sort.** DummyJSON has no sales data. Any popularity ranking would have to be invented, from stock, rating or the order of the data, and presenting a made-up signal as popularity is exactly the noise Plainly rejects. The sorts stay relevance, price, rating and discount, each computed from data the page shows.
 
 ## Build order
 
-The work runs in this order. Each step ends with a deploy, so there is always a working live URL.
+The work ran in this order. Each step ended with a deploy, so there was always a working live URL. The planned steps were 1–7 and a final pass; accounts and the revision round came from testing the live site.
 
 | Step | Ships |
 |---|---|
@@ -445,7 +455,11 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 | 5 | Compare tray |
 | 6 | Return policy and return window on orders, home page, then a polish pass: mobile layout, loading, empty and error states, keyboard and accessibility |
 | 7 | Changes from testing the live site, in this order: breadcrumbs, the 10%+ off sale filter, a two-row phone header with a menu, category-aware search, the department as navigation context, and a device-matched "System" theme icon; then the sale view as context (the context-vs-filter rule), typo-tolerant search, and a two-step category filter, compare limited to one department, on phones a photo-first product page with a swipeable gallery, cart feedback (toast, in-cart line, mini-cart), and an address book, order management and Account menu |
-| 8 | No new features. Bug fixes, README, final deploy |
+| 8 | Accounts on Supabase (reversed from Cut), in checkpoints: setup and the separate test project, migrations with RLS and the isolation test, auth flows, Profile, signed-in data and moving the browser's data in, the demo account and its reset, the keep-alive workflow, tests, then switching accounts on |
+| 9 | Returns only under Returns, per item |
+| 10 | The revision round, twelve items in order: privacy contact, select chevrons, account menu email, Sign out last, stock as a fact, lazy images, row snapping, the phone drawer, the 404 page, the offline state, English and Turkish, and accessibility settings and statement |
+| 11 | Follow-ups from testing: compact ratings on cards, card line alignment, list price on one line, and the 404 illustration redrawn twice |
+| 12 | No new features. Final pass: docs brought up to date, privacy rechecked, repo hygiene, one live check of every page, the purchase path and the demo |
 
 **If something has to be cut, cut in this order:**
 1. Return window on orders
@@ -462,7 +476,9 @@ The work runs in this order. Each step ends with a deploy, so there is always a 
 ## Deployment notes
 
 - **Vercel Security Checkpoint.** After the compare tray was deployed, production started answering this machine's automated requests with a 403 "Vercel Security Checkpoint" page. That meant both `curl` and the headless Chromium in `verify.mjs`, so every live check timed out. Repeated full verification runs against production had most likely been flagged as bot traffic. Vercel reported the deployment as successful, and the site opened normally in a regular browser: the checkpoint blocked verification, not real visitors.
-- **Since then:** the full verification (every scene and flow) runs against a local preview build (`vite preview`) of the commit being deployed. The live URL gets a single light smoke check at the end (`verify.mjs --smoke`: the home page in light mode at 1440 px), so automated traffic to production stays minimal.
+- **Since then:** the full verification (every scene and flow) runs against a local preview build (`vite preview`) of the commit being deployed. The live URL gets a single light smoke check at the end (`verify.mjs --smoke[=scene]`: one page in light mode at 1440 px), so automated traffic to production stays minimal.
+- **Deploys:** every push to `main` deploys to production on Vercel; a deploy is confirmed by the commit's status on GitHub before the smoke check.
+- **Final live check:** once, from a fresh browser with no cookies or storage, and not blocked by the checkpoint. Every page loaded as a direct deep link in light, dark, English and Turkish, the guest purchase path completed, the demo sign-in and sign-out worked, and the 404 and offline simulation rendered: 297 checks, no problems.
 
 ## Bug log
 

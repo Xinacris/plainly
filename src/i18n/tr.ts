@@ -615,7 +615,7 @@ export const tr: Messages = {
     demo: 'Plainly gerçek bir mağaza değil, bir portfolyo projesidir. Ürünler ve değerlendirmeler DummyJSON’ın herkese açık örnek API’sinden gelir. Sipariş ettiğiniz hiçbir şey gönderilmez ve hiçbir ücret alınmaz.',
     guestHeading: 'Oturum açmazsanız',
     guest:
-      'Sepetiniz, kayıtlı adresleriniz, siparişleriniz ve iadeleriniz yalnızca bu tarayıcıda (yerel depolamasında) saklanır. Cihazınızdan hiç çıkmazlar ve tarayıcınızın site verilerini temizlemek onları siler.',
+      'Sepetiniz, kayıtlı adresleriniz, siparişleriniz ve iadeleriniz ile ayarlarınız (tema, dil, görünüm ayarları ve karşılaştırdığınız ürünler) yalnızca bu tarayıcıda (yerel depolamasında) saklanır. Cihazınızdan hiç çıkmazlar ve tarayıcınızın site verilerini temizlemek onları siler.',
     signedInHeading: 'Oturum açarsanız',
     signedInLead: 'Oturum açmak isteğe bağlıdır. Açtığınızda hesabınız şunları saklar:',
     stores: [
@@ -629,7 +629,7 @@ export const tr: Messages = {
     google:
       '“Google ile devam et”i seçerseniz Google bizimle yalnızca adınızı ve e-posta adresinizi paylaşır. Google şifrenizi ya da Google hesabınızdaki başka bir şeye erişimi almayız.',
     dontHeading: 'Yapmadıklarımız',
-    dont: 'Verilerinizi kimseye satmayız ya da paylaşmayız, reklam göstermeyiz, izleme ya da analiz çerezleri kullanmayız. Site Vercel’de barındırılır; Vercel hizmeti yürütmek için standart istek kayıtları (IP adresi, zaman ve sayfa gibi) tutar.',
+    dont: 'Verilerinizi kimseye satmayız ya da paylaşmayız, reklam göstermeyiz, izleme ya da analiz çerezleri kullanmayız. Site Vercel’de barındırılır; Vercel hizmeti yürütmek için standart istek kayıtları (IP adresi, zaman ve sayfa gibi) tutar. Ürün bilgileri ve fotoğrafları doğrudan DummyJSON’ın sunucularından yüklenir, bu yüzden DummyJSON bu istekleri görür; görsel yüklediğiniz her sitede olduğu gibi.',
     paymentsHeading: 'Ödemeler',
     payments: 'Ödemeler simüle edilir. Kart formu yoktur ve hiçbir zaman ödeme bilgisi istemez ya da saklamayız.',
     deleteHeading: 'Hesabınızı ve verilerinizi silmek',
