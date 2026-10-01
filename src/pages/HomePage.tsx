@@ -73,7 +73,7 @@ function ProductRow({ title, note, seeAll, products }: { title: string; note: st
       {/* Scrolls sideways; tabbing through the cards scrolls it too. The row runs to
           the screen's edges, but its padding puts the first card on the same left line
           as the heading, and scroll-padding makes every snap land on that line too. */}
-      <ul className="-mx-4 mt-3 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-3">
+      <ul className=" mt-3 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto pb-3">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} className="w-44 shrink-0 snap-start sm:w-52" />
         ))}
